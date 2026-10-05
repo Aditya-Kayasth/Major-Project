@@ -1,0 +1,1211 @@
+CRL.M.C. 3880/2025            Page 1 of 38 
+                                                                                   
+$~ 
+* IN THE HIGH COURT OF DELHI AT NEW DELHI 
+%                               Judgment reserved on: 16.12.2025 
+             Judgment pronounced on: 11.03.2026 
+        Judgment uploaded on: 13.03.2026 
++  CRL.M.C. 3880/2025 & CRL.M.A. 16947/2025 
+ MINOR CHILD K & ORS.          .....Petitioners 
+Through: Mr. Nitin Saluja, Ms Nimisha 
+Menon, Ms Pranya Madan and 
+Ms Ankita Talukdar, Advs. 
+ 
+    versus 
+ 
+ STATE NCT OF DELHI & ORS.      .....Respondents 
+Through: Mr. Manoj Pant, APP for the 
+State along with SI Sonia. 
+ Ms. Prachi Dubey, Amicus 
+Curiae 
+ 
+CORAM: 
+HON'BLE DR. JUSTICE SWARANA KANTA SHARMA 
+J U D G M E N T 
+Index to the Judgment 
+FACTUAL BACKGROUND ................................................................... 3 
+SUBMISSIONS BEFORE THE COURT .............................................. 5 
+ANALYSIS & FINDINGS .................................................................... 11 
+A. Vulnerable Witnesses in Criminal Justice System: Scope and Judicial 
+Approach ............................................................................................................ 11 
+B. Safeguards under the POCSO Act to Protect Child Victims During 
+Trial ...................................................................................................................... 18 
+C. Use of Video Conferencing for Examination of Vulnerable  
+Witnesses ............................................................................................................. 22
+
+CRL.M.C. 3880/2025            Page 2 of 38 
+                                                                                   
+D. Presence of Victim during Bail Hearings in Cases of Sexual  
+Offences .............................................................................................................. 31 
+E. Conclusion ................................................................................................... 36 
+ 
+DR. SWARANA KANTA SHARMA, J 
+1. By way of the present petition, the petitioners have approached 
+this Court seeking, firstly, the setting aside of the bailable  warrants 
+dated 22.04.2025 issued against petitioner no. 1 in SC Case No. 622 
+of 2022, by the learned ASJ (SC -POCSO), South East, Saket Courts, 
+Delhi [hereafter ‗ Trial Court ‘]. The petitioners, in prayer (b), have 
+also prayed that appropriate directions be  issued to the learned Trial 
+Courts to ensure strict compliance with the principles laid down by 
+the Coordinate Bench of this Court in XXXX v. State: Crl.A. 
+198/2020 (order dated 11.01.2023)  as well as the guidelines framed 
+by the Hon‘ble Supreme Court in Smruti Tukaram Badade v. State 
+of Maharashtra:  (2022) 18 SCC 24 , and the judgment of the 
+Coordinate Bench in Vikas v. State of Delhi:  2020:DHC:3058, 
+particularly with regard to safeguarding the interests of child victims 
+during trial. In addition, by virtu e of prayer (c), the petitioners pray 
+for passing of further directions/guidelines that in proceedings under 
+the Protection of Children from Sexual Offences Act, 2012 [hereafter 
+‗POCSO Act‘], where repeated adjournments sought by the accused 
+or their couns el delay the examination of minor victims, the learned 
+Trial Courts may permit the cross -examination of such victims to be 
+conducted through video-conferencing.
+
+CRL.M.C. 3880/2025            Page 3 of 38 
+                                                                                   
+FACTUAL BACKGROUND 
+2. The brief facts of the case, as set out in the petition, are that on 
+06.08.2022, a missing complaint was lodged at the Police Station 
+(P.S.) Defence Colony by Mr. S.K., the father of petitioner no. 1, 
+along with Ms. B.K., the grandmother of petitioner no. 3, and Ms. 
+S.P., the sister of petitioner no. 2. It was reported that the th ree 
+petitioners, who are minor girls, had gone missing. On the basis of 
+the said complaint, the FIR bearing no. 153/2022 was registered 
+under Section 363 of the Indian Penal Code, 1860 [hereafter ‗ IPC‘]. 
+It is stated that on 08.08.2022, the three missing m inor girls were 
+traced at P.S. Karol Bagh and were thereafter brought to P.S. Defence 
+Colony. Their statements under Section 161 of the Code of Criminal 
+Procedure, 1973 [hereafter ‗ Cr.P.C.‘] were recorded at P.S. Defence 
+Colony on 09.08.2022 and 10.08.2022 . In these statements, it was 
+disclosed that the minor children had allegedly been repeatedly 
+sexually abused, assaulted and criminally threatened by five accused 
+persons over a period of two days. At the relevant time, all the three 
+children were about 15  years of age. Consequent to these statements 
+made by the petitioners on 09.08.2022 and 10.08.2022, offences 
+under Sections 342, 328, 366A, 370, 376, 506 and 120B of the IPC, 
+as well as Section 6 of the POCSO Act, were added to the FIR. 
+Thereafter, the statements of the petitioners were also recorded under 
+Section 164 of the Cr.P.C. on 10.08.2022. In their statements, the 
+petitioners stated that on 06.08.2022 and 07.08.2022 they had been 
+sexually assaulted by respondent nos. 5 and 6 and were criminally
+
+CRL.M.C. 3880/2025            Page 4 of 38 
+                                                                                   
+threatened by respondent no. 4. In their respective statements, all 
+three minor victims narrated the incidents, and it is stated that their 
+versions broadly corroborated each other.  
+3. As noted above, the present petition was filed inter alia  
+challenging the order dated 22.04.2025 passed by the learned Trial 
+Court, by way of which bailable warrants in the sum of 75,000/- were 
+issued against petitioner no. 1, who is one of the minor victims and a 
+prosecution witness (PW-2). Before proceeding further, it is pertinent 
+to note that vide order dated 28.05.2025, this Court had allowed 
+prayer (a) and set aside the bailable warrants issued against the 
+petitioner no. 1. However, the matter was thereafter taken up in 
+respect of other prayers.  
+4. Apart from  seeking quashing of the aforesaid bailable 
+warrants, the petitioners have also prayed that this Court issue 
+appropriate directions to ensure compliance with the ratio laid down 
+by the Coordinate Bench of this Court in XXXX v. State (supra), 
+particularly with regard to limiting and minimizing the presence of 
+child victims during court proceedings, as well as the guidelines 
+framed by the Hon‘ble Supreme Court and this Court with regard to 
+safeguarding the interests of child victims during trial.  
+5. On 04.08.20 25, this Court had appointed Ms. Prachi Dubey, 
+Advocate as Amicus Curiae to assist the court on prayers (b) and (c) 
+sought by the petitioners.
+
+CRL.M.C. 3880/2025            Page 5 of 38 
+                                                                                   
+SUBMISSIONS BEFORE THE COURT 
+6. The learned counsel appearing for the petitioners submits that 
+the petitioners were minor girls aged about 15 years at the time of the 
+alleged incident and had allegedly been subjected to sexual abuse and 
+criminal intimidation by the accused persons during the period 
+between 06.08.2022 and 08.08.2022. It is submitted that pursuant to 
+investigation, a chargesheet was filed on 01.09.2022 against 
+respondent nos. 2 to 5, followed by a supplementary chargesheet 
+dated 02.02.2023 against respondent no. 6. Thereafter, charges under 
+the IPC and the POCSO Act were framed against respondent nos. 2 
+to 6 on 19.10.2023. It is further submitted that after the framing of 
+charges, the petitioners were repeatedly summoned by the Trial Court 
+for the purpose of recording their evidence. In this regard, it is stated 
+that petitioner no. 1 was summoned on nine o ccasions, petitioner no. 
+2 on four occasions, and petitioner no. 3 on six occasions before their 
+testimonies could ultimately be recorded and concluded. The learned 
+counsel submits that such repeated summoning of the minor victims 
+caused considerable distr ess to them. The learned counsel also 
+submits that the Trial Court had insisted upon the presence of the 
+petitioners, either physically or through virtual mode, on several 
+occasions even during the hearing of bail applications moved on 
+behalf of the accuse d persons, despite the petitioners being 
+represented through counsel. It is contended that the accused persons 
+had repeatedly moved bail applications which were thereafter 
+withdrawn, resulting in the child victims being required to appear
+
+CRL.M.C. 3880/2025            Page 6 of 38 
+                                                                                   
+before the Court on multiple occasions. It is further submitted that 
+vide the impugned order dated 22.04.2025, the Trial Court dismissed 
+an application seeking exemption on behalf of petitioner no. 1 and 
+issued bailable warrants in the sum of ₹5,000/ - against her, despite it 
+being brought to the notice of the Court that she was not in a proper 
+mental and emotional condition to depose, which order was 
+subsequently set aside by this Court on 28.05.2025. It is also pointed 
+out that the testimonies of all three child victims we re eventually 
+recorded and concluded only after a considerable period from the 
+date when they were first summoned. The learned counsel for the 
+petitioners further submits that the learned Trial Court failed to 
+adhere to the safeguards laid down by the Hon‘ ble Supreme Court in 
+Smruti Tukaram Badade v. State of Maharashtra  (supra) as well as 
+the Guidelines for Recording of Evidence of Vulnerable Witnesses in 
+Criminal Matters, 2024 issued by this Court. It is also contended that 
+the repeated summoning of the c hild victims, including during bail 
+proceedings, was contrary to the ratio laid down by the Coordinate 
+Bench in XXXX v. State (supra) 
+7. The learned counsel appearing for the petitioners has also 
+placed certain suggestions before this Court with regard to 
+strengthening the manner in which evidence of child victims is 
+recorded in cases under the POCSO Act. It is submitted that despite 
+the object of the POCSO Act to ensure a child -friendly and dignified 
+process, certain systemic issues continue to persist, such as lack of 
+uniform procedures for examination of child victims, repeated
+
+CRL.M.C. 3880/2025            Page 7 of 38 
+                                                                                   
+adjournments resulting in re -traumatisation, and absence of effective 
+accountability where child victims are summoned repeatedly. In this 
+context, the learned counsel has suggested th at at the stage of 
+cognizance or framing of charge, the Special Courts may pass a 
+POCSO Witness Schedule Order, fixing in advance the dates for 
+examination and cross -examination of the child victim and other 
+vulnerable witnesses so that their evidence can be planned and 
+recorded in a structured manner. It is further suggested that the 
+testimony of child victims should be completed on proximate and 
+sequential dates, preferably over consecutive days or within a short 
+span, so as to avoid repeated court appear ances and prolonged 
+exposure of the child to the trial process. The learned counsel has 
+also submitted that there should be strict restriction on repeated 
+summoning of child victims, particularly after their testimony has 
+been recorded, and their personal presence during interlocutory 
+proceedings such as bail hearings should ordinarily not be insisted 
+upon where they are represented through counsel or guardian, in line 
+with the ratio laid down in XXXX v. State (supra). Another 
+suggestion placed before this Court relates to psychosocial safeguards 
+for child victims, including liberal consideration of exemption 
+requests during periods of examinations, medical treatment or 
+psychological distress, and consultation with the support person 
+before requiring the chi ld to appear. It is also suggested that delays 
+and adjournment requests by the defence should be strictly regulated, 
+and where repeated adjournments lead to delay in cross -examination
+
+CRL.M.C. 3880/2025            Page 8 of 38 
+                                                                                   
+of a child witness, appropriate measures may be adopted, including 
+closing the opportunity for cross -examination or permitting such 
+cross-examination through video conferencing or at a Vulnerable 
+Witness Deposition Centre. Lastly, the learned counsel has suggested 
+the creation of a system of documentation and monitoring, inclu ding 
+maintenance of a witness -tracking sheet in each POCSO case and 
+periodic reporting or compliance mechanisms to ensure adherence to 
+the safeguards envisaged under Sections 33(5) and 35 of the POCSO 
+Act. 
+8. The learned Amicus Curiae has also assisted this Court and has 
+placed on record detailed written submissions, along with several 
+suggestions and proposed procedural safeguards concerning the 
+examination of vulnerable witnesses in cases under the POCSO Act. 
+The said submissions and suggestions have been pe rused by this 
+Court. The learned Amicus Curiae submits that the protection of 
+children within the criminal justice process flows from the 
+constitutional guarantees under Articles 14, 15(3), 21 and 39(f) of the 
+Constitution of India. It is submitted that the framework laid down by 
+the Hon‘ble Supreme Court in Smruti Tukaram Badade v. State of 
+Maharashtra (supra) and the judgment of this Court in Vikas v. 
+State  (supra) emphasise that the criminal process must ensure that 
+child victims are protected from seco ndary victimisation while at the 
+same time preserving the right of the accused to a fair trial. It is 
+further submitted that while several High Courts have framed 
+guidelines for examination of vulnerable witnesses, the
+
+CRL.M.C. 3880/2025            Page 9 of 38 
+                                                                                   
+implementation of such mechanisms rem ains uneven, and therefore 
+there is a need for uniform procedural standards.  
+9. The learned Amicus Curiae has particularly emphasised the 
+importance of establishing and operationalising Vulnerable Witness 
+Deposition Centres (VWDCs) in every district. It is s ubmitted that 
+such centres should provide a safe and child-friendly environment for 
+recording the testimony of vulnerable witnesses through video -link 
+facilities, with appropriate infrastructure, trained personnel and 
+counselling support. According to the learned Amicus Curiae, the 
+testimony of child victims should ordinarily be recorded through 
+video-conferencing from such centres, so that their physical presence 
+in open court can be avoided as far as possible. It is also suggested 
+that the trial court may  undertake certain pre -trial management 
+measures, such as holding a pre -trial conference to determine the 
+mode and schedule of testimony, conducting a brief psychological 
+assessment of the child through a trained counsellor, and arranging an 
+orientation session for the child to familiarise them with the process 
+before the recording of evidence. With regard to the recording of 
+evidence, the learned Amicus Curiae submits that if a properly video-
+recorded statement under Section 164 of the Cr.P.C. is made 
+available, it may be considered as the examination -in-chief of the 
+child, while preserving the right of the accused to cross -examine the 
+witness. It is suggested that the evidence of the child should be 
+recorded through secure video -link systems, with appropri ate 
+safeguards relating to recording, storage and chain of custody of such
+
+CRL.M.C. 3880/2025            Page 10 of 38 
+                                                                                   
+electronic evidence. The learned Amicus Curiae has further 
+submitted that the mode of cross -examination of child witnesses may 
+be suitably regulated. It is suggested that cross -examination may, 
+where necessary, be conducted through an intermediary or with the 
+assistance of the presiding judge, and that questions intended to be 
+put to the child may be filed in advance so that the Court can ensure 
+that irrelevant or harassing questions  are not asked. It is also 
+suggested that the duration and number of sessions for cross -
+examination may be suitably regulated to prevent undue stress to the 
+child. Another aspect highlighted by the learned Amicus Curiae 
+concerns the recall of child witness es under Section 311 of the 
+Cr.P.C. It is submitted that such recall should be treated as an 
+exceptional measure and permitted only when the Court is satisfied 
+that it is essential for a just decision of the case and cannot be 
+achieved through less intrusi ve alternatives such as video -link 
+questioning or reliance on previously recorded evidence. In 
+conclusion, the learned Amicus Curiae has suggested that this Court 
+may consider issuing appropriate practice directions or a Standard 
+Operating Procedure for al l Special Courts dealing with cases under 
+the POCSO Act in the National Capital Territory of Delhi.  
+10. This Court has heard and considered the submissions made 
+before this Court by the learned counsel for the petitioners as well as 
+the learned Amicus Curiae.
+
+CRL.M.C. 3880/2025            Page 11 of 38 
+                                                                                   
+ANALYSIS & FINDINGS 
+11. The criminal justice system has, over time, increasingly 
+recognised that certain witnesses, particularly victims of sexual 
+offences and children, require special procedural protection while 
+participating in the court proceedings. The c oncept of a ―vulnerable 
+witness‖ has evolved through judicial pronouncements which 
+acknowledge that the ordinary processes of a criminal trial may cause 
+intimidation, embarrassment or psychological distress to such 
+witnesses. 
+A. Vulnerable Witnesses in Criminal Justice System: Scope and 
+Judicial Approach 
+12. One of the early judicial recognitions of this concern came in 
+the case of State of Punjab v. Gurmit Singh:  (1996) 2 SCC 384 , 
+where the Hon‘ble  Supreme Court emphasised that trials of rape 
+cases must ordinarily be conducted in camera in terms of Section 327 
+of the Cr.P.C. It was highlighted that such proceedings help create a 
+more comfortable and dignified environment for the victim to depose 
+and reduce the embarrassment that may arise from testifying in open 
+court. The Hon‘ble Supreme Court had also stressed the importance 
+of protecting the identity of victims of sexual offences and ensuring 
+that court procedures do not aggravate their trauma. Th e Hon‘ble 
+Supreme Court further developed these principles in Sakshi v. Union 
+of India: (2004) 5 SCC 518 , where it recognised that the process of 
+giving evidence in cases of sexual assault and child abuse must be
+
+CRL.M.C. 3880/2025            Page 12 of 38 
+                                                                                   
+made sensitive to the psychological state o f the victim. It was 
+observed that mere presence of the accused in full view may induce 
+fear in the mind of the victim and hamper truthful testimony. In view 
+thereof, the Hon‘ble Supreme Court had issued certain directions to 
+ensure a child -friendly proced ure during trial, including that: (i) 
+appropriate arrangements such as screens may be used so that the 
+victim or vulnerable witness does not have to directly face the 
+accused while giving evidence; (ii) questions in cross -examination 
+may, where necessary, be given in writing and put to the witness by 
+the presiding judge in appropriate language; and (iii) sufficient breaks 
+should be allowed to the victim while recording testimony.  
+13. Subsequently, in State of Maharashtra v. Bandu @ Daulat:  
+(2018) 11 SCC 163 , t he Hon‘ble Supreme Court took note of the 
+mechanism developed by the Delhi High Court for recording the 
+testimony of vulnerable witnesses and endorsed the need for 
+establishing special centres for examination of vulnerable witnesses. 
+The Supreme Court note d that such facilities would provide a 
+conducive environment for vulnerable witnesses to depose and 
+directed the High Courts across the country to consider adopting 
+similar mechanisms and to take steps towards establishing such 
+centres in their respective jurisdictions. 
+14. A significant advancement in this area came with the decision 
+of the Hon‘ble Supreme Court in Smruti Tukaram Badade v. State 
+of Maharashtra: (2022) 18 SCC 24 . In the said decision, it was 
+emphasised that there was a need for creating a suppo rtive
+
+CRL.M.C. 3880/2025            Page 13 of 38 
+                                                                                   
+environment for recording the testimonies of vulnerable witnesses. 
+The Supreme Court also expanded the scope of the term ―vulnerable 
+witness‖ and held that it is not confined to children alone but may 
+include victims of sexual offences, persons suffe ring from mental 
+illness, individuals with disabilities, witnesses facing threat 
+perception under the Witness Protection Scheme, and any other 
+witness who may be considered vulnerable by the court. The Court 
+further directed all High Courts to adopt and no tify schemes for 
+establishing Vulnerable Witness Deposition Centres (VWDCs) so as 
+to facilitate safe and sensitive recording of evidence of such 
+witnesses. It was inter alia held as under: 
+―3. The fairness of the process of trial as well as the pursuit of 
+substantive justice are determined in a significant measure by 
+the manner in which statements of vulnerable witnesses are 
+recorded. The dignity of person, which is an intrinsic element 
+of Article 21 of the Constitution, cannot be left to the vagaries 
+of insensitive procedures and a hostile environment. Access to 
+justice mandates that positive steps have to be adopted to create 
+a barrier free environment. These barriers are not only those 
+which exist within the physical spaces of conventional courts 
+but those which operate on the minds and personality of 
+vulnerable witnesses. There is a pressing need to facilitate the 
+salutary purpose underlying the creation of a barrier free 
+environment where depositions can be recorded freely without 
+constraining limitations, both physical and emotional. This 
+requires not just the creation of infrastructure but sensitizing all 
+stakeholders. 
+4. This Court issued notice to all the High Courts in pursuance 
+of wh ich they have appeared through Counsel. Based on the 
+material which has been placed before the Court, Ms. Vibha 
+Datta Makhija, amicus curiae, has prepared a tabulated 
+statement of the position of infrastructure in various High 
+Courts as of 25 October 2021.  A copy of the tabulated 
+statement is annexed as a broad indicator at Annexure ‗A‘ to
+
+CRL.M.C. 3880/2025            Page 14 of 38 
+                                                                                   
+this order. Based on the deliberations which have taken place 
+during the course of proceedings in the Court, the suggestions 
+which have been proposed by the amicus curiae  and the 
+responses of some of the Counsel who have appeared on behalf 
+of the High Courts, the following directions are issued under 
+Article 142 of the Constitution in furtherance of the earlier 
+decisions of this Court. These are intended to facilitate the 
+implementation of the directions which were rendered on 24 
+October 2017 in Bandu (supra) and earlier in other decisions. 
+5. The directions are enumerated below: 
+(i) The definition of ―vulnerable witness‖ contained in Clause 
+3(a) of the ‗Guidelines for reco rding evidence of vulnerable 
+witnesses in criminal matters‘ of the High Court of Delhi shall 
+not be limited only to child witnesses who have attained the 
+age of 18 years and should be expanded to include, inter alia, 
+the following categories of vulnerable witnesses: 
+(a) Age neutral victims of sexual assault read with Sections 
+273 and 327 of the Code of Criminal Procedure 1973 and 
+Section 354 of the Penal Code, 1860; 
+(b) Gender neutral victims of sexual assault read with 
+Section 2(d) of the Protection of Chi ldren from Sexual 
+Offences Act, 2012; 
+(c) Age and gender neutral victims of sexual assault under 
+Section 377 of the Penal Code, 1860read with paragraph 
+34(1) of the decision in Sakshi (supra); 
+(d) Witnesses suffering from ―mental illness‖ as defined 
+under Section 2(s) of the Mental Healthcare Act, 2017 read 
+with Section 118 of the Indian Evidence Act, 1872; 
+(e) Any witness deemed to have a threat perception under 
+the Witness Protection Scheme 2018 of the Union 
+Government as approved by this Court in Mahender 
+Chawla v. Union of India; 
+(f) Any speech or hearing impaired individual or a person 
+suffering from any other disability who is considered to be 
+a vulnerable witness by the competent court; and 
+(g) Any other witness deemed to be vulnerable by the 
+concerned court. 
+(ii) The High Courts shall adopt and notify a Vulnerable 
+Witnesses Deposition Centres Scheme within a period of two 
+months from the date of this order unless a scheme is already
+
+CRL.M.C. 3880/2025            Page 15 of 38 
+                                                                                   
+notified. The High Courts which already have existing VWDC 
+Schemes in place may consider making suitable modifications 
+in conformity with the guidelines which are indicated in the 
+present order. In formulating the VWDC Scheme, the High 
+Courts shall have due regard to the scheme which has been 
+formulated by the High Court of  Delhi, which has been duly 
+approved in the judgment of this Court in Bandu (supra); 
+(iii) Every High Court should set up an in -house permanent 
+VWDC Committee for continuously supervising the 
+implementation of the present directions and making a periodic 
+assessment of the number of VWDCs required in each district 
+proportionate to the time required for recording evidence of 
+vulnerable witnesses and to coordinate the conduct of periodic 
+training programmes; 
+(iv) Every High Court is requested to make an estima tion of 
+costs towards manpower and infrastructure required to set up at 
+least one permanent VWDC in every establishment of the 
+District Court (or additional Sessions Court establishments) 
+and estimate the optimal number of VWDCs required for the 
+entire State within a period of three months; 
+(v) Having due regard to the importance of conducting periodic 
+training programmes for manning and managing the VWDCs 
+and sensitizing all stake holders, including judicial officers, 
+members of the Bar and the staff of the court establishment, we 
+constitute a Committee chaired by Justice Ms. Gita Mittal, 
+former Chief Justice of the Jammu and Kashmir High Court. 
+The Committee shall devise and implement an All India 
+VWDC Training Programme, besides engaging with the High 
+Courts on the creation of infrastructure for VWDCs. The initial 
+tenure of the Chairperson shall be for a period of two years. All 
+High Courts or concerned role assignees shall facilitate and 
+give full cooperation in conducting training programmes in 
+terms of the module which may be prepared by the 
+Chairperson; 
+(vi) Upon the estimation of costs prepared by the VWDC 
+Committee of each High Court, the State Government shall 
+expeditiously sanction the requisite funds within a period of 
+three months from the date of the submission of the proposal or 
+the end of the financial year, whichever is earlier, and disburse 
+the funds to the High Court in accordance with the project plan. 
+The State Government shall nominate a nodal officer of the 
+Finance Department who shall be associated ex officio with the
+
+CRL.M.C. 3880/2025            Page 16 of 38 
+                                                                                   
+work of the VWDC Committee of the High Court, to facilitate 
+the implementation of the proposal submitted by the High 
+Court in terms of these directions; 
+(vii) The High Courts shall ensure that at least one permanent 
+VWDC is set up in every District Court establishment (or 
+additional Sessions Court establishments) within a period of 
+four months. The Registrars General of the High Courts shall 
+file compliance reports before this Court; 
+(viii) In many States, ADR Centres have be en set up by the 
+High Courts in close proximity to the court establishments in 
+the districts. Where such ADR Centres are in place, the High 
+Courts would be at liberty to ensure that the VWDC is made 
+available within the premises of the ADR Centre so as to 
+secure a safe, conducive and barrier free environment for 
+recording the depositions of vulnerable witnesses; 
+(ix) The National Legal Services Authority as well as the State 
+Legal Services Authorities have a vital stake and role, 
+particularly in devising an d implementing sensitization and 
+training programmes. The Chairperson of the Committee 
+appointed by this Court is requested to engage with NALSA 
+and SLSAs (subject to the directions which may be issued by 
+the Hon'ble Executive Chairperson of NALSA) so as t o 
+provide an effective interface for implementing the scheme for 
+training; 
+(x) The Hon'ble Chief Justices of the High Courts would be at 
+liberty to take all appropriate steps either on the administrative 
+side or on the judicial side in furtherance of the present 
+directions and to monitor compliance on a periodic basis; 
+(xi) The Chief Justice of the High Court of Delhi is requested 
+to make available a work space/room for the office of the 
+VDWC Committee Training Centre and requisite staff, 
+preferably person nel who have previously assisted in the 
+development and implementation of the Training Modules of 
+the Delhi High Court and to designate a Coordinator of the 
+programme in consultation with the Chairperson. Appropriate 
+secretarial and logistical support staf f and equipment may be 
+made available to the Committee on a reasonable remuneration 
+as fixed by the Chairperson. The expenses in that regard, 
+including the honorarium payable to the Chairperson shall be 
+defrayed by the Ministry of Women and Child Developme nt to 
+the Director of the Delhi Judicial Academy. The Chairperson 
+may fix a reasonable honorarium for the work assigned to her
+
+CRL.M.C. 3880/2025            Page 17 of 38 
+                                                                                   
+under the terms of this order. In the event that any further 
+directions are necessary, the Chairperson may seek them before 
+this Court and any communication in that regard shall be 
+placed for further directions; and 
+(xii) The Ministry of Women and Child Development of the 
+Union Government shall designate a nodal officer for 
+coordinating the implementation of these directions and for  
+providing all logistical support to Justice Ms. Gita Mittal, the 
+Chairperson of the Committee appointed by this Court. This 
+would include the payment of honorarium to the Chairperson 
+in terms as fixed by the Chairperson and meeting the expenses, 
+including those towards engaging domain experts for training 
+programmes. The Union Ministry of Women and Child 
+Development and all Ministries of Women and Child 
+Development in the States shall coordinate with the 
+Chairperson and extend logistical support. The High Courts 
+shall, in consultation with the Chairperson of the Committee, 
+enlist experts in the field to facilitate proper training and 
+development of all stake holders…‖ 
+ 
+15. Taking note of the directions issued by the Hon‘ble Supreme 
+Court in Smruti Tukaram Badade v. State of Maharashtra  (supra), 
+and drawing upon the earlier ‗Guidelines for Recording of Evidence 
+of Vulnerable Witnesses in Criminal Matters‘ prepared by this Court, 
+the Protocol for Recording Evidence of Vulnerable Witnesses 
+notified by the High  Court of Jammu and Kashmir, as well as 
+relevant statutory provisions, judicial precedents and international 
+standards relating to vulnerable witnesses, this Court framed the 
+‘Guidelines of the High Court of Delhi for Recording of Evidence 
+of Vulnerable Wi tnesses, 2024’  to streamline and strengthen the 
+procedure for recording the testimony of such witnesses.
+
+CRL.M.C. 3880/2025            Page 18 of 38 
+                                                                                   
+B. Safeguards under the POCSO Act to Protect Child Victims 
+During Trial 
+16. The POCSO Act contains several provisions intended to ensure 
+that the participa tion of a child victim in the criminal trial does not 
+result in further trauma. Section 33(5) of the POCSO Act mandates 
+that the Special Court shall ensure that the child is not called 
+repeatedly to testify in court.  The purpose of this provision is to 
+protect the child from the psychological stress of narrating the same 
+traumatic incident multiple times during the course of trial. 
+17. Further, Section 35 of the POCSO Act prescribes timelines for 
+recording of evidence and disposal of cases. Sub -section (1) provides 
+that the evidence of the child shall be recorded within thirty days 
+from the date of taking cognizance , and if there is any delay, reasons 
+must be recorded by the Special Court. Sub -section (2) further 
+provides that the trial should, as far as possibl e, be completed within 
+one year from the date of taking cognizance . These provisions reflect 
+the legislative intent that trials involving child victims must proceed 
+expeditiously so that the child is not subjected to prolonged 
+participation in criminal proceedings. 
+18. Similarly, Section 36 of the POCSO Act ensures that the child 
+is not exposed to the accused while giving testimony. The provision 
+requires the Special Court to adopt suitable arrangements so that the 
+child can depose in a safe environment without  directly confronting 
+the accused, while at the same time ensuring that the accused is able 
+to hear the testimony and communicate with his advocate. For this
+
+CRL.M.C. 3880/2025            Page 19 of 38 
+                                                                                   
+purpose, the Special Court may utilise mechanisms such as video -
+conferencing, screens, mirrors, cu rtains or other protective devices. 
+The intent of this provision is to reduce fear and intimidation that 
+may be experienced by a child witness during testimony. 
+19. Now, insofar as Section 33(5) of the POCSO Act is concerned, 
+it is pertinent to note that the H on‘ble Supreme Court in Madhan 
+Chandra Pradhan & Ors. v. State of Odisha: (SLP (Crl.) No. 10082 
+of 2024)  has reiterated that the provision casts a duty upon the 
+Special Court to ensure that a child is not repeatedly called to testify 
+before the court. It h as been observed that the legislative intent 
+behind this provision is clear, i.e., to ensure that a child who has 
+already undergone the trauma of sexual assault is not compelled to 
+repeatedly narrate the same incident during the course of the trial. 
+20. The emphasis of the learned counsel for the petitioners has also 
+been on the decision rendered by the Coordinate Bench of this Court 
+in Vikas v. State  (supra). In the said decision, it has been inter alia 
+held as under: 
+―25. In the light of the aforesaid j udgement I may state at the 
+cost of repetition that no doubt Section 311 Cr.P.C. gives the 
+power to the Court to recall any witness to serve the ends of 
+justice, however, the said Section in my view would be subject 
+to Section 33 (5) of POCSO Act on the pr inciple of generalia 
+specialibus non -derogant. As held by the Trial Court and 
+rightly so, the child victim was extensively examined for 
+several hours and any recall at this stage would fall foul of the 
+provisions of Section 33 (5) and the intent behind ena cting the 
+Section. It is equally true that Courts have to balance the 
+conflicting rights and claims and do substantial justice by 
+permitting the Accused to cross -examine in a given case but
+
+CRL.M.C. 3880/2025            Page 20 of 38 
+                                                                                   
+the Court cannot lose site of the facts of the present case which 
+are different inasmuch as even after extensive cross -
+examination the counsel for the Petitioner did not elicit which 
+according to him he now wants to ask in cross-examination.‖ 
+ 
+21. Thus, the Bench observed that although Section 311 of the 
+Cr.P.C. empowers the court to recall a witness in order to arrive at a 
+just decision, the exercise of such power must be harmonised with 
+the mandate of Section 33(5) of the POCSO Act. Applying the 
+principle of generalia specialibus non derogant , it was held that the 
+special p rotection granted under the POCSO Act must prevail, and 
+once the child witness has been extensively examined, recall of the 
+witness should not ordinarily be permitted if it would defeat the very 
+object of Section 33(5). 
+22. Similarly, this Bench in Rakesh v. State (NCT of Delhi): 2023 
+SCC OnLine Del 4774 , had observed that while the restriction 
+contained in Section 33(5) may not be absolute and must be balanced 
+with the power of the court under Section 311 of the Cr.P.C., the 
+discretion to recall a child w itness must be exercised with 
+circumspection, caution and utmost sensitivity. It was observed as 
+under: 
+―10. While the bar under Section 33(5) POCSO Act may not be 
+absolute and balance of rights needs to be maintained under 
+Section 33(5) of POCSO Act and S ection 311 of Cr. P.C., at 
+the same time, the Court's discretion in exercising its power to 
+re-summon a witness for cross-examination has to be exercised 
+with circumspection, caution and utmost sensitivity. The 
+crucial word used in Section 33(5) of POCSO A ct is ―called 
+repeatedly‖. This Section thus has to be interpreted to balance 
+and applied with the right under Section 311 Cr. P.C. of 
+accused and right to fair trial of an accused depending on facts
+
+CRL.M.C. 3880/2025            Page 21 of 38 
+                                                                                   
+and circumstances of each case.‖ 
+ 
+23. Thus, the consistent position emerging from the statutory 
+scheme and judicial precedents is that a child witness should not be 
+summoned repeatedly to testify before the court. While the power to 
+recall a witness under Section 311 of the Cr.P.C. is availabl e, such 
+power must be exercised sparingly and strictly in accordance with 
+law. In that regard, no additional directions are required to be issued 
+by this Court , as all Trial Courts are already bound to follow the 
+statutory mandate and the principles laid d own in the aforesaid 
+judicial decisions. 
+24. At the same time, this Court finds it apposite to emphasize that 
+the mandate of Section 33(5) of POCSO Act must also be kept in 
+mind while summoning the child victim for the purpose of recording 
+examination-in-chief or cross -examination. Even at this stage, the 
+child should not be required to appear before the court repeatedly on 
+multiple dates without effective progress in the recording of 
+evidence. The timelines prescribed under Section 35 of the POCSO 
+Act clearly indicate that the recording of the child‘s evidence must be 
+treated as a time-bound and priority exercise.  
+25. In this context, the attention of this Court was drawn to the 
+facts of the present case, wherein the petitioners were first summoned 
+to depose in De cember 2023. It was submitted that thereafter, till the 
+filing of the present petition in May 2025, petitioner no. 1 had been 
+summoned on nine occasions, petitioner no. 2 on four occasions, and
+
+CRL.M.C. 3880/2025            Page 22 of 38 
+                                                                                   
+petitioner no. 3 on six occasions solely for the purpose of re cording 
+their testimony. However, for one reason or the other, their evidence 
+could not be recorded fully on each of those dates, resulting in 
+repeated appearances of the child victims before the Trial Court. It 
+was also pointed out that the victims were e xperiencing distress and 
+trauma due to repeated court appearances and had conveyed the same 
+to their respective support persons, expressing reluctance to visit the 
+court again. 
+26. Therefore, in light of the abovesaid, this Court is of the 
+considered opinion w henever the child victim is summoned for 
+recording of testimony, the Special Court should endeavour to fix 
+specific dates and ensure that the necessary arrangements are in place 
+so that the examination-in-chief and cross-examination are conducted 
+without u nnecessary adjournments. This would ensure compliance 
+with the legislative intent of the POCSO Act and prevent avoidable 
+hardship to the child witness. 
+C. Use of Video Conferencing for Examination of Vulnerable 
+Witnesses 
+27. The issue of recording testimony of  vulnerable witnesses 
+through video -conferencing or other protective arrangements must 
+also be examined in light of the existing framework already in place. 
+As noted above, pursuant to the directions of the Hon‘ble Supreme 
+Court in Smruti Tukaram Badade v.  State of Maharashtra (supra), 
+this Court has framed the ‗Guidelines of the High Court of Delhi for
+
+CRL.M.C. 3880/2025            Page 23 of 38 
+                                                                                   
+Recording of Evidence of Vulnerable Witnesses, 2024‘. These 
+Guidelines provide a comprehensive procedure to ensure that 
+vulnerable witnesses, including child victims, are able to depose in a 
+safe and supportive environment. 
+28. The said Guidelines recognise that the recording of testimony 
+need not always take place through the conventional method of a 
+witness physically appearing in the courtroom. In this regard,  the 
+Guidelines define the concept of a ― live link‖, which includes the use 
+of audio-video electronic means or other technological arrangements 
+whereby a witness, while not physically present in the courtroom, can 
+still give evidence and be cross -examined through remote 
+communication. The Guidelines also recognise the use of various 
+testimonial aids , such as screens, single -visibility mirrors, curtains, 
+live links and other technological devices, to ensure that the 
+vulnerable witness is able to depose without fear or intimidation. The 
+Guidelines further provide for certain pre-trial measures intended to 
+reduce anxiety and trauma for vulnerable witnesses. These include 
+allowing such witnesses to undertake a pre -trial visit to the court 
+premises along with a s upport person or para -legal volunteer, so that 
+they may familiarise themselves with the courtroom environment, 
+understand the basic court procedure, and become aware of the 
+protective measures available to them. Such measures are intended to 
+help the witne ss feel more comfortable and prepared before their 
+testimony is recorded. 
+29. Insofar as the recording of evidence through video -link is
+
+CRL.M.C. 3880/2025            Page 24 of 38 
+                                                                                   
+concerned, the Guidelines specifically permit any party, the 
+prosecutor, or the guardian of the vulnerable witness to apply  for an 
+order that the testimony be recorded from a room outside the 
+courtroom and transmitted to the courtroom through live -link 
+television or other technological means. The court may also pass such 
+directions on its own motion where it considers it appro priate for the 
+protection of the witness. While considering such a request, the court 
+is required to take into account various factors including the age and 
+mental condition of the witness, the likelihood of trauma if the 
+witness is required to testify in the presence of the accused, the nature 
+of the offence, the relationship between the witness and the accused, 
+and the wishes of the vulnerable witness regarding the manner in 
+which the testimony should be recorded. 
+30. For reference, the relevant guidelines are set out below: 
+―3. Definitions - 
+x x x  
+j. Live Link – ‗Live link‘ means and includes a live television 
+link, audio -video electronic means or other arrangement 
+whereby a witness, while not being physically present in the 
+courtroom is nevertheless prese nt in the courtroom by remote 
+communication using technology to give evidence and be 
+cross-examined 
+x x x 
+l. Testimonial Aids – means and includes screens; single 
+visibility mirrors, curtains, live links, image and/or voice 
+altering devices; or any other t echnical devices, facilities and 
+equipment. 
+*** 
+10. Pre-trial visit of Witnesses to the Court -
+
+CRL.M.C. 3880/2025            Page 25 of 38 
+                                                                                   
+Vulnerable witnesses shall be allowed a pre -trial court house 
+tour or tour of the civil court or  Juvenile Justice Board, etc., 
+along with the support person or para -legal volunteer, as the 
+case  may be, to enable such witnesses to familiarise 
+themselves w ith the layout, and may include visit  to and 
+explanation of the following:   
+a. the location of the accused in the dock;   
+b. court officials (what their roles are and where they sit);   
+c. who else might be in the court;   
+d. the location of the witness box;   
+e. a run-through of basic court procedure;   
+f. the facilities available in the court which may include the 
+waiting room, toilet,  separate passage for entry and exit, and 
+testimonial aids;   
+g. discussion of any particular fears or concerns, includ ing 
+concerns regarding safety  in relation to the accused, with the 
+support person, prosecutors and the judge to  dispel the fear, 
+trauma and anxiety in connection with the upcoming deposition  
+at court;   
+h. demonstration of any special measures applied f or and/or 
+granted, for example  practising on the live link and explaining 
+who will be able to see them in the  courtroom, and showing 
+the use of screens (where it is practical and convenient  to do 
+so). 
+*** 
+20. Live -link television testimony in criminal c ases where 
+the vulnerable witness is  involved –   
+(i) Any party in the case, the prosecutor, counsel or the 
+guardian ad litem may apply for an order that  the testimony of 
+the vulnerable witness be taken in a room outside the 
+courtroom and be  televised t o the courtroom by live -link 
+television.   
+(ii) In order to take a decision of usage of a live -link the judge 
+may question the vulnerable witness  in chambers, or in some 
+comfortable place other than the courtroom, in the presence of 
+the support person, gu ardian ad litem, prosecutor, and counsel 
+for the parties. The questions of the  judge shall not be related 
+to the issues at trial but to the feelings of the vulnerable witness
+
+CRL.M.C. 3880/2025            Page 26 of 38 
+                                                                                   
+about testifying in the courtroom.   
+(iii) The court on its own motion, if deeme d appropriate, may 
+pass orders in terms of (i) or any  other suitable directions for 
+recording the evidence of a vulnerable witness. 
+*** 
+22. Factors to be considered while considering the 
+application under Guidelines-   
+(i) The court may order that the tes timony of the vulnerable 
+witness be taken by live- link television  if there is a substantial 
+likelihood that the vulnerable witness would not provide a full 
+and candid  account of the evidence if required to testify in the 
+presence of the accused/opposite  party, their  counsel or the 
+prosecutor as the case may be or if the vulnerable witness is 
+likely to be  traumatised by exposure to the accused.   
+(ii) The order granting or denying the use of live-link television 
+shall state the reasons therefore and  ma y consider the 
+following:   
+a. the age and level of development of the vulnerable witness;   
+b. the physical and mental health, including any intellectual or 
+physical disability of  the vulnerable witness;   
+c. any physical, emotional, or psychological harm related to the 
+case on hand or trauma experienced by the vulnerable witness;   
+d. the nature of the alleged offence/case and circumstances of 
+its commission; 
+e. any threats against the vulnerable witness;   
+f. the relationship of the vulnerable witness w ith the accused or 
+adverse party;   
+g. the reaction of the vulnerable witness to any prior encounters 
+with the  accused/opposite party in court or elsewhere;   
+h. the reaction of the vulnerable witness prior to trial when the 
+topic of testifying  was discussed by parents or professionals;   
+i. specific symptoms of stress exhibited by the vulnerable 
+witness in the days prior  to testifying;   
+j. testimony of expert  or lay witnesses;  k. the custodial 
+situation of the child and the attitude of the members of the 
+child‘s family regarding the events about which the child will 
+testify;
+
+CRL.M.C. 3880/2025            Page 27 of 38 
+                                                                                   
+l. the wishes of the vulnerable witness on the manner in which 
+they would like to  render the testimony; and   
+m. other relevant factors, such as court atmosphere and 
+formalities of court  procedure.   
+(iii) The court shall ensure ahead of time that the equipment is 
+working, recordings can be played  and that camera angles will 
+not permit the witness to see the defendant. The court shall not 
+wait  until the victim or vulnerable witness is in the live link 
+room to run checks: delays and  malfunctions can be disruptive 
+to the vulnerable witness. Where a live link is being used 
+during the vulnerable witness‘s testimony, ensure that they are 
+able to see all of the questioner‘s face. It should be explained 
+that the judge or magistrates can always see the vulnerable 
+witness over the live video link even when the witness cannot 
+see the judge or magistrates.‖ 
+ 
+31. The statutory scheme under the POCSO Act also reflects a 
+similar legislative intent. Section 36 of the POCSO Act mandates that 
+the Special Court shall ensure that the child is not exposed to the 
+accused while giving testimony. At the same tim e, the provision 
+ensures that the accused is able to hear the statement of the child and 
+communicate with his advocate. For achieving this purpose, Section 
+36 specifically permits the use of video -conferencing, single -
+visibility mirrors, curtains or other suitable devices so that the child 
+can depose without being directly confronted with the accused. 
+32. Thus, both the statutory framework under the POCSO Act and 
+the Guidelines framed by this Court recognise that the use of 
+technology and protective arrangements is an important tool to ensure 
+that the testimony of vulnerable witnesses is recorded in a manner 
+that is both – fair to the accused and sensitive to the needs of the 
+victim.
+
+CRL.M.C. 3880/2025            Page 28 of 38 
+                                                                                   
+33. It may also be noted that even prior to the framing of detailed 
+guidelines regarding vulnerable witnesses, courts in India have, in 
+appropriate cases, permitted the testimony of victims of sexual 
+offences to be recorded through video -conferencing, particularly 
+where the victim was residing outside the jurisdiction of the court. 
+The law in this regard has gradually evolved through judicial 
+precedents recognising that technological means can be used for 
+recording evidence without compromising the rights of the accused 
+or the fairness of the trial. 
+34. In Vinod Kumar v. State (NCT of Del hi): 2023 SCC OnLine 
+Del 8287, this Bench had permitted the testimony of a prosecutrix, 
+who was a citizen of the United States of America, to be recorded 
+through video -conferencing. While allowing the said request, this 
+Court had examined the legal positio n relating to recording of 
+evidence through video -conferencing and referred to relevant 
+precedents of the Hon‘ble Supreme Court, including State of 
+Maharashtra v. Dr. Praful B. Desai:  (2003) 4 SCC 601  wherein it 
+was held that recording of evidence through video-conferencing 
+satisfies the requirement of Section 273 of the Cr.P.C., which 
+mandates that evidence must be recorded in the presence of the 
+accused; that the video -conferencing enables the parties to see and 
+hear each other in real time and allows the accused and his counsel to 
+effectively cross -examine the witness; and that technological 
+advancements have made it possible for courts to record evidence 
+through such means without causing prejudice to the accused, and
+
+CRL.M.C. 3880/2025            Page 29 of 38 
+                                                                                   
+that the demeanour of the witness ca n also be observed when the 
+testimony is recorded through video-conferencing.  
+35. This Court had also observed in the aforesaid judgment that the 
+use of video -conferencing does not prevent the trial court from 
+observing the demeanour of the witness. The witne ss remains visible 
+to the judge and the parties on the screen during the course of 
+testimony. Reference was also made to the High Court of Delhi Rules 
+for Video Conferencing for Courts, 2021, which expressly permit the 
+court to record the demeanour of a pe rson being examined through 
+video-conferencing. In this regard, it is also relevant to note that the 
+Guidelines of the High Court of Delhi for Recording of Evidence of 
+Vulnerable Witnesses, 2024 specifically provides as under: 
+―39. Application of High Court of Delhi Rules of Video 
+Conferencing for Courts 2021- 
+Wherever required, the ―High Court of Delhi Rules of Video 
+Conferencing for Courts 2021‖ shall apply.‖ 
+ 
+36. In view of the aforesaid statutory provisions, judicial 
+precedents and the Guidelines framed  by this Court, it is evident that 
+the criminal justice system now recognises the need to adopt 
+procedures that minimise the trauma of vulnerable witnesses while 
+ensuring fairness to the accused. The object of these safeguards is not 
+only to protect the di gnity of the victim but also to ensure that the 
+testimony is recorded in an atmosphere where the witness is able to 
+depose freely and without fear. 
+37. Therefore, the learned Trial Courts dealing with cases
+
+CRL.M.C. 3880/2025            Page 30 of 38 
+                                                                                   
+involving child victims or other vulnerable witnesses  must ensure 
+that the evidence of such witnesses is recorded in a timely and 
+effective manner, without repeatedly summoning them to court on 
+multiple dates without meaningful progress in the trial. Once the 
+witness-victim is summoned for the purpose of rec ording evidence, 
+the court should make all necessary efforts to ensure that the 
+examination-in-chief and cross -examination are conducted without 
+unnecessary adjournments, so that the witness is not required to 
+appear repeatedly before the court. 
+38. In appropriate cases, and particularly where a request is made 
+by the victim, the facility of video-conferencing or live -link 
+testimony, as envisaged under Section 36 of the POCSO Act and the 
+Guidelines of the High Court of Delhi for Recording of Evidence of 
+Vulnerable Witnesses, 2024, must be utilised for recording the 
+testimony — in accordance with the procedure set out in the said 
+Guidelines.  
+39. Though it has been urged before this Court that specific 
+guidelines be laid down to the effect that in cases under the POC SO 
+Act where the accused persons or their counsel seek two or more 
+adjournments resulting in delay in the examination of minor victims, 
+the learned Trial Courts should permit the recording of such cross -
+examination through video -conferencing, this Court is  of the view 
+that in light of the detailed directions already issued by the Hon‘ble 
+Supreme Court, and the Guidelines of the High Court of Delhi for 
+Recording of Evidence of Vulnerable Witnesses, 2024 — no further
+
+CRL.M.C. 3880/2025            Page 31 of 38 
+                                                                                   
+guidelines are required to be laid down in this regard. 
+40. Moreover, in compliance with the decision of Hon‘ble 
+Supreme Court in Smruti Tukaram Badade v. State of Maharashtra 
+(supra), there is already a Committee constituted on the 
+administrative side i.e. ‗Committee to monitor proper implementation 
+of several guidelines laid down by the Supreme Court as well as this 
+Court for dealing with matters pertaining to sexual offences, child 
+witnesses and other vulnerable witnesses ‘ to oversee the 
+implementation of the Supreme Court‘s guidelines relating to t he 
+examination and protection of victims and vulnerable witnesses in 
+cases involving sexual offences. 
+41. At the same time, suffice it to say , this Court is of the view that 
+all the learned Trial Courts must adopt a balanced and 
+compassionate approach while considering any such requests by the 
+victim, especially in situations where the victim has already been 
+called to court repeatedly for the purpose of recording evidence. The 
+ultimate consideration must be to ensure that the trial process does 
+not become a so urce of further distress or re -traumatisation for the 
+victim, while maintaining the essential safeguards of a fair criminal 
+trial. 
+D. Presence of Victim during Bail Hearings in Cases of Sexual 
+Offences 
+42. This Court now proceeds to deal with the last issue which has 
+been urged before this Court during the course of hearing. The issue
+
+CRL.M.C. 3880/2025            Page 32 of 38 
+                                                                                   
+concerns the manner in which victims are required to appear before 
+the Court during the hearing of bail applications in cases  involving 
+sexual offences, particularly under the POCSO Act. 
+43. In this regard, the attention of this Court was drawn to the 
+order dated 11.01.2023 passed by a Coordinate Bench of this Court in 
+XXXX v. State (supra). The said order reads as under: 
+"1. During the course of hearing of this appeal, it was pointed 
+out by Mr Pujari, learned counsel appearing for the appellant as 
+well as Ms Mishra, Secretary (Litigation), DSLSA that many 
+of the victims in POCSO cases were being asked to appear 
+physically or virtual ly in Court at the time of hearing bail 
+applications. This has led to a situation where the victims were 
+being forced not only to potentially interact with the accused 
+person but also be present in Court when arguments regarding 
+the offence were taken up for hearing.  
+2. The psychological impact on a POCSO victim being present 
+in Court during the arguments is grave as there are allegations, 
+accusations, doubting the integrity, character, etc. of the 
+prosecutrix, her family, etc. The presence of the prosecut rix 
+victim in Court at the time of arguments, according to me, has 
+an adverse impact on the psyche of the prosecutrix. The 
+prosecutrix is forced to be present in Court with the accused, 
+who is the same person who has allegedly violated her. It was 
+felt that it would be in the interest of the victim that she is not 
+traumatized again and again by re -living the said incident by 
+being present in Court proceedings.  
+3. In this view of the matter, the DHCLSC, DSLSA as well as 
+Mr Pujari were directed to give sugge stive practice directions. 
+The suggestive practice directions have been forwarded to this 
+Court and I am in agreement that the said directions, if 
+implemented in its true letter, spirit and intent, may help in 
+reducing the trauma of a POCSO victims. In thi s view of the 
+matter and in addition to the practice directions issued earlier, it 
+is further directed that during bail hearings of a POCSO case, 
+the following guidelines shall also be adhered to: ―i. The IO 
+shall ensure that timely service of notice of ba il application is 
+made on the victim/ prosecutrix, so that she gets reasonable
+
+CRL.M.C. 3880/2025            Page 33 of 38 
+                                                                                   
+amount of time to enter appearance and make her submissions.  
+ii. The Investigating Officer while serving notice/summons of 
+the bail application to the victim/ prosecutrix shall  make 
+relevant inquiries about the victim and her circumstances and 
+shall document the same in order to assist the court in the 
+hearing of the bail application and to facilitate effective 
+representation and participation on behalf of the victim. The IO 
+should ensure that while making such enquiries the victim is 
+not made to feel uncomfortable or questioned like an 
+accomplice to a crime. Necessary sensitivity ought to be 
+displayed by the IO ·while making these enquiries.  
+iii. The victim can be produced virt ually before the Court 
+(either by the IO/ Support person before the Court) (by way of 
+Video Conferencing) or by taking assistance of the District 
+Legal Services Authority. Hybrid form of hearing of bail 
+applications would suitably address the concerns of t he victim 
+while at the same time safeguarding the rights of the accused. 
+Victim and the accused shall not come face to face in this 
+manner and this can prevent the re-traumatization of the victim.  
+iv. If the victim gives it in writing that her counsel/ 
+parent/guardian/ support person shall appear on her behalf and 
+make submissions on the bail application, insistence on 
+physical or virtual presence of the prosecutrix shouldn‘t be 
+made. A written authorization of the victim authorising another 
+to make submis sions on her behalf (after victim is duly 
+identified by the IO) and said authorization is forwarded by the 
+SHO, should suffice.  
+v. If the victim has appeared in court on one date of hearing of 
+a bail application, her presence on subsequent dates can be 
+dispensed with and RCC lawyer/ counsel/ parent/guardian/ 
+support person representing the victim in court can be 
+permitted to make submissions on behalf of the victim. On the 
+day of the first appearance of the victim/prosecutrix, her 
+submissions qua the bai l application can be recorded by the 
+Court and the same maybe used for the purpose of adjudicating 
+on the bail application. The victim‘s opinion and objections 
+regarding bail application on the first interaction can be 
+mentioned in the order passed on the day of interaction 
+between the Ld. Judge and the victim and this order can then be 
+relied on at the stage of final disposal of bail application.  
+vi. In certain exceptional cases, in - chamber interaction with 
+the victim can be done and her submissions qua the bail
+
+CRL.M.C. 3880/2025            Page 34 of 38 
+                                                                                   
+application can be recorded in the order sheet passed on that 
+day, so that the same maybe considered at a later stage.  
+vii. While recording the submissions/ objections/ statement of 
+the victim qua the bail application, appropriate questions may 
+be put to the victim to elicit her responses instant of bluntly 
+asking her ―Do you want bail to be given to the accused or 
+not?‖ Rather questions can be put to her to ascertain what her 
+apprehensions and fears are in case the accused is granted bail 
+in the matter, for bail is to be granted by the Court concerned 
+on the basis of overall appreciation of facts and circumstances 
+of the case and in the light of well settled principles governing 
+the grant of bail.  
+viii. Whenever the victim comes to court for a he aring on the 
+bail application, the support person provided to her should be 
+present with her so as to provide the necessary psychological or 
+logistical support to the victim/prosecutrix.  
+ix. It may further be clarified that victim's presence may not be 
+insisted on in cases under POCSO Act, where the accused is a 
+child in conflict with law, because the considerations for grant 
+of bail to the child in conflict with law arc not dependant on the 
+apprehensions of the prosecutrix. Section 12 of the Juvenile 
+Justice (Care and Protection) Act, 2015 delineate separate 
+parameters for considering grant of bail to children in conflict 
+with law and giving an audience to the prosecutrix will not 
+have any bearing on the same.  
+x. Further, after the bail application is dis posed off, the copy of 
+the order should be mandatorily sent to the victim. This 
+becomes important since the victim's main concern is her 
+safety in case the accused is enlarged on bail. By providing her 
+a copy of the bail order the victim is made aware abou t the 
+status of the accused and the conditions of the bail and her right 
+to approach the court for cancellation of bail in case of breach 
+of conditions of bail.  
+xi. It would further be in the fitness of things that the Judicial 
+Officers are sensitized about the need to reduce interface of 
+victim with the accused in court to the minimum possible and 
+to permit victim to be represented through an authorised person 
+in court at the time of hearing of bail application, instead of 
+insisting for appearance of t he victim in person (either 
+virtually/physically). Judicial Officers maybe sensitized to the 
+extent that Practice Directions issued by the Hon‘ble High 
+Court of Delhi on 24.09.2019 and judicial directions in ―Reena
+
+CRL.M.C. 3880/2025            Page 35 of 38 
+                                                                                   
+Jha v. Union of India‖ and ―Miss ‗G‘ (Min or) through her 
+Mother v. State of NCT of Delhi‖were issued to ensure that 
+victim doesn't remain unrepresented or unheard when the 
+question of granting bail to the accused is being considered. 
+However, it wasn‘t meant to invariably call for presence of 
+victim on all dates of hearing in bail application so that the 
+process itself becomes a punishment for the victim by exposing 
+her to the accused/ his counsel frequently and reopening her 
+emotional and psychological wounds.‖  
+4. The Secretary (Litigation), DSL SA who is present in Court 
+shall circulate the order to all necessary parties and stake 
+holders.‖ 
+ 
+44. A reading of the aforesaid order shows that the Coordinate 
+Bench had issued certain practice directions with the object of 
+reducing the trauma that may be ca used to victims of sexual offences 
+during the course of bail proceedings. The directions recognise that 
+although the victim has a right to be heard when the question of grant 
+of bail to the accused is being considered, repeated appearance of the 
+victim before the Court, either physically or virtually, may have an 
+adverse psychological impact. Therefore, the directions emphasise 
+that while the victim must be given an opportunity to present her 
+objections to the grant of bail, her presence should not be insis ted 
+upon repeatedly once her views, in respect of bail plea of the accused, 
+have been recorded. The directions further clarify that the victim may 
+be represented through counsel, parent/guardian, support person, or 
+the concerned Legal Services Authority, a nd that appropriate 
+arrangements such as virtual appearance or in-camera interaction 
+may be adopted so as to minimise the interface between the victim 
+and the accused.
+
+CRL.M.C. 3880/2025            Page 36 of 38 
+                                                                                   
+45. In the present case , however, it has been brought to the notice 
+of this Court that the victims were called upon to appear before the 
+Court on about eleven occasions only for the purpose of hearing 
+arguments on the bail application. Such repeated appearance of the 
+victims was clearly not in consonance with the spirit of the directions 
+issued in XXXX v. State (supra). 
+46. In the opinion of this Court , the objection of the victim child 
+in such cases, to the grant of bail to the accused, could be recorded at 
+the first instance itself. Once the views of the victim have been noted, 
+the bail application can thereafter be contested on her behalf by her 
+counsel or authorised representative. Requiring the victim to remain 
+present on multiple dates of hearing of a bail application may result 
+in unnecessary distress and may defeat the very purpose of the 
+safeguards intended to minimise repeated exposure of the victim to 
+the court process during such proceedings. 
+E. Conclusion 
+47. In view of the discussion hereinabove, it can be concluded as 
+under: 
+(i) The expression “vulnerable witness”  in criminal 
+proceedings incl udes victims of sexual offences and child 
+victims under the POCSO Act, who require a sensitive and 
+protective approach during investigation and trial. 
+(ii) The statutory scheme of the POCSO Act mandates
+
+CRL.M.C. 3880/2025            Page 37 of 38 
+                                                                                   
+adoption of child -friendly procedures so as to ensure  that the 
+child victim is not subjected to repeated or unnecessary 
+appearances before the Court and that the trial process does not 
+result in re-victimisation or further trauma. 
+(iii) Courts are empowered to adopt appropriate procedural 
+mechanisms, includi ng recording of evidence through video 
+conferencing or other suitable modes, so as to minimise the 
+exposure of vulnerable witnesses to the accused and reduce the 
+psychological stress associated with court proceedings. 
+(iv) At the stage of consideration of bail applications, while the 
+victim has a right to be heard, once the objections or views of 
+the victim regarding the grant of bail have been recorded, 
+repeated insistence on the physical or virtual presence of the 
+victim on every date of hearing ought to be avoided. 
+(v) The judicial precedents and practice directions governing 
+the protection of vulnerable witnesses are required to be 
+followed in their true letter and spirit so that the criminal 
+process itself does not become a source of distress to such 
+witnesses. 
+48. The present exercise has been undertaken so that the relevant 
+legal principles and judicial precedents governing these issues are 
+consolidated in one judgment and may serve as a ready reference. 
+This has also been considered necessary in view of the submission
+
+CRL.M.C. 3880/2025            Page 38 of 38 
+                                                                                   
+made before this Court that despite various directions issued from 
+time to time, the same are not being uniformly followed by the 
+learned Trial Courts/Special Courts. 
+49. Accordingly, a copy of the present judgment be circulated to 
+all learned T rial Courts/Special Courts and all Judicial Officers in 
+Delhi for their information and necessary guidance. 
+50. This Court places on record its appreciation for the valuable 
+assistance rendered by Ms. Prachi Dubey, learned Amicus Curiae. 
+51. The petition, alongwith pending application,  is disposed of in 
+above terms. 
+52. The judgment be uploaded on the website forthwith. 
+ 
+ 
+DR. SWARANA KANTA SHARMA, J 
+MARCH 11, 2026/ns 
+T.D./T.S.

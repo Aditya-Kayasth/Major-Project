@@ -1,0 +1,1695 @@
+2026 INSC 604
+Page 1 of 26 
+ 
+REPORTABLE 
+ 
+IN THE SUPREME COURT OF INDIA 
+CRIMINAL / CIVIL ORIGINAL JURISDICTION 
+ 
+Writ Petition (Crl.) No. 169 / 2025 
+ 
+Pila Pahan @ Peela Pahan and others                    …Petitioner(s) 
+ 
+versus 
+ 
+State of Jharkhand and another                                          …Respondent(s) 
+ 
+ 
+with 
+Writ Petition (Crl.) No. 252 / 2025 
+Writ Petition (C) No. 489 / 2025 
+Writ Petition (C) No. 482 / 2025 
+Writ Petition (C) No. 492 / 2025 
+Writ Petition (C) No. 519 / 2025 
+Writ Petition (C) No. 506 / 2025 
+Writ Petition (C) No. 508 / 2025 
+ 
+ 
+JUDGEMENT 
+SURYA KANT, CJI.  
+1. The instant proceedings arise from various Writ Petitions which, 
+though individual in origin, sought similar prayers for 
+“pronouncement of reserved judgements”  statedly pending for  
+indefinite periods of time before certain High Courts . The influx of 
+these cases, coupled with the startling picture presented regarding
+
+Page 2 of 26 
+ 
+delays, brought into focus a broader issue affecting the 
+administration of justice in several High Courts across the country.  
+2. In view of this, the scope of the proceedings was expanded to 
+address a question of wider constitutional significance . The 
+objective was to identify and lay down comprehensive and binding 
+guidelines to remedy the persistent delay in the pronouncement of 
+reserved judgements by High Courts, so as to ensure that the reliefs 
+claimed are not rendered nugatory merely owing to  the delayed 
+delivery of the final decision. 
+A. FACTS 
+3. We find it appropriate to first recapitulate the sequence of events 
+that led to the filing of these petitions and the subsequent 
+developments that arose during the course of the proceedings 
+before this Court.  
+3.1. Without getting into the intricate details of the individual cases 
+before us, and treating Writ Petition (Crl.) No. 169/2025 as the lead 
+case for illustrative purposes, suffice it to note that Petitioner Nos. 
+1, 2 and 3 were convicted by the Trial Courts in Jharkhand under 
+Section 302 of the Indian Penal Code, 1860 (IPC) and other related 
+offences and were sentenced to life imprisonment in 2012 and 
+2014. Petitioner No. 4, however, was convicted under Sections 376 
+and 346 of the IPC and sentenced to life imprisonment in 2018.
+
+Page 3 of 26 
+ 
+Each of them had already served over a decade in actual custody 
+(which includes the period of incarceration pending trial) when they 
+sought to prefer criminal appeals before the High Court  of 
+Jharkhand, where arguments were heard, and judgments were 
+reserved in their appeals, seemingly, between January and June 
+2022.  
+3.2. Owing to the undue delay in pronouncing the reserved judgments, 
+the Petitioners have approached this Court by means of the instant 
+petitions, seeking appropriate directions to the High Court  to 
+pronounce the same expeditiously.  
+3.3. This Court, on the first date of hearing, on 23.04.2025, directed the 
+Registrar General of the High Court of Jharkhand to submit a 
+report on all cases in which judgments  were reserved more than 
+two months ago and were pending pronouncement, along with 
+Bench-wise details.  
+3.4. In compliance thereof, the Registrar General submitted a status 
+report, which was taken on record by this Court on 05.05.2025. 
+The report inter alia disclosed that 56 matters, including criminal 
+appeals, had been finally heard by a Division Bench of the High 
+Court on various dates between 04.01.2022 and 16.12.2024, with 
+final pronouncements still awaited in each. Further, 11 matters 
+were reserved by a Single Judge Bench on dates ranging from
+
+Page 4 of 26 
+ 
+25.07.2024 to 27.09.2024. The details of the appeals preferred by 
+the Petitioners, however, were not included in the said report.  
+3.5. On the same date, we were apprised of an article published in the 
+Indian Express, an English-language daily newspaper, titled “After 
+SC rap, HC decides 75 Criminal Appeals in a week”, indicating 
+that the High Court had pronounced a record 75 criminal appeals 
+within a week. 
+3.6. Consequently, vide order dated 05.05.2025, we directed the 
+Registrar General of the High Court  of Jharkhand to furnish the 
+list of all 75 criminal appeals where the judgements had been 
+pronounced, including details of the date when the said 
+judgements were reserved, as well as the fate of the criminal 
+appeals filed by the Petitioners. 
+3.7. Enlarging the scope of these proceedings, we further directed High 
+Courts throughout the country to submit reports disclosing cases 
+in which judgments had been reserved on or before 31.01.2025 and 
+remained unpronounced, along with Bench-wise particulars. In the 
+interregnum, this Court learnt of another issue regarding the delay 
+in uploading judgements/orders to the respective High Court 
+websites for matters where the operative part of the said 
+judgement/order had already been pronounced in open court. To 
+understand the scope of this issue, the Registrar Generals of all the
+
+Page 5 of 26 
+ 
+High Courts were further directed to submit an additional report, 
+providing complete descriptions of the dates of pronouncement of 
+judgments and the dates on which such judgments were uploaded 
+to the respective High Court websites.   
+3.8. Thereafter, when the matter was taken up on 13.05.2025, this 
+Court noted that all four Petitioners had been released from 
+custody pursuant to judgments delivered by the High Court of 
+Jharkhand in their respective criminal appeals. However, as 
+indicated earlier, the instant petitions were nevertheless kept 
+pending in view of the larger issue they raised.  
+3.9. As the extent of the problem relating to the delayed pronouncement 
+of judgments across High Courts became evident, several other 
+matters involving similar grievances and praying for similar reliefs, 
+arising in both criminal and civil proceedings, were tagged with the 
+lead case.  
+3.10. In this backdrop, we requested Ms. Fauzia Shakil, learned 
+Advocate, to assist this Court in the capacity of Amicus Curiae . 
+Pursuantly, Ms. Fauzia, with the able assistance of Ms. Tasmiya 
+Taleha and Ms. Mallika Agarwal, painstakingly analysed the 
+reports received from various High Courts and pointed out that the 
+information had been submitted in varying formats, thereby 
+making collation difficult. In view thereof, vide order dated
+
+Page 6 of 26 
+ 
+22.09.2025, all High Courts were requested to modify the existing 
+format to ensure that uploaded and certified copies of their 
+judgments clearly disclose the date of reservation, the date of 
+pronouncement, and the date of uploading on the website, along 
+with a specification as to whether the operative part alone or the 
+full judgment had been pronounced.  
+3.11. The learned Amicus thereafter compiled and filed a consolidated 
+report in four volumes, containing a High Court -wise analysis of 
+delayed pronouncements. The learned Amicus was further 
+requested vide order dated 16.02.2026 to consolidate all the 
+suggestions and recommendations received from the High Courts 
+for the issuance of uniform general judicial guidelines.  
+3.12. Learned Amicus accordingly submitted the draft guidelines, which 
+were directed to be circulated to the Registrars General of all the 
+High Courts for their respective suggestions, and the matter was 
+thereupon reserved for orders. 
+B. ANALYSIS 
+4. Having considered the material on record, along with the 
+suggestions received from several High Courts in response to the 
+draft guidelines circulated by the learned Amicus, we are of the view 
+that this is a fit case  warranting the intervention of this Court  to
+
+Page 7 of 26 
+ 
+formulate uniform guidelines to address delays in pronouncing 
+reserved judgements across all High Courts in the country.  
+5. At the outset, we record our appreciation for the assistance 
+rendered by Ms. Fauzia Shakil, learned Amicus Curiae . She , 
+together with her team,  was entrusted with the arduous task of 
+collating, verifying, and analysing data received from various High 
+Courts, as well as proposing guidelines for uniform application. 
+Their diligence and thoughtful contributions proved invaluable to 
+the effective conduct of these proceedings.  
+6. The exercise undertaken by learned Amicus culminated in a set of 
+recommendations intended to address the concerns specified in the 
+earlier paragraphs. They are reproduced as follows: 
+Category Suggestions by the Amicus Curiae 
+Bail 
+Applications 
+Bail applications should be heard and orders 
+should be pronounced preferably on the 
+same day, or on the next day, if reserved, and 
+must be uploaded promptly. 
+Orders granting regular bail, suspension, or 
+acquittal must be communicated 
+immediately to jail authorities and the Trial 
+Court.  
+The undertrial or convict should be released 
+on the same day or the next day, unless 
+custody is required in another case or there 
+is a delay in surety.
+
+Page 8 of 26 
+ 
+Category Suggestions by the Amicus Curiae 
+Compliance must be reported by the Trial 
+Court to the concerned High Court Bench. 
+Clarifications 
+where 
+Judgements 
+are Reserved 
+In criminal appeals and death references, 
+where the Appellant is in custody, 
+clarifications must be sought by the Bench 
+from the advocates within 5 days of reserving 
+the judgement. 
+In all other cases, clarifications must be 
+sought by the Bench from the advocates 
+within 1 month of reserving the judgement. 
+Timeline for 
+Pronouncing of 
+Judgement 
+High Courts should endeavour to pronounce 
+judgements within a maximum of 3 months 
+from the date of reserving. 
+Automated 
+Monitoring 
+Mechanism 
+At the end of every month, an automated 
+email should be sent to the Chief Justice of a 
+High Court listing all reserved judgements 
+that are pending in that month, with a copy 
+to the concerned Bench. 
+The Chief Justice may circulate, among 
+judges of the High Court in a confidential 
+sealed cover, a list of cases where judgements 
+remain unpronounced beyond 6 weeks from 
+the conclusion of arguments. 
+Timeframe in 
+cases of delay 
+in 
+pronouncement 
+of judgement 
+If the judgement is not pronounced within 2 
+months, the Chief Justice shall draw the 
+attention of the concerned Bench. 
+If the judgement is not delivered within 3 
+months, Registrar General shall place the 
+matter before the Chief Justice, who shall 
+direct the concerned Bench to pronounce the 
+judgement within 2 weeks. 
+If the judgement is still not pronounced after 
+2 weeks, the Chief Justice may re-assign the 
+matter to another Bench for rehearing.
+
+Page 9 of 26 
+ 
+Category Suggestions by the Amicus Curiae 
+Remedies for 
+Litigants 
+If a judgement is not pronounced after 3 
+months of reserving, a party may file an 
+application for early pronouncement of the 
+judgement, which shall be listed within 2 
+days. 
+If a judgement is not pronounced after 6 
+months of reserving, a party may approach 
+the Chief Justice of the High Court for 
+withdrawal of the matter and its re -
+assignment to another Bench. 
+Operative and 
+Reasoned Part 
+of Judgement 
+ 
+All benches shall endeavour to pronounce 
+reasoned judgements in all cases. 
+If only the operative part is pronounced, the 
+reasoned judgement must be uploaded 
+within 5 days, extendable up to a maximum 
+of 15 days. 
+The case status on the High Court website 
+must clearly reflect: “operative part delivered 
+- judgement with reasons awaited/not 
+uploaded” 
+Automated 
+Monitoring 
+Mechanism 
+An automated email should be sent to the 
+Chief Justice of the High Court of all the 
+cases where the reasoned judgement is 
+awaited beyond 10 days along with a copy to 
+the concerned bench. 
+Timeline in 
+cases of delay 
+in reasoned 
+judgements 
+If the reasoned judgement is not uploaded 
+within 15 days, the Registrar shall place the 
+matter before the Chief Justice, who shall 
+direct the Bench to upload it within 2 to 3 
+days. 
+When the reasoned judgement is uploaded on 
+the website, an automated intimation 
+through Email/SMS should be sent to the 
+advocates on record in the matter.
+
+Page 10 of 26 
+ 
+Category Suggestions by the Amicus Curiae 
+Remedies for 
+Litigants 
+If a reasoned judgement is not uploaded 
+within 15 days of reserving, a party may file 
+an application seeking early judgement, 
+which shall be listed within 2 days. 
+If a reasoned judgement is not uploaded 
+within 1 month of reserving, a party may 
+approach the Chief Justice for appropriate 
+directions regarding uploading of the 
+reasoned judgement. 
+Disclosure on 
+the High Court 
+Website 
+The High Court website should display a list 
+of all judgements that have been reserved for 
+more than 3 months but have not yet been 
+pronounced. 
+A separate list should be maintained and 
+displayed on the website showing cases 
+where the operative part has been delivered 
+but the reasoned judgement has not been 
+uploaded within 15 days. 
+The case status must reflect the date of 
+pronouncement and the date of uploading of 
+the judgement. 
+Pronouncement 
+and Uploading 
+of Judgements 
+All judgements must be pronounced in open 
+court and uploaded within 24 hours of 
+pronouncement. 
+Legal Aid 
+Matters 
+The convict, undertrial should be informed of 
+the case status / the status of the reserved 
+judgements on a weekly or monthly basis by 
+the State Legal Services Authority. 
+The legal aid counsels should promptly file 
+applications upon the expiry of the 
+prescribed maximum time period.
+
+Page 11 of 26 
+ 
+7. We find that the above suggestions made by learned Amicus have 
+been fashioned on the sheet anchor of the data and responses 
+received from the High Courts themselves. These recommendations 
+are, in our assessment, both precise and practicable.  
+8. Crucially, Volume I submitted by learned Amicus during the course 
+of proceedings, offers a comprehensive account of the pendency of 
+reserved judgments across High Courts. The pan-India scenario is 
+deeply disquieting. Reserved judgments have remained 
+unpronounced for months, and in some instances, for years. The 
+report makes it clear that the problem is pervasive and brooks no 
+further delay in its redress.  
+9. It goes without saying that we cannot turn a Nelson’s Eye to the 
+human dimension of this problem, and it must be noted that each 
+delayed judgement in that compilation represents a litigant whose 
+case has been heard but whose fate hangs in the balance. The right 
+to life and personal liberty guaranteed under Article 21 of the 
+Constitution is not confined to the expeditious conduct of a trial. It 
+extends to every stage of the proceeding and is as much violated by 
+such delay in pronouncing a reserved judgement as by a denial of 
+the right to be heard.  
+10. The weight of this delay falls with particular severity on those held 
+in custody, for whom each day without a pronouncement is a day
+
+Page 12 of 26 
+ 
+of continued confinement. A convict whose appeal has been 
+reserved, or an accused who has sought bail and is awaiting the 
+court’s decision, cannot be expected to accept the court’s silence 
+with equanimity. 
+11. The interval between the hearing and the pronouncement also 
+affects the quality of the adjudication , as a judgment  bears the 
+imprint of the arguments that preceded it, and it reflects them most 
+faithfully when it follows them closely. Beyond this, there is a 
+broader dimension. Courts are institutions of trust, and the 
+regularity with which they speak after reserving judgement is part 
+of what sustains that trust . Such regularity in pronouncement is 
+neither a procedural nicety nor a matter of administrative 
+convenience. It is the condition on which citizens’ confidence in the 
+justice delivery system rests.  
+12. Being well-aware of these considerations, this Court has, time and 
+again, impressed upon the High Courts the importance of 
+pronouncing reserved judgements within a reasonable time. In Anil 
+Rai v. State of Bihar 1, a 2-Judge Bench of this Court noted that 
+though, for High Courts,  no period for pronouncement of 
+judgement is contemplated  under the Civil Procedure Code , 1908 
+ 
+1 (2001) 7 SCC 318.
+
+Page 13 of 26 
+ 
+or the Code of Criminal Procedure, 1973, it must be done without 
+delay and accordingly, issued the following guidelines:  
+“10. Under the prevalent circumstances in some of the 
+High Courts, I feel it appropriate to provide some 
+guidelines regarding the pronouncement of judgements 
+which, I am sure, shall be followed by all concerned, 
+being the mandate of this Court. Such guidelines, as 
+for the present, are as under:  
+(i) The Chief Justices of the High Courts may issue 
+appropriate directions to the Registry that in a case 
+where the judgement is reserved and is 
+pronounced later, a column be added in the 
+judgement where, on the first page, after the 
+cause-title, date of reserving the judgement 
+and date of pronouncing it be separately 
+mentioned by the Court Officer concerned. 
+(ii) That Chief Justices of the High Courts, on their 
+administrative side, should direct the Court 
+Officers/Readers of the various Benches in the 
+High Courts to furnish every month the list of 
+cases in the matters where the judgements 
+reserved are not pronounced within the period 
+of that month. 
+(iii) On noticing that after conclusion of the arguments 
+the judgement is not pronounced within a 
+period of two months, the Chief Justice 
+concerned shall draw the attention of the 
+Bench concerned to the pending matter . The 
+Chief Justice may also see the desirability of 
+circulating the statement of such cases in which the 
+judgements have not been pronounced within a 
+period of six weeks from the date of conclusion of 
+the arguments amongst the Judges of the High 
+Court for their information. Such communication be 
+conveyed as confidential and in a sealed cover. 
+(iv) Where a judgement is not pronounced within 
+three months, from the date of reserving it, 
+any of the parties in the case is permitted to 
+file an application in the High Court with a 
+prayer for early judgement. Such application, as 
+and when filed, shall be listed before the Bench 
+concerned within two days excluding the 
+intervening holidays. 
+(v) If the judgement, for any reason, is not 
+pronounced within a period of six months,
+
+Page 14 of 26 
+ 
+any of the parties of the said lis shall be 
+entitled to move an application before the 
+Chief Justice of the High Court with a prayer 
+to withdraw the said case and to make it over 
+to any other Bench for fresh arguments . It is 
+open to the Chief Justice to grant the said prayer or 
+to pass any other order as he deems fit in the 
+circumstances.” 
+[Emphasis Supplied] [Sic] 
+13. The matter did not rest there. For instance, in Ratilal Jhaverbhai 
+Parmar v. State of Gujarat ,2 this Court supplemented the 
+guidelines issued in Anil Rai (supra) to the following extent:  
+“19. Such categories of cases demand the high courts 
+to lay down the law in clear terms for comprehension 
+of all concerned. Obviously, this process is time 
+consuming and the time limit for delivering judgements 
+by the high courts as laid down in Anil Rai v. State of 
+Bihar6, at times, is breached. We have full trust and 
+confidence in the learned Judges of the high courts 
+since they are well -equipped to tackle any kind of 
+pressure situation. However, while it would be prudent 
+to leave it to the learned Judges to pick any one of the 
+three options [(i) dictation of the judgement in open 
+court, (ii) reserving the judgement and pronouncing it 
+on a future day, or (iii) pronouncing the operative part 
+and the outcome, i.e., “dismissed” or “allowed” or 
+“disposed of”, while simultaneously expressing that 
+reasons would follow in a detailed final judgement 
+supporting such outcome], it would be in the interest 
+of justice if any learned Judge, who prefers the 
+third option (supra), makes the reasons available 
+in the public domain, preferably  within 2 (two) 
+days thereof but, in any case, not beyond 5 (five) 
+days to eliminate any kind of suspicion in the 
+mind of the party losing the legal battle. If the 
+pressure of work is such that in the assessment 
+of the learned Judge the reasons in support of the 
+final judgement cannot be made available, 
+without fail, in 5 (five) days, it would be a better 
+option to reserve the judgement. Also, if the 
+ultimate order would have the effect of changing the 
+status of the parties or the subject matter of the lis,  it 
+ 
+2 2024 SCC OnLine SC 2985.
+
+Page 15 of 26 
+ 
+would always be advisable to stick to the course 
+envisaged in Order XX…” 
+[Emphasis Supplied] [Sic] 
+14. This Court in fact, while reiterating the guidelines laid down in Anil 
+Rai (supra) , has, from time -to-time, issued further directions in 
+the same tenor, calling upon the Chief Justices of the High Courts 
+to exercise closer administrative oversight of pending reserved 
+matters.3 
+15. It is appropriate to mention here that this Court has been issuing 
+directions governing the outer limits for pronouncement of 
+judgments by the High Courts, owing to the statutory lacuna in this 
+regard, a situation not faced by the Trial Courts .4 We therefore 
+deem it necessary to revisit and restate these directions in more 
+comprehensive and definitive terms.  
+16. To that end, and in exercise of the jurisdiction vested in this Court 
+under Article 142 of the Constitution, we hereby issue the following 
+comprehensive guidelines, which shall hereafter operate as binding 
+directions upon all High Courts across the country:  
+A. Procedural Timelines re Pronouncement of 
+Judgements/Orders 
+ 
+3 Ravindra Pratap Shahi v. State of U.P., 2025 SCC OnLine SC 1813; Rajan v. The State of 
+Haryana, Criminal Appeal No. 3904/2025.  
+4 Section 353(1), Code of Criminal Procedure, 1973; Section 392, Bharatiya Nagarik Suraksha 
+Sanhita, 2023; Order XX Rule 1, Code of Civil Procedure, 1908.
+
+Page 16 of 26 
+ 
+I. Timelines 
+a. In a matter where the judgement is reserved, the High 
+Court shall endeavour to pronounce a reasoned 
+judgement promptly, within a maximum period of 3 
+months from the date of reserving such judgement.  
+b. The High Courts shall display extra promptitude in 
+pronouncing judgements and orders in matters of 
+personal liberty , e.g. regular bail, anticipatory bail, 
+criminal appeals (where the convict is in custody) , death 
+references, etc.  
+c. As soon as the bail application is heard, the order should 
+preferably be pronounced and uploaded on the same day. 
+In the event the order is reserved, it is expected to  be 
+pronounced on the next day and uploaded to the website.  
+d. Orders granting regular bail, suspending sentence, or 
+acquitting a convict in custody should be communicated 
+to the jail authorities and the Trial Court on the date it is 
+pronounced.  
+e. Consequent upon the outcome of serial number (d) above, 
+the undertrial/convict must be released on the same day 
+or, at most, on the next day,  unless they are required to
+
+Page 17 of 26 
+ 
+be taken in custody in another case, or there is a delay in 
+complying with the bail conditions, etc.  
+f. The compliance with the order must be reported by the 
+Trial Court to the Bench of the High Court that passed the 
+order.  
+g. In the event the judgment in a criminal appeal/death 
+reference is reserved, and the appellant is in custody, the 
+clarifications, if any, required by the Bench from the 
+advocates be sought within 7 days of the date of reserving 
+the judgment.  
+h. In all other matters, the clarifications, if any, should be 
+sought not beyond 1 month of the date of reserving the 
+judgment.  
+i. Where, after hearing the parties, the Bench is of the 
+opinion that any delay in pronouncement of a reasoned 
+judgement will cause irreparable loss to the parties and 
+urgent orders are required, the operative part may be 
+pronounced in Court, and the reasoned judgement be 
+uploaded within 7 days or a maximum of 15 days , if 
+practical difficulties are faced by the High Court . Such 
+cases may include habeas corpus matters, criminal
+
+Page 18 of 26 
+ 
+appeals resulting in the acquittal of a convict in custody, 
+matters relating to demolition/eviction, matters relating to 
+admission to educational institutions,  or other urgent 
+cases.  
+j. A reasoned judgement pronounced in open court should 
+be uploaded on the High Court website within 24 hours.  
+II. Accountability 
+a. The Chief Justice s of the High Court s, on the 
+administrative side , are requested to make  necessary 
+changes to the High Court website, where at the end of 
+every month, an automated email is sent to the Chief 
+Justice of the High Court , specifying all the reserved 
+judgements pending in that month, along with a copy of 
+the email to the Bench that has reserved the judgement.  
+b. The Chief Justice of the High Court may also circulate the 
+statement of the cases, in which the judgments have not 
+been pronounced within 2 months from the date of 
+reserving such judgment, amongst the Judges of the High 
+Court for their information. The communication shall be 
+conveyed as confidential and in a sealed cover.
+
+Page 19 of 26 
+ 
+c. In the event the reserved judgment is not delivered within 
+3 months, the Registrar General shall place the matters 
+before the Chief Justice for orders, and the Chief Justice 
+shall bring it to the notice of the concerned Bench for 
+pronouncing the judgment within 2 weeks thereafter.  
+d. In the event the reserved judgment is still not delivered 
+within the extended period of 2 weeks, the Chief Justice 
+should assign the case to another Bench with a 
+notification to the advocates and the parties. The new 
+Bench to which the matter is assigned shall obviously 
+rehear the case and pronounce the judgment promptly.  
+e. Where the operative part of the judgement has been 
+pronounced in open court, and the reasoned judgement is 
+not uploaded within 15 days, the Registrar General shall 
+place the matters before the Chief Justice for orders , and 
+the Chief Justice shall bring it to the notice of the 
+concerned Bench for uploading the reasoned judgement 
+within the next 3 days.  
+III. Remedies 
+a. In case the judgment is not pronounced upon the expiry 
+of 3 months from the date of reserving, any party to the lis
+
+Page 20 of 26 
+ 
+shall be entitled  to file an application in the High Court 
+with a prayer for early judgment.  
+(ai) Such an application shall be listed before the 
+concerned Bench within two days , excluding the 
+intervening holidays. 
+(aii) The Registry shall inform the Chief Justice of the 
+High Court of all such applications filed. 
+(aiii) If the judgment, for any reason, is not pronounced 
+within a period of 3 and a half months from the date 
+of reserving, any party to the lis shall be entitled to 
+move an application before the Chief Justice of the 
+High Court with a prayer to withdraw the said case 
+and make it over to any other Bench for fresh 
+hearing.  
+b. In case the reasoned judgement is not uploaded upon the 
+expiry of 15 days from the date of pronouncement of the 
+operative part, any party to the lis is permitted to file an 
+application in the High Court with a prayer for early 
+judgement.
+
+Page 21 of 26 
+ 
+(bi) Such an application shall be listed before the 
+concerned Bench within two days, excluding the 
+intervening holidays.   
+(bii) The Registry shall inform the Chief Justice of the 
+High Court of all such applications filed.   
+(biii) If the reasoned judgement, for any reason, is not 
+uploaded within 1 month from the date of 
+pronouncement of the operative part, any party to 
+the lis shall be entitled to move an application before 
+the Chief Justice of the High Court with a prayer to 
+withdraw the said case and make it over to any other 
+Bench for fresh hearing.  
+B. Measures to Increase Transparency  
+I. Format of Judgements/Orders 
+a. The certified copy of the judgment should mention the 
+date of reserving the judgment, the date of pronouncing 
+the judgment, and the date of uploading the judgment. 
+b. Where the operative part of the judgement has already 
+been delivered, the date of pronouncing the operative part 
+shall be the date of pronouncement, and the date on which
+
+Page 22 of 26 
+ 
+the reasoned judgement is uploaded will be the date of 
+uploading. 
+II. Updates to the High Court Website  
+a. After the conclusion of final hearing, the date of reserving 
+judgement must be reflected against the case status on 
+the High Court website.  
+b. If only the operative part of the judgment is delivered, the 
+case status on the High Court website must reflect 
+accordingly.  
+c. When the reasoned judgement is uploaded on the website, 
+an automated intimation through email/SMS be sent to 
+the advocates representing the parties.  
+17. The Registrars General of the High Courts are directed to place 
+these guidelines before the Chief Justices of their respective High 
+Courts so that appropriate steps are taken to incorporate necessary 
+amendments into the High Court Rules and their official websites.  
+18. It would be apposite at this stage to place the directions issued 
+hereinabove in their proper context, bearing in mind the 
+exceptional responsibilities entrusted to the High Courts under the 
+Constitution of India. As Constitutional Courts and guardians of 
+fundamental as well as legal rights, the High Courts occupy a
+
+Page 23 of 26 
+ 
+position of singular importance within our constitutional 
+architecture.  
+19. For a vast majority of citizens, they constitute the first and most 
+immediate forum for the vindication of rights and the redressal of 
+grievances. It is to the High Court that a citizen turns when 
+personal liberty is imperilled, when executive action is al leged to 
+have transgressed constitutional limitations, or when the exercise 
+of public power calls for judicial scrutiny. In innumerable 
+instances, the controversies brought before the High Courts are not 
+limited to the interests of an individual litigant, but concern 
+questions carrying consequences for entire communities, and at 
+times, for society at large. 
+20. The volume, breadth, and diversity of matters that come before the 
+High Courts are themselves a measure of the mammothian 
+obligations they shoulder. Their jurisdiction, particularly under 
+Articles 226 and 227 of the Constitution, is of remarkably wide 
+amplitude and without close parallels in the contemporary world. 
+Bail applications, habeas corpus applications, and criminal 
+appeals where questions of personal liberty remain at stake; 
+disputes concerning livelihood and property; family matters; 
+commercial ca uses; and a broad spectrum of constitutional and 
+public law challenges, together, form part of their daily docket. In
+
+Page 24 of 26 
+ 
+a nation of India’s size and demographic heterogeneity, it is 
+perhaps inevitable that the High Courts serve as the principal 
+judicial fora to which citizens flock in large numbers, across regions 
+and social circumstances, seeking protection of the law.  
+21. The Judges of the High Courts bear these obligations day after day, 
+under conditions that few judicial institutions elsewhere may be 
+called upon to endure, often carrying rosters that extend far beyond 
+a hundred matters a day. Such circumstances have creat ed an 
+environment in which Judges are required not only to adjudicate 
+competing claims in accordance with the law, but also to constantly 
+weigh urgency against volume so that no case remains unattended 
+for want of judicial time. We have frequently been inf ormed of 
+instances where Judges sit well past their usual court timings to 
+hear pending cases and thereafter, retire to their offices to fulfil 
+their remaining judicial duties. Their daily tasks, thus, extend far 
+beyond solely interpreting legal principles and involve a continuous 
+and unrelenting race against time to ensure that rights, 
+entitlements, and legitimate expectations brought before them are 
+not rendered illusory by the mere passage of time.  
+22. We therefore have no hesitation in observing that, notwithstanding 
+severe institutional pressures and ever-growing caseloads, the High 
+Courts have, over decades, discharged their constitutional
+
+Page 25 of 26 
+ 
+obligations with dedication, resilience, and distinction. Their 
+continued functioning under such circumstances stands as a 
+testament to the institutional strength, sense of duty, and enduring 
+commitment that have long characterized this nation’s judiciary. It 
+is precisely because we recognise these burdens  and seek to 
+facilitate the effective discharge of constitutional responsibilities  
+that implementing measures, such as those elaborated in 
+Paragraph 16, become necessary.  
+C. CONCLUSION 
+23. Having regard to the foregoing discussion, t he directions set out 
+herein are intended to ensure that proceedings before the High 
+Courts culminate in the pronouncement of judgements within a 
+defined and reasonable timeframe . These measures are issued in 
+the confidence that a structured framework will assist the High 
+Courts in the consistent discharge of their constitutional 
+responsibilities, while preserving the quality and deliberative 
+character of judicial decision -making. We have every reason to 
+believe that the High Courts will give effect to these directions fully 
+and faithfully.  
+24. At this juncture, we  clarify that the observations and directions 
+issued hereinabove shall neither be construed nor interpreted as 
+adverse remarks against the functioning or conduct of any learned
+
+Page 26 of 26 
+ 
+Judge of the High Court of Jharkhand or of any other High Court. 
+The aforesaid general directions are not intended to cast any 
+aspersion upon, nor do they bear any nexus with, any individual 
+learned Judge of a High Court. 
+25. In view thereof, the instant Writ Petitions are disposed of in terms 
+of the directions issued in Paragraph 16.  
+26. Pending applications, if any, also stand disposed of in the above 
+terms.  
+ 
+................…….........CJI 
+                                (SURYA KANT) 
+ 
+        …................…….........J. 
+                             (JOYMALYA BAGCHI) 
+ 
+NEW DELHI; 
+MAY 29, 2026
+
+2026 INSC 604
+Page 1 of 26 
+ 
+REPORTABLE 
+ 
+IN THE SUPREME COURT OF INDIA 
+CRIMINAL / CIVIL ORIGINAL JURISDICTION 
+ 
+Writ Petition (Crl.) No. 169 / 2025 
+ 
+Pila Pahan @ Peela Pahan and others                    …Petitioner(s) 
+ 
+versus 
+ 
+State of Jharkhand and another                                          …Respondent(s) 
+ 
+ 
+with 
+Writ Petition (Crl.) No. 252 / 2025 
+Writ Petition (C) No. 489 / 2025 
+Writ Petition (C) No. 482 / 2025 
+Writ Petition (C) No. 492 / 2025 
+Writ Petition (C) No. 519 / 2025 
+Writ Petition (C) No. 506 / 2025 
+Writ Petition (C) No. 508 / 2025 
+ 
+ 
+JUDGEMENT 
+SURYA KANT, CJI.  
+1. The instant proceedings arise from various Writ Petitions which, 
+though individual in origin, sought similar prayers for 
+“pronouncement of reserved judgements”  statedly pending for  
+indefinite periods of time before certain High Courts . The influx of 
+these cases, coupled with the startling picture presented regarding
+
+Page 2 of 26 
+ 
+delays, brought into focus a broader issue affecting the 
+administration of justice in several High Courts across the country.  
+2. In view of this, the scope of the proceedings was expanded to 
+address a question of wider constitutional significance . The 
+objective was to identify and lay down comprehensive and binding 
+guidelines to remedy the persistent delay in the pronouncement of 
+reserved judgements by High Courts, so as to ensure that the reliefs 
+claimed are not rendered nugatory merely owing to  the delayed 
+delivery of the final decision. 
+A. FACTS 
+3. We find it appropriate to first recapitulate the sequence of events 
+that led to the filing of these petitions and the subsequent 
+developments that arose during the course of the proceedings 
+before this Court.  
+3.1. Without getting into the intricate details of the individual cases 
+before us, and treating Writ Petition (Crl.) No. 169/2025 as the lead 
+case for illustrative purposes, suffice it to note that Petitioner Nos. 
+1, 2 and 3 were convicted by the Trial Courts in Jharkhand under 
+Section 302 of the Indian Penal Code, 1860 (IPC) and other related 
+offences and were sentenced to life imprisonment in 2012 and 
+2014. Petitioner No. 4, however, was convicted under Sections 376 
+and 346 of the IPC and sentenced to life imprisonment in 2018.
+
+Page 3 of 26 
+ 
+Each of them had already served over a decade in actual custody 
+(which includes the period of incarceration pending trial) when they 
+sought to prefer criminal appeals before the High Court  of 
+Jharkhand, where arguments were heard, and judgments were 
+reserved in their appeals, seemingly, between January and June 
+2022.  
+3.2. Owing to the undue delay in pronouncing the reserved judgments, 
+the Petitioners have approached this Court by means of the instant 
+petitions, seeking appropriate directions to the High Court  to 
+pronounce the same expeditiously.  
+3.3. This Court, on the first date of hearing, on 23.04.2025, directed the 
+Registrar General of the High Court of Jharkhand to submit a 
+report on all cases in which judgments  were reserved more than 
+two months ago and were pending pronouncement, along with 
+Bench-wise details.  
+3.4. In compliance thereof, the Registrar General submitted a status 
+report, which was taken on record by this Court on 05.05.2025. 
+The report inter alia disclosed that 56 matters, including criminal 
+appeals, had been finally heard by a Division Bench of the High 
+Court on various dates between 04.01.2022 and 16.12.2024, with 
+final pronouncements still awaited in each. Further, 11 matters 
+were reserved by a Single Judge Bench on dates ranging from
+
+Page 4 of 26 
+ 
+25.07.2024 to 27.09.2024. The details of the appeals preferred by 
+the Petitioners, however, were not included in the said report.  
+3.5. On the same date, we were apprised of an article published in the 
+Indian Express, an English-language daily newspaper, titled “After 
+SC rap, HC decides 75 Criminal Appeals in a week”, indicating 
+that the High Court had pronounced a record 75 criminal appeals 
+within a week. 
+3.6. Consequently, vide order dated 05.05.2025, we directed the 
+Registrar General of the High Court  of Jharkhand to furnish the 
+list of all 75 criminal appeals where the judgements had been 
+pronounced, including details of the date when the said 
+judgements were reserved, as well as the fate of the criminal 
+appeals filed by the Petitioners. 
+3.7. Enlarging the scope of these proceedings, we further directed High 
+Courts throughout the country to submit reports disclosing cases 
+in which judgments had been reserved on or before 31.01.2025 and 
+remained unpronounced, along with Bench-wise particulars. In the 
+interregnum, this Court learnt of another issue regarding the delay 
+in uploading judgements/orders to the respective High Court 
+websites for matters where the operative part of the said 
+judgement/order had already been pronounced in open court. To 
+understand the scope of this issue, the Registrar Generals of all the
+
+Page 5 of 26 
+ 
+High Courts were further directed to submit an additional report, 
+providing complete descriptions of the dates of pronouncement of 
+judgments and the dates on which such judgments were uploaded 
+to the respective High Court websites.   
+3.8. Thereafter, when the matter was taken up on 13.05.2025, this 
+Court noted that all four Petitioners had been released from 
+custody pursuant to judgments delivered by the High Court of 
+Jharkhand in their respective criminal appeals. However, as 
+indicated earlier, the instant petitions were nevertheless kept 
+pending in view of the larger issue they raised.  
+3.9. As the extent of the problem relating to the delayed pronouncement 
+of judgments across High Courts became evident, several other 
+matters involving similar grievances and praying for similar reliefs, 
+arising in both criminal and civil proceedings, were tagged with the 
+lead case.  
+3.10. In this backdrop, we requested Ms. Fauzia Shakil, learned 
+Advocate, to assist this Court in the capacity of Amicus Curiae . 
+Pursuantly, Ms. Fauzia, with the able assistance of Ms. Tasmiya 
+Taleha and Ms. Mallika Agarwal, painstakingly analysed the 
+reports received from various High Courts and pointed out that the 
+information had been submitted in varying formats, thereby 
+making collation difficult. In view thereof, vide order dated
+
+Page 6 of 26 
+ 
+22.09.2025, all High Courts were requested to modify the existing 
+format to ensure that uploaded and certified copies of their 
+judgments clearly disclose the date of reservation, the date of 
+pronouncement, and the date of uploading on the website, along 
+with a specification as to whether the operative part alone or the 
+full judgment had been pronounced.  
+3.11. The learned Amicus thereafter compiled and filed a consolidated 
+report in four volumes, containing a High Court -wise analysis of 
+delayed pronouncements. The learned Amicus was further 
+requested vide order dated 16.02.2026 to consolidate all the 
+suggestions and recommendations received from the High Courts 
+for the issuance of uniform general judicial guidelines.  
+3.12. Learned Amicus accordingly submitted the draft guidelines, which 
+were directed to be circulated to the Registrars General of all the 
+High Courts for their respective suggestions, and the matter was 
+thereupon reserved for orders. 
+B. ANALYSIS 
+4. Having considered the material on record, along with the 
+suggestions received from several High Courts in response to the 
+draft guidelines circulated by the learned Amicus, we are of the view 
+that this is a fit case  warranting the intervention of this Court  to
+
+Page 7 of 26 
+ 
+formulate uniform guidelines to address delays in pronouncing 
+reserved judgements across all High Courts in the country.  
+5. At the outset, we record our appreciation for the assistance 
+rendered by Ms. Fauzia Shakil, learned Amicus Curiae . She , 
+together with her team,  was entrusted with the arduous task of 
+collating, verifying, and analysing data received from various High 
+Courts, as well as proposing guidelines for uniform application. 
+Their diligence and thoughtful contributions proved invaluable to 
+the effective conduct of these proceedings.  
+6. The exercise undertaken by learned Amicus culminated in a set of 
+recommendations intended to address the concerns specified in the 
+earlier paragraphs. They are reproduced as follows: 
+Category Suggestions by the Amicus Curiae 
+Bail 
+Applications 
+Bail applications should be heard and orders 
+should be pronounced preferably on the 
+same day, or on the next day, if reserved, and 
+must be uploaded promptly. 
+Orders granting regular bail, suspension, or 
+acquittal must be communicated 
+immediately to jail authorities and the Trial 
+Court.  
+The undertrial or convict should be released 
+on the same day or the next day, unless 
+custody is required in another case or there 
+is a delay in surety.
+
+Page 8 of 26 
+ 
+Category Suggestions by the Amicus Curiae 
+Compliance must be reported by the Trial 
+Court to the concerned High Court Bench. 
+Clarifications 
+where 
+Judgements 
+are Reserved 
+In criminal appeals and death references, 
+where the Appellant is in custody, 
+clarifications must be sought by the Bench 
+from the advocates within 5 days of reserving 
+the judgement. 
+In all other cases, clarifications must be 
+sought by the Bench from the advocates 
+within 1 month of reserving the judgement. 
+Timeline for 
+Pronouncing of 
+Judgement 
+High Courts should endeavour to pronounce 
+judgements within a maximum of 3 months 
+from the date of reserving. 
+Automated 
+Monitoring 
+Mechanism 
+At the end of every month, an automated 
+email should be sent to the Chief Justice of a 
+High Court listing all reserved judgements 
+that are pending in that month, with a copy 
+to the concerned Bench. 
+The Chief Justice may circulate, among 
+judges of the High Court in a confidential 
+sealed cover, a list of cases where judgements 
+remain unpronounced beyond 6 weeks from 
+the conclusion of arguments. 
+Timeframe in 
+cases of delay 
+in 
+pronouncement 
+of judgement 
+If the judgement is not pronounced within 2 
+months, the Chief Justice shall draw the 
+attention of the concerned Bench. 
+If the judgement is not delivered within 3 
+months, Registrar General shall place the 
+matter before the Chief Justice, who shall 
+direct the concerned Bench to pronounce the 
+judgement within 2 weeks. 
+If the judgement is still not pronounced after 
+2 weeks, the Chief Justice may re-assign the 
+matter to another Bench for rehearing.
+
+Page 9 of 26 
+ 
+Category Suggestions by the Amicus Curiae 
+Remedies for 
+Litigants 
+If a judgement is not pronounced after 3 
+months of reserving, a party may file an 
+application for early pronouncement of the 
+judgement, which shall be listed within 2 
+days. 
+If a judgement is not pronounced after 6 
+months of reserving, a party may approach 
+the Chief Justice of the High Court for 
+withdrawal of the matter and its re -
+assignment to another Bench. 
+Operative and 
+Reasoned Part 
+of Judgement 
+ 
+All benches shall endeavour to pronounce 
+reasoned judgements in all cases. 
+If only the operative part is pronounced, the 
+reasoned judgement must be uploaded 
+within 5 days, extendable up to a maximum 
+of 15 days. 
+The case status on the High Court website 
+must clearly reflect: “operative part delivered 
+- judgement with reasons awaited/not 
+uploaded” 
+Automated 
+Monitoring 
+Mechanism 
+An automated email should be sent to the 
+Chief Justice of the High Court of all the 
+cases where the reasoned judgement is 
+awaited beyond 10 days along with a copy to 
+the concerned bench. 
+Timeline in 
+cases of delay 
+in reasoned 
+judgements 
+If the reasoned judgement is not uploaded 
+within 15 days, the Registrar shall place the 
+matter before the Chief Justice, who shall 
+direct the Bench to upload it within 2 to 3 
+days. 
+When the reasoned judgement is uploaded on 
+the website, an automated intimation 
+through Email/SMS should be sent to the 
+advocates on record in the matter.
+
+Page 10 of 26 
+ 
+Category Suggestions by the Amicus Curiae 
+Remedies for 
+Litigants 
+If a reasoned judgement is not uploaded 
+within 15 days of reserving, a party may file 
+an application seeking early judgement, 
+which shall be listed within 2 days. 
+If a reasoned judgement is not uploaded 
+within 1 month of reserving, a party may 
+approach the Chief Justice for appropriate 
+directions regarding uploading of the 
+reasoned judgement. 
+Disclosure on 
+the High Court 
+Website 
+The High Court website should display a list 
+of all judgements that have been reserved for 
+more than 3 months but have not yet been 
+pronounced. 
+A separate list should be maintained and 
+displayed on the website showing cases 
+where the operative part has been delivered 
+but the reasoned judgement has not been 
+uploaded within 15 days. 
+The case status must reflect the date of 
+pronouncement and the date of uploading of 
+the judgement. 
+Pronouncement 
+and Uploading 
+of Judgements 
+All judgements must be pronounced in open 
+court and uploaded within 24 hours of 
+pronouncement. 
+Legal Aid 
+Matters 
+The convict, undertrial should be informed of 
+the case status / the status of the reserved 
+judgements on a weekly or monthly basis by 
+the State Legal Services Authority. 
+The legal aid counsels should promptly file 
+applications upon the expiry of the 
+prescribed maximum time period.
+
+Page 11 of 26 
+ 
+7. We find that the above suggestions made by learned Amicus have 
+been fashioned on the sheet anchor of the data and responses 
+received from the High Courts themselves. These recommendations 
+are, in our assessment, both precise and practicable.  
+8. Crucially, Volume I submitted by learned Amicus during the course 
+of proceedings, offers a comprehensive account of the pendency of 
+reserved judgments across High Courts. The pan-India scenario is 
+deeply disquieting. Reserved judgments have remained 
+unpronounced for months, and in some instances, for years. The 
+report makes it clear that the problem is pervasive and brooks no 
+further delay in its redress.  
+9. It goes without saying that we cannot turn a Nelson’s Eye to the 
+human dimension of this problem, and it must be noted that each 
+delayed judgement in that compilation represents a litigant whose 
+case has been heard but whose fate hangs in the balance. The right 
+to life and personal liberty guaranteed under Article 21 of the 
+Constitution is not confined to the expeditious conduct of a trial. It 
+extends to every stage of the proceeding and is as much violated by 
+such delay in pronouncing a reserved judgement as by a denial of 
+the right to be heard.  
+10. The weight of this delay falls with particular severity on those held 
+in custody, for whom each day without a pronouncement is a day
+
+Page 12 of 26 
+ 
+of continued confinement. A convict whose appeal has been 
+reserved, or an accused who has sought bail and is awaiting the 
+court’s decision, cannot be expected to accept the court’s silence 
+with equanimity. 
+11. The interval between the hearing and the pronouncement also 
+affects the quality of the adjudication , as a judgment  bears the 
+imprint of the arguments that preceded it, and it reflects them most 
+faithfully when it follows them closely. Beyond this, there is a 
+broader dimension. Courts are institutions of trust, and the 
+regularity with which they speak after reserving judgement is part 
+of what sustains that trust . Such regularity in pronouncement is 
+neither a procedural nicety nor a matter of administrative 
+convenience. It is the condition on which citizens’ confidence in the 
+justice delivery system rests.  
+12. Being well-aware of these considerations, this Court has, time and 
+again, impressed upon the High Courts the importance of 
+pronouncing reserved judgements within a reasonable time. In Anil 
+Rai v. State of Bihar 1, a 2-Judge Bench of this Court noted that 
+though, for High Courts,  no period for pronouncement of 
+judgement is contemplated  under the Civil Procedure Code , 1908 
+ 
+1 (2001) 7 SCC 318.
+
+Page 13 of 26 
+ 
+or the Code of Criminal Procedure, 1973, it must be done without 
+delay and accordingly, issued the following guidelines:  
+“10. Under the prevalent circumstances in some of the 
+High Courts, I feel it appropriate to provide some 
+guidelines regarding the pronouncement of judgements 
+which, I am sure, shall be followed by all concerned, 
+being the mandate of this Court. Such guidelines, as 
+for the present, are as under:  
+(i) The Chief Justices of the High Courts may issue 
+appropriate directions to the Registry that in a case 
+where the judgement is reserved and is 
+pronounced later, a column be added in the 
+judgement where, on the first page, after the 
+cause-title, date of reserving the judgement 
+and date of pronouncing it be separately 
+mentioned by the Court Officer concerned. 
+(ii) That Chief Justices of the High Courts, on their 
+administrative side, should direct the Court 
+Officers/Readers of the various Benches in the 
+High Courts to furnish every month the list of 
+cases in the matters where the judgements 
+reserved are not pronounced within the period 
+of that month. 
+(iii) On noticing that after conclusion of the arguments 
+the judgement is not pronounced within a 
+period of two months, the Chief Justice 
+concerned shall draw the attention of the 
+Bench concerned to the pending matter . The 
+Chief Justice may also see the desirability of 
+circulating the statement of such cases in which the 
+judgements have not been pronounced within a 
+period of six weeks from the date of conclusion of 
+the arguments amongst the Judges of the High 
+Court for their information. Such communication be 
+conveyed as confidential and in a sealed cover. 
+(iv) Where a judgement is not pronounced within 
+three months, from the date of reserving it, 
+any of the parties in the case is permitted to 
+file an application in the High Court with a 
+prayer for early judgement. Such application, as 
+and when filed, shall be listed before the Bench 
+concerned within two days excluding the 
+intervening holidays. 
+(v) If the judgement, for any reason, is not 
+pronounced within a period of six months,
+
+Page 14 of 26 
+ 
+any of the parties of the said lis shall be 
+entitled to move an application before the 
+Chief Justice of the High Court with a prayer 
+to withdraw the said case and to make it over 
+to any other Bench for fresh arguments . It is 
+open to the Chief Justice to grant the said prayer or 
+to pass any other order as he deems fit in the 
+circumstances.” 
+[Emphasis Supplied] [Sic] 
+13. The matter did not rest there. For instance, in Ratilal Jhaverbhai 
+Parmar v. State of Gujarat ,2 this Court supplemented the 
+guidelines issued in Anil Rai (supra) to the following extent:  
+“19. Such categories of cases demand the high courts 
+to lay down the law in clear terms for comprehension 
+of all concerned. Obviously, this process is time 
+consuming and the time limit for delivering judgements 
+by the high courts as laid down in Anil Rai v. State of 
+Bihar6, at times, is breached. We have full trust and 
+confidence in the learned Judges of the high courts 
+since they are well -equipped to tackle any kind of 
+pressure situation. However, while it would be prudent 
+to leave it to the learned Judges to pick any one of the 
+three options [(i) dictation of the judgement in open 
+court, (ii) reserving the judgement and pronouncing it 
+on a future day, or (iii) pronouncing the operative part 
+and the outcome, i.e., “dismissed” or “allowed” or 
+“disposed of”, while simultaneously expressing that 
+reasons would follow in a detailed final judgement 
+supporting such outcome], it would be in the interest 
+of justice if any learned Judge, who prefers the 
+third option (supra), makes the reasons available 
+in the public domain, preferably  within 2 (two) 
+days thereof but, in any case, not beyond 5 (five) 
+days to eliminate any kind of suspicion in the 
+mind of the party losing the legal battle. If the 
+pressure of work is such that in the assessment 
+of the learned Judge the reasons in support of the 
+final judgement cannot be made available, 
+without fail, in 5 (five) days, it would be a better 
+option to reserve the judgement. Also, if the 
+ultimate order would have the effect of changing the 
+status of the parties or the subject matter of the lis,  it 
+ 
+2 2024 SCC OnLine SC 2985.
+
+Page 15 of 26 
+ 
+would always be advisable to stick to the course 
+envisaged in Order XX…” 
+[Emphasis Supplied] [Sic] 
+14. This Court in fact, while reiterating the guidelines laid down in Anil 
+Rai (supra) , has, from time -to-time, issued further directions in 
+the same tenor, calling upon the Chief Justices of the High Courts 
+to exercise closer administrative oversight of pending reserved 
+matters.3 
+15. It is appropriate to mention here that this Court has been issuing 
+directions governing the outer limits for pronouncement of 
+judgments by the High Courts, owing to the statutory lacuna in this 
+regard, a situation not faced by the Trial Courts .4 We therefore 
+deem it necessary to revisit and restate these directions in more 
+comprehensive and definitive terms.  
+16. To that end, and in exercise of the jurisdiction vested in this Court 
+under Article 142 of the Constitution, we hereby issue the following 
+comprehensive guidelines, which shall hereafter operate as binding 
+directions upon all High Courts across the country:  
+A. Procedural Timelines re Pronouncement of 
+Judgements/Orders 
+ 
+3 Ravindra Pratap Shahi v. State of U.P., 2025 SCC OnLine SC 1813; Rajan v. The State of 
+Haryana, Criminal Appeal No. 3904/2025.  
+4 Section 353(1), Code of Criminal Procedure, 1973; Section 392, Bharatiya Nagarik Suraksha 
+Sanhita, 2023; Order XX Rule 1, Code of Civil Procedure, 1908.
+
+Page 16 of 26 
+ 
+I. Timelines 
+a. In a matter where the judgement is reserved, the High 
+Court shall endeavour to pronounce a reasoned 
+judgement promptly, within a maximum period of 3 
+months from the date of reserving such judgement.  
+b. The High Courts shall display extra promptitude in 
+pronouncing judgements and orders in matters of 
+personal liberty , e.g. regular bail, anticipatory bail, 
+criminal appeals (where the convict is in custody) , death 
+references, etc.  
+c. As soon as the bail application is heard, the order should 
+preferably be pronounced and uploaded on the same day. 
+In the event the order is reserved, it is expected to  be 
+pronounced on the next day and uploaded to the website.  
+d. Orders granting regular bail, suspending sentence, or 
+acquitting a convict in custody should be communicated 
+to the jail authorities and the Trial Court on the date it is 
+pronounced.  
+e. Consequent upon the outcome of serial number (d) above, 
+the undertrial/convict must be released on the same day 
+or, at most, on the next day,  unless they are required to
+
+Page 17 of 26 
+ 
+be taken in custody in another case, or there is a delay in 
+complying with the bail conditions, etc.  
+f. The compliance with the order must be reported by the 
+Trial Court to the Bench of the High Court that passed the 
+order.  
+g. In the event the judgment in a criminal appeal/death 
+reference is reserved, and the appellant is in custody, the 
+clarifications, if any, required by the Bench from the 
+advocates be sought within 7 days of the date of reserving 
+the judgment.  
+h. In all other matters, the clarifications, if any, should be 
+sought not beyond 1 month of the date of reserving the 
+judgment.  
+i. Where, after hearing the parties, the Bench is of the 
+opinion that any delay in pronouncement of a reasoned 
+judgement will cause irreparable loss to the parties and 
+urgent orders are required, the operative part may be 
+pronounced in Court, and the reasoned judgement be 
+uploaded within 7 days or a maximum of 15 days , if 
+practical difficulties are faced by the High Court . Such 
+cases may include habeas corpus matters, criminal
+
+Page 18 of 26 
+ 
+appeals resulting in the acquittal of a convict in custody, 
+matters relating to demolition/eviction, matters relating to 
+admission to educational institutions,  or other urgent 
+cases.  
+j. A reasoned judgement pronounced in open court should 
+be uploaded on the High Court website within 24 hours.  
+II. Accountability 
+a. The Chief Justice s of the High Court s, on the 
+administrative side , are requested to make  necessary 
+changes to the High Court website, where at the end of 
+every month, an automated email is sent to the Chief 
+Justice of the High Court , specifying all the reserved 
+judgements pending in that month, along with a copy of 
+the email to the Bench that has reserved the judgement.  
+b. The Chief Justice of the High Court may also circulate the 
+statement of the cases, in which the judgments have not 
+been pronounced within 2 months from the date of 
+reserving such judgment, amongst the Judges of the High 
+Court for their information. The communication shall be 
+conveyed as confidential and in a sealed cover.
+
+Page 19 of 26 
+ 
+c. In the event the reserved judgment is not delivered within 
+3 months, the Registrar General shall place the matters 
+before the Chief Justice for orders, and the Chief Justice 
+shall bring it to the notice of the concerned Bench for 
+pronouncing the judgment within 2 weeks thereafter.  
+d. In the event the reserved judgment is still not delivered 
+within the extended period of 2 weeks, the Chief Justice 
+should assign the case to another Bench with a 
+notification to the advocates and the parties. The new 
+Bench to which the matter is assigned shall obviously 
+rehear the case and pronounce the judgment promptly.  
+e. Where the operative part of the judgement has been 
+pronounced in open court, and the reasoned judgement is 
+not uploaded within 15 days, the Registrar General shall 
+place the matters before the Chief Justice for orders , and 
+the Chief Justice shall bring it to the notice of the 
+concerned Bench for uploading the reasoned judgement 
+within the next 3 days.  
+III. Remedies 
+a. In case the judgment is not pronounced upon the expiry 
+of 3 months from the date of reserving, any party to the lis
+
+Page 20 of 26 
+ 
+shall be entitled  to file an application in the High Court 
+with a prayer for early judgment.  
+(ai) Such an application shall be listed before the 
+concerned Bench within two days , excluding the 
+intervening holidays. 
+(aii) The Registry shall inform the Chief Justice of the 
+High Court of all such applications filed. 
+(aiii) If the judgment, for any reason, is not pronounced 
+within a period of 3 and a half months from the date 
+of reserving, any party to the lis shall be entitled to 
+move an application before the Chief Justice of the 
+High Court with a prayer to withdraw the said case 
+and make it over to any other Bench for fresh 
+hearing.  
+b. In case the reasoned judgement is not uploaded upon the 
+expiry of 15 days from the date of pronouncement of the 
+operative part, any party to the lis is permitted to file an 
+application in the High Court with a prayer for early 
+judgement.
+
+Page 21 of 26 
+ 
+(bi) Such an application shall be listed before the 
+concerned Bench within two days, excluding the 
+intervening holidays.   
+(bii) The Registry shall inform the Chief Justice of the 
+High Court of all such applications filed.   
+(biii) If the reasoned judgement, for any reason, is not 
+uploaded within 1 month from the date of 
+pronouncement of the operative part, any party to 
+the lis shall be entitled to move an application before 
+the Chief Justice of the High Court with a prayer to 
+withdraw the said case and make it over to any other 
+Bench for fresh hearing.  
+B. Measures to Increase Transparency  
+I. Format of Judgements/Orders 
+a. The certified copy of the judgment should mention the 
+date of reserving the judgment, the date of pronouncing 
+the judgment, and the date of uploading the judgment. 
+b. Where the operative part of the judgement has already 
+been delivered, the date of pronouncing the operative part 
+shall be the date of pronouncement, and the date on which
+
+Page 22 of 26 
+ 
+the reasoned judgement is uploaded will be the date of 
+uploading. 
+II. Updates to the High Court Website  
+a. After the conclusion of final hearing, the date of reserving 
+judgement must be reflected against the case status on 
+the High Court website.  
+b. If only the operative part of the judgment is delivered, the 
+case status on the High Court website must reflect 
+accordingly.  
+c. When the reasoned judgement is uploaded on the website, 
+an automated intimation through email/SMS be sent to 
+the advocates representing the parties.  
+17. The Registrars General of the High Courts are directed to place 
+these guidelines before the Chief Justices of their respective High 
+Courts so that appropriate steps are taken to incorporate necessary 
+amendments into the High Court Rules and their official websites.  
+18. It would be apposite at this stage to place the directions issued 
+hereinabove in their proper context, bearing in mind the 
+exceptional responsibilities entrusted to the High Courts under the 
+Constitution of India. As Constitutional Courts and guardians of 
+fundamental as well as legal rights, the High Courts occupy a
+
+Page 23 of 26 
+ 
+position of singular importance within our constitutional 
+architecture.  
+19. For a vast majority of citizens, they constitute the first and most 
+immediate forum for the vindication of rights and the redressal of 
+grievances. It is to the High Court that a citizen turns when 
+personal liberty is imperilled, when executive action is al leged to 
+have transgressed constitutional limitations, or when the exercise 
+of public power calls for judicial scrutiny. In innumerable 
+instances, the controversies brought before the High Courts are not 
+limited to the interests of an individual litigant, but concern 
+questions carrying consequences for entire communities, and at 
+times, for society at large. 
+20. The volume, breadth, and diversity of matters that come before the 
+High Courts are themselves a measure of the mammothian 
+obligations they shoulder. Their jurisdiction, particularly under 
+Articles 226 and 227 of the Constitution, is of remarkably wide 
+amplitude and without close parallels in the contemporary world. 
+Bail applications, habeas corpus applications, and criminal 
+appeals where questions of personal liberty remain at stake; 
+disputes concerning livelihood and property; family matters; 
+commercial ca uses; and a broad spectrum of constitutional and 
+public law challenges, together, form part of their daily docket. In
+
+Page 24 of 26 
+ 
+a nation of India’s size and demographic heterogeneity, it is 
+perhaps inevitable that the High Courts serve as the principal 
+judicial fora to which citizens flock in large numbers, across regions 
+and social circumstances, seeking protection of the law.  
+21. The Judges of the High Courts bear these obligations day after day, 
+under conditions that few judicial institutions elsewhere may be 
+called upon to endure, often carrying rosters that extend far beyond 
+a hundred matters a day. Such circumstances have creat ed an 
+environment in which Judges are required not only to adjudicate 
+competing claims in accordance with the law, but also to constantly 
+weigh urgency against volume so that no case remains unattended 
+for want of judicial time. We have frequently been inf ormed of 
+instances where Judges sit well past their usual court timings to 
+hear pending cases and thereafter, retire to their offices to fulfil 
+their remaining judicial duties. Their daily tasks, thus, extend far 
+beyond solely interpreting legal principles and involve a continuous 
+and unrelenting race against time to ensure that rights, 
+entitlements, and legitimate expectations brought before them are 
+not rendered illusory by the mere passage of time.  
+22. We therefore have no hesitation in observing that, notwithstanding 
+severe institutional pressures and ever-growing caseloads, the High 
+Courts have, over decades, discharged their constitutional
+
+Page 25 of 26 
+ 
+obligations with dedication, resilience, and distinction. Their 
+continued functioning under such circumstances stands as a 
+testament to the institutional strength, sense of duty, and enduring 
+commitment that have long characterized this nation’s judiciary. It 
+is precisely because we recognise these burdens  and seek to 
+facilitate the effective discharge of constitutional responsibilities  
+that implementing measures, such as those elaborated in 
+Paragraph 16, become necessary.  
+C. CONCLUSION 
+23. Having regard to the foregoing discussion, t he directions set out 
+herein are intended to ensure that proceedings before the High 
+Courts culminate in the pronouncement of judgements within a 
+defined and reasonable timeframe . These measures are issued in 
+the confidence that a structured framework will assist the High 
+Courts in the consistent discharge of their constitutional 
+responsibilities, while preserving the quality and deliberative 
+character of judicial decision -making. We have every reason to 
+believe that the High Courts will give effect to these directions fully 
+and faithfully.  
+24. At this juncture, we  clarify that the observations and directions 
+issued hereinabove shall neither be construed nor interpreted as 
+adverse remarks against the functioning or conduct of any learned
+
+Page 26 of 26 
+ 
+Judge of the High Court of Jharkhand or of any other High Court. 
+The aforesaid general directions are not intended to cast any 
+aspersion upon, nor do they bear any nexus with, any individual 
+learned Judge of a High Court. 
+25. In view thereof, the instant Writ Petitions are disposed of in terms 
+of the directions issued in Paragraph 16.  
+26. Pending applications, if any, also stand disposed of in the above 
+terms.  
+ 
+................…….........CJI 
+                                (SURYA KANT) 
+ 
+        …................…….........J. 
+                             (JOYMALYA BAGCHI) 
+ 
+NEW DELHI; 
+MAY 29, 2026
+
+1
+ITEM NO.1501               COURT NO.1               SECTION X
+(For judgment)
+               S U P R E M E  C O U R T  O F  I N D I A
+                       RECORD OF PROCEEDINGS
+Writ Petition(s)(Criminal) No(s).169/2025
+PILA PAHAN@ PEELA PAHAN & ORS.                     Petitioner(s)
+                                VERSUS
+THE STATE OF JHARKHAND & ANR.                      Respondent(s)
+[HEARD BY: HON. THE CHIEF JUSTICE AND HON. JOYMALYA BAGCHI, JJ.] 
+IA No. 100925/2025 - EXEMPTION FROM FILING O.T.
+IA No. 100926/2025 - GRANT OF BAIL
+IA No. 100929/2025 - GRANT OF BAIL
+IA No. 100928/2025 - GRANT OF BAIL
+IA No. 100927/2025 - GRANT OF BAIL 
+WITH
+W.P.(Crl.) No. 252/2025 (X)
+FOR ADMISSION
+IA No. 148410/2025 - EXEMPTION FROM FILING O.T.
+IA No. 148412/2025 - SUSPENSION OF SENTENCE
+IA No. 148420/2025 - SUSPENSION OF SENTENCE
+IA No. 148419/2025 - SUSPENSION OF SENTENCE
+IA No. 148418/2025 - SUSPENSION OF SENTENCE
+IA No. 148417/2025 - SUSPENSION OF SENTENCE
+IA No. 148416/2025 - SUSPENSION OF SENTENCE
+IA No. 148415/2025 - SUSPENSION OF SENTENCE
+IA No. 148414/2025 - SUSPENSION OF SENTENCE
+IA No. 148413/2025 - SUSPENSION OF SENTENCE
+W.P.(C) No. 489/2025 (X)
+IA No. 134178/2025 - EXEMPTION FROM FILING O.T.
+IA No. 134177/2025 - PERMISSION TO FILE ADDITIONAL 
+DOCUMENTS/FACTS/ANNEXURES
+IA No. 134166/2025 - PERMISSION TO FILE AMENDED WRIT PETITION
+W.P.(C) No. 482/2025 (X)
+W.P.(C) No. 492/2025 (X)
+W.P.(C) No. 519/2025 (X)
+W.P.(C) No. 506/2025 (X)
+W.P.(C) No. 508/2025 (X)
+Date : 29-05-2026 These matters were called on for judgment today.
+For Petitioner(s)  Mr. Aalok Kumar, Adv.
+                   Ms. Vanya Gupta, AOR                   
+                   
+                   Ms. Fauzia Shakil, AOR
+                   Ms. Tasmiya Taleha, Adv.
+                   Ms. Malika Agarwal, Adv.
+                   Ms. Mallika Aggarwal, Adv.
+
+2
+    Ms. Misha Rohatgi, Adv.
+    Mr. Aman Prasad, Adv.
+    Ms. K.V. Bharathi Upadhaya, AOR
+               
+For Respondent(s)  Ms. Pallavi Langar, AOR
+                   Mr. P.S. Sudheer, Adv.                   
+                   
+                   Mr. Ambhoj Kumar Sinha, AOR
+                   Ms. Neeti Bhardwaj, Adv.                   
+                   
+                   Mr. Ashwarya Sinha, AOR
+                   Mr. Sankalp Mahindru, Adv.
+                   Mr. Aditya Malhotra, Adv.                   
+                   
+                   Mr. Amit Sharma, AOR
+                   Mr. Dipesh Sinha, Adv.
+                   Ms. Pallavi Barua, Adv.
+                   Ms. Aparna Singh, Adv.                   
+                   
+                   Mr. Gopal Jha, AOR
+                   Ms. Shireesha Sharma, Adv.
+                   Mr. Umesh Kumar Yadav, Adv.
+                   Mr. Sawan Datta, Adv.
+                   Mr. Nimish Arjaria, Adv.
+                   Mr. Shreyash Bhardwaj, Adv.
+                   Ms. Ratna Priya Pradhan, Adv.
+                   Mr. Tilak Vij, Adv.
+                   
+                   Mr. Rahul Gupta, AOR
+                   
+                   Mr. B. Shravanth Shanker, AOR
+                   Ms. Prerna Robin, Adv.
+                   Ms. Grahita Agarwal, Adv.
+                   Mr. I.V. Sai Nikhil, Adv.
+                   Mr. B. Yeshwanth Raj, Adv.
+                   
+                   Mr. P. I. Jose, AOR
+                   
+                   Mr. Ravi Raghunath, AOR                   
+                   
+                   Mr. Sahil Tagotra, AOR
+                   Ms. Shreya Kasera, Adv.                   
+                   
+                   Ms. K.V. Bharathi Upadhyaya, AOR
+                   Ms. Pritama, Adv.
+                   Ms. Shaivani Gupta, Adv.
+                   Dr. Sunita, Adv.
+                   Mr. Sufyan Hasan, Adv.
+                   Ms. Hema Malik, Adv.
+                   Mr. Bipin Vinayak Chandan, Adv.
+
+3
+                   
+                   Mr. Deepayan Mandal, AOR
+                   Mr. Mridul Bansal, Adv.
+                   Mr. Naman Varma, Adv.
+                   Mr. Monu, Adv.
+                   Mr. Aryan Ahmed, Adv.                   
+                   
+                   Mr. Sanjai Kumar Pathak, AOR
+                   Mrs. Shashi Pathak, Adv.
+                   Mr. Arvind Kumar Tripathi, Adv.
+                   Ms. Ruhi Sultana, Adv.
+                   Mr. Robin Kumar, Adv.
+                   Ms. Shweta Jayshankar Dwivedi, Adv.
+                   Mr. Ashish Kumar Sinha, Adv.
+                   Mrs. Binita Jaiswal, Adv.
+                   
+                   Ms. Nidhi Mittal, AOR
+                   
+                   Mr. Ahantham Henry, Adv.
+                   Mr. Ahantham Rohen Singh, Adv.
+                   Mr. Dadvid Ahongsangbam, Adv.
+                   Mr. Mahon Singh, Adv.
+                   Mr. Aniket Rajput, Adv.
+                   Ms. Khoisnam Nirmala Devi, Adv.
+                   Mr. Yeshu Mehta, Adv.
+                   Mr. Tanay Hegde, Adv.
+                   Mr. Ravi Kumar Bodhani, Adv.
+                   Mr. Kumar Mihir, AOR                   
+                   
+                   Mr. Arjun Garg, AOR
+                   Ms. Amruta Arjun Garg, Adv.
+                   Ms. Arushi Kulshrestha, Adv.
+                   Mr. Saaransh Shukla, Adv.
+                   Ms. Muskan Bensla, Adv.
+                   Ms. Mrinmoyee Das, Adv.                   
+                   
+                   Mr. Kunal Chatterji, AOR
+                   Ms. Maitrayee Banerjee, Adv.
+                   Mr. Rohit Bansal, Adv.
+                   Mr. Varij Nayan Mishra, Adv.  
+    Mr. Avneesh Arputham, Adv.
+    Mr. Ankit Sharma, Adv.                 
+                   
+          
+Hon’ble  the  Chief  Justice  of  India  pronounced  the
+judgment of the Bench comprising His Lordship and Hon’ble Mr.
+Justice Joymalya Bagchi.
+The Writ Petitions are disposed of in terms of the
+directions issued in paragraph 16 of the judgment.
+
+4
+Pending applications, if any, also stand disposed of.
+(SATISH KUMAR YADAV)                         (PREETHI DILEEP KUMAR)
+ADDITIONAL REGISTRAR                           ASSISTANT REGISTRAR
+(Signed reportable judgment is placed on the file)
