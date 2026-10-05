@@ -1,0 +1,189 @@
+[
+  {
+    "query_id": "LQ-001",
+    "query": "Can the trial court close prosecution witness cross-examination as 'Nil Opportunity given' when the accused is unrepresented by counsel?",
+    "query_text": "Can the trial court close prosecution witness cross-examination as 'Nil Opportunity given' when the accused is unrepresented by counsel?",
+    "target_case_title": "2026020987",
+    "target_citations": [
+      "CRL.M.C. 537/2026",
+      "Ram Swaroop Gupta vs. State NCT of Delhi"
+    ],
+    "expected_statutes": [
+      "Section 311 CrPC",
+      "Section 348 BNSS",
+      "Section 397(2) CrPC",
+      "Section 482 CrPC"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Criminal Procedure & Fair Trial",
+    "expected_ratio": "Calling upon an unrepresented accused to cross-examine a witness in the absence of counsel and closing cross-examination as 'Nil. Opportunity given' vitiates the fairness of the trial. The trial court has a duty to provide legal aid or appoint an amicus curiae rather than sacrificing procedural fairness for expeditious disposal.",
+    "ground_truth_answer": "Calling upon an unrepresented accused to cross-examine a witness in the absence of counsel and closing cross-examination as 'Nil. Opportunity given' vitiates the fairness of the trial. The trial court has a duty to provide legal aid or appoint an amicus curiae rather than sacrificing procedural fairness for expeditious disposal."
+  },
+  {
+    "query_id": "LQ-002",
+    "query": "Is a revision petition against the dismissal of an application for recall of witnesses under Section 311 CrPC barred as an interlocutory order under Section 397(2) CrPC?",
+    "query_text": "Is a revision petition against the dismissal of an application for recall of witnesses under Section 311 CrPC barred as an interlocutory order under Section 397(2) CrPC?",
+    "target_case_title": "2026020987",
+    "target_citations": [
+      "CRL.M.C. 537/2026",
+      "Ram Swaroop Gupta vs. State NCT of Delhi"
+    ],
+    "expected_statutes": [
+      "Section 311 CrPC",
+      "Section 348 BNSS",
+      "Section 397(2) CrPC",
+      "Section 438(2) BNSS",
+      "Section 482 CrPC"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Criminal Procedure & Inherent Powers",
+    "expected_ratio": "While dismissal of an application under Section 311 CrPC (Section 348 BNSS) is an interlocutory order barring revision under Section 397(2) CrPC (Section 438(2) BNSS), the High Court is justified and duty-bound to invoke its inherent powers under Section 482 CrPC (Section 528 BNSS) where the interlocutory order has resulted in gross injustice to the accused.",
+    "ground_truth_answer": "While dismissal of an application under Section 311 CrPC (Section 348 BNSS) is an interlocutory order barring revision under Section 397(2) CrPC (Section 438(2) BNSS), the High Court is justified and duty-bound to invoke its inherent powers under Section 482 CrPC (Section 528 BNSS) where the interlocutory order has resulted in gross injustice to the accused."
+  },
+  {
+    "query_id": "LQ-003",
+    "query": "Can Special Courts issue bailable warrants or coercive processes against minor child victims or their guardians to compel appearance in court?",
+    "query_text": "Can Special Courts issue bailable warrants or coercive processes against minor child victims or their guardians to compel appearance in court?",
+    "target_case_title": "2026041142",
+    "target_citations": [
+      "CRL.M.C. 3880/2025",
+      "Minor Child K & Ors. vs. State NCT of Delhi"
+    ],
+    "expected_statutes": [
+      "POCSO Act",
+      "Section 33 POCSO Act",
+      "Section 35 POCSO Act",
+      "Section 482 CrPC"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Child Protection & POCSO",
+    "expected_ratio": "Coercive processes including bailable warrants cannot be issued against minor victims of sexual assault or their parents to secure their appearance before court. The criminal justice process must protect vulnerable child victims from secondary victimization and trauma.",
+    "ground_truth_answer": "Coercive processes including bailable warrants cannot be issued against minor victims of sexual assault or their parents to secure their appearance before court. The criminal justice process must protect vulnerable child victims from secondary victimization and trauma."
+  },
+  {
+    "query_id": "LQ-004",
+    "query": "Should the court repeatedly insist on the physical or virtual presence of a child victim on every date of hearing during bail proceedings?",
+    "query_text": "Should the court repeatedly insist on the physical or virtual presence of a child victim on every date of hearing during bail proceedings?",
+    "target_case_title": "2026041142",
+    "target_citations": ["CRL.M.C. 3880/2025", "Minor Child K vs. State"],
+    "expected_statutes": [
+      "POCSO Act",
+      "Section 439 CrPC",
+      "Vulnerable Witness Guidelines"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "POCSO & Bail Procedure",
+    "expected_ratio": "At the stage of considering bail applications, while the victim has a right to be heard, once the objections or views of the victim regarding bail have been recorded, repeated insistence on the physical or virtual presence of the victim on every subsequent date of hearing ought to be avoided to prevent harassment.",
+    "ground_truth_answer": "At the stage of considering bail applications, while the victim has a right to be heard, once the objections or views of the victim regarding bail have been recorded, repeated insistence on the physical or virtual presence of the victim on every subsequent date of hearing ought to be avoided to prevent harassment."
+  },
+  {
+    "query_id": "LQ-005",
+    "query": "What is the maximum mandatory time limit laid down by the Supreme Court under Article 142 for High Courts to pronounce reserved judgments?",
+    "query_text": "What is the maximum mandatory time limit laid down by the Supreme Court under Article 142 for High Courts to pronounce reserved judgments?",
+    "target_case_title": "2026071765",
+    "target_citations": [
+      "2026 INSC 604",
+      "Writ Petition (Crl.) No. 169/2025",
+      "Pila Pahan @ Peela Pahan vs. State of Jharkhand"
+    ],
+    "expected_statutes": [
+      "Article 142 Constitution",
+      "Article 21 Constitution",
+      "Section 353 CrPC",
+      "Order XX Rule 1 CPC"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Constitutional Law & Speedy Justice",
+    "expected_ratio": "Under Article 142 of the Constitution, the Supreme Court laid down binding guidelines that High Courts must pronounce reasoned judgments within a maximum period of 3 months from the date of reserving judgment, ensuring promptitude particularly in matters touching personal liberty.",
+    "ground_truth_answer": "Under Article 142 of the Constitution, the Supreme Court laid down binding guidelines that High Courts must pronounce reasoned judgments within a maximum period of 3 months from the date of reserving judgment, ensuring promptitude particularly in matters touching personal liberty."
+  },
+  {
+    "query_id": "LQ-006",
+    "query": "What procedure must High Courts follow for immediate communication and release of prisoners when bail or acquittal orders are pronounced?",
+    "query_text": "What procedure must High Courts follow for immediate communication and release of prisoners when bail or acquittal orders are pronounced?",
+    "target_case_title": "2026071765",
+    "target_citations": ["2026 INSC 604", "Pila Pahan vs. State of Jharkhand"],
+    "expected_statutes": [
+      "Article 21 Constitution",
+      "Article 142 Constitution",
+      "Section 439 CrPC"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Criminal Law & Personal Liberty",
+    "expected_ratio": "Orders granting bail or acquitting convicts in custody must be communicated to jail authorities and trial courts on the date of pronouncement, and the prisoner must be released on the same day or at most the next day. In urgent matters like habeas corpus or bail, operative orders may be pronounced immediately and reasons uploaded within 7 to 15 days.",
+    "ground_truth_answer": "Orders granting bail or acquitting convicts in custody must be communicated to jail authorities and trial courts on the date of pronouncement, and the prisoner must be released on the same day or at most the next day. In urgent matters like habeas corpus or bail, operative orders may be pronounced immediately and reasons uploaded within 7 to 15 days."
+  },
+  {
+    "query_id": "LQ-007",
+    "query": "Is a single composite appeal maintainable against a common judgment disposing of both a civil suit and a counterclaim?",
+    "query_text": "Is a single composite appeal maintainable against a common judgment disposing of both a civil suit and a counterclaim?",
+    "target_case_title": "2026092958",
+    "target_citations": [
+      "2026 INSC 831",
+      "Basudev & Ors. vs. Sanjay Kumar & Ors.",
+      "SLP (C) No. 4338 of 2025"
+    ],
+    "expected_statutes": [
+      "Order VIII Rule 6A CPC",
+      "Order XLI Rule 1 CPC",
+      "Section 96 CPC",
+      "Section 11 CPC"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Civil Procedure & Appellate Law",
+    "expected_ratio": "A common judgment in a suit and counterclaim can henceforth be challenged by way of a single composite appeal, provided distinct grounds of challenge are raised against both the decree in the suit and the decree in the counterclaim, and court fees are paid accordingly as two separate appeals.",
+    "ground_truth_answer": "A common judgment in a suit and counterclaim can henceforth be challenged by way of a single composite appeal, provided distinct grounds of challenge are raised against both the decree in the suit and the decree in the counterclaim, and court fees are paid accordingly as two separate appeals."
+  },
+  {
+    "query_id": "LQ-008",
+    "query": "Does the failure to file two separate appeals against decrees in a suit and counterclaim trigger res judicata or estoppel?",
+    "query_text": "Does the failure to file two separate appeals against decrees in a suit and counterclaim trigger res judicata or estoppel?",
+    "target_case_title": "2026092958",
+    "target_citations": ["2026 INSC 831", "Basudev vs. Sanjay Kumar"],
+    "expected_statutes": [
+      "Section 11 CPC",
+      "Order VIII Rule 6A CPC",
+      "Order XLI CPC"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Civil Procedure & Res Judicata",
+    "expected_ratio": "Filing a composite appeal against a common judgment in a suit and counterclaim enables the appeal to be decided on merits without being defeated by technical pleas of res judicata or estoppel, thereby eliminating procedural rigmarole and multiplicity of proceedings.",
+    "ground_truth_answer": "Filing a composite appeal against a common judgment in a suit and counterclaim enables the appeal to be decided on merits without being defeated by technical pleas of res judicata or estoppel, thereby eliminating procedural rigmarole and multiplicity of proceedings."
+  },
+  {
+    "query_id": "LQ-009",
+    "query": "When can an inquiry be dispensed with under Article 311(2) second proviso Clause (c) of the Constitution for an ISRO scientist?",
+    "query_text": "When can an inquiry be dispensed with under Article 311(2) second proviso Clause (c) of the Constitution for an ISRO scientist?",
+    "target_case_title": "V R Sanal Kumar vs Union Of India",
+    "target_citations": [
+      "Civil Appeal No. 6301 of 2013",
+      "Dr. V.R. Sanal Kumar vs. Union of India"
+    ],
+    "expected_statutes": [
+      "Article 311(2) Clause (c) Constitution",
+      "Rule 14 CCS (CCA) Rules 1965"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Service Law & Constitutional Security",
+    "expected_ratio": "Under Article 311(2) second proviso clause (c), departmental inquiry can be dispensed with when the President or Governor is satisfied that in the interest of the security of the State it is not expedient to hold such inquiry. The satisfaction is subjective and based on sensitive intelligence that cannot be disclosed or submitted to judicial review unless mala fides are proved.",
+    "ground_truth_answer": "Under Article 311(2) second proviso clause (c), departmental inquiry can be dispensed with when the President or Governor is satisfied that in the interest of the security of the State it is not expedient to hold such inquiry. The satisfaction is subjective and based on sensitive intelligence that cannot be disclosed or submitted to judicial review unless mala fides are proved."
+  },
+  {
+    "query_id": "LQ-010",
+    "query": "Does unauthorized foreign employment of a space scientist working in rocket propulsion justify summary dismissal on national security grounds?",
+    "query_text": "Does unauthorized foreign employment of a space scientist working in rocket propulsion justify summary dismissal on national security grounds?",
+    "target_case_title": "V R Sanal Kumar vs Union Of India",
+    "target_citations": [
+      "Civil Appeal No. 6301 of 2013",
+      "V.R. Sanal Kumar vs. Union of India"
+    ],
+    "expected_statutes": [
+      "Article 311(2)(c) Constitution",
+      "Central Civil Services Conduct Rules"
+    ],
+    "target_role": "Ratio Decidendi",
+    "domain": "Service Law & Space Technology",
+    "expected_ratio": "Unauthorized absence and association of a scientist with foreign institutions in sensitive and strategic areas like rocket propulsion and launch vehicle technology constitutes a grave threat to the security of the State, fully justifying dismissal from service without inquiry.",
+    "ground_truth_answer": "Unauthorized absence and association of a scientist with foreign institutions in sensitive and strategic areas like rocket propulsion and launch vehicle technology constitutes a grave threat to the security of the State, fully justifying dismissal from service without inquiry."
+  }
+]
