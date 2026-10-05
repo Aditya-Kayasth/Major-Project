@@ -1,0 +1,20 @@
+# Virtual Environments
+.venv/
+venv/
+
+# Environment and Secrets
+.env
+
+# Vector DB & Local Storage
+chromadb_store/
+data/parent_store/
+
+# Python Bytecode & Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Logs
+*.log
