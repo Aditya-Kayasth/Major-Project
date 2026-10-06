@@ -1,0 +1,137 @@
+[
+  {
+    "stem": "654b1c982df7e33902d05c9e",
+    "filename": "654b1c982df7e33902d05c9e.pdf",
+    "case_title": "Chandrapal Singh vs. State of U.P. and Another",
+    "citation": "2023:AHC:212021-FB",
+    "court": "Allahabad High Court (Full Bench)",
+    "year": 2023,
+    "legal_domain": "Criminal & Civil Procedure (Stay Orders & Asian Resurfacing)",
+    "child_chunks_count": 883,
+    "parent_chunks_count": 124,
+    "detected_statutes": [
+      "Article 226 Constitution",
+      "Article 141 Constitution",
+      "Article 142 Constitution",
+      "CrPC § 482",
+      "CPC Order 39"
+    ],
+    "ratio_decidendi_summary": "The Full Bench examined the automatic vacation of stay orders under Asian Resurfacing and held that automatic lapse of stay orders after six months cannot apply mechanically to execution proceedings or where hearings are pending through no fault of the litigant, upholding judicial discretion under Article 226 and Section 482 CrPC.",
+    "source_path": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\PROPERTY\\654b1c982df7e33902d05c9e.pdf"
+  },
+  {
+    "stem": "2026041142",
+    "filename": "2026041142.pdf",
+    "case_title": "Minor Child K vs. State (NCT of Delhi)",
+    "citation": "2025:DHC:1142",
+    "court": "High Court of Delhi",
+    "year": 2025,
+    "legal_domain": "Criminal Law (POCSO & Vulnerable Witness Jurisprudence)",
+    "child_chunks_count": 768,
+    "parent_chunks_count": 182,
+    "detected_statutes": [
+      "POCSO Act § 6",
+      "POCSO Act § 33",
+      "POCSO Act § 36",
+      "CrPC § 161",
+      "IPC § 376"
+    ],
+    "ratio_decidendi_summary": "The High Court reaffirmed the child-friendly examination protocols under POCSO Act Section 33 and 36, holding that vulnerable witness deposition facilities and child psychologists must be provided to prevent secondary trauma to minor sexual assault survivors during cross-examination.",
+    "source_path": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\2026041142.pdf"
+  },
+  {
+    "stem": "2026071765",
+    "filename": "2026071765.pdf",
+    "case_title": "Pila Pahan vs. State of Jharkhand",
+    "citation": "2026 INSC 604",
+    "court": "Supreme Court of India",
+    "year": 2026,
+    "legal_domain": "Constitutional Law & Judicial Administration (Reserved Judgments)",
+    "child_chunks_count": 694,
+    "parent_chunks_count": 183,
+    "detected_statutes": [
+      "Article 21 Constitution",
+      "Article 14 Constitution",
+      "CPC Order 20 Rule 1",
+      "High Court Rules"
+    ],
+    "ratio_decidendi_summary": "The Supreme Court held that inordinate and unexplained delay in pronouncing reserved judgments violates the fundamental right to speedy justice under Article 21; where a judgment remains reserved for over six months, the matter must ordinarily be listed for fresh hearing before another bench.",
+    "source_path": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\2026071765.pdf"
+  },
+  {
+    "stem": "2026092958",
+    "filename": "2026092958.pdf",
+    "case_title": "Basudev vs. Sanjay Kumar",
+    "citation": "2026 INSC 831",
+    "court": "Supreme Court of India",
+    "year": 2026,
+    "legal_domain": "Civil Procedure & Appellate Law (Composite Decrees & Counter-Claims)",
+    "child_chunks_count": 180,
+    "parent_chunks_count": 46,
+    "detected_statutes": [
+      "CPC § 96",
+      "CPC Order 8 Rule 6A",
+      "CPC Order 41 Rule 1",
+      "CPC § 11 (Res Judicata)"
+    ],
+    "ratio_decidendi_summary": "The Supreme Court clarified appellate procedure under CPC Order 8 Rule 6A, holding that when a suit is decreed and a counter-claim is dismissed in a common judgment, a single composite appeal is maintainable if the decree drawn is composite and the grounds challenge both aspects.",
+    "source_path": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\2026092958.pdf"
+  },
+  {
+    "stem": "V_R_Sanal_Kumar_vs_Union_Of_India_on_12_May_2023",
+    "filename": "V_R_Sanal_Kumar_vs_Union_Of_India_on_12_May_2023.PDF",
+    "case_title": "Dr. V.R. Sanal Kumar vs. Union of India",
+    "citation": "2023 INSC 524 / Civil Appeal 3737/2023",
+    "court": "Supreme Court of India",
+    "year": 2023,
+    "legal_domain": "Constitutional Law & Service Jurisprudence (National Security)",
+    "child_chunks_count": 178,
+    "parent_chunks_count": 19,
+    "detected_statutes": [
+      "Article 311(2)(c) Constitution",
+      "Article 310 Constitution",
+      "ISRO Service Rules",
+      "Article 14 Constitution"
+    ],
+    "ratio_decidendi_summary": "The Supreme Court held that the President's subjective satisfaction under the second proviso clause (c) to Article 311(2) dispensing with an inquiry in the interest of the security of the State is non-justiciable on adequacy of material, provided there is rational nexus and bona fide material placed before the competent authority.",
+    "source_path": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\V_R_Sanal_Kumar_vs_Union_Of_India_on_12_May_2023.PDF"
+  },
+  {
+    "stem": "2026020987",
+    "filename": "2026020987.pdf",
+    "case_title": "Ram Swaroop Gupta vs. State (NCT of Delhi)",
+    "citation": "2026:DHC:987",
+    "court": "High Court of Delhi",
+    "year": 2026,
+    "legal_domain": "Criminal Procedure (Summoning & Recall of Witnesses)",
+    "child_chunks_count": 80,
+    "parent_chunks_count": 20,
+    "detected_statutes": [
+      "CrPC § 311",
+      "BNSS § 348",
+      "Indian Evidence Act § 138",
+      "CrPC § 397"
+    ],
+    "ratio_decidendi_summary": "The High Court held that the court's power under Section 311 CrPC to recall witnesses is discretionary but must be exercised ex debito justitiae to discover the truth, and cannot be invoked as a subterfuge to fill up prosecution lacunae or prejudice the defense after closure of evidence.",
+    "source_path": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\2026020987.pdf"
+  },
+  {
+    "stem": "CyberCrime",
+    "filename": "CyberCrime.pdf",
+    "case_title": "In Re: Standard Operating Procedures for Cyber Forensics & Electronic Evidence",
+    "citation": "2024:HC:CYBER-01",
+    "court": "High Court of Judicature",
+    "year": 2024,
+    "legal_domain": "Information Technology & Digital Forensics",
+    "child_chunks_count": 17,
+    "parent_chunks_count": 5,
+    "detected_statutes": [
+      "Information Technology Act § 65B",
+      "Indian Evidence Act § 65B",
+      "BSA § 63",
+      "Article 21 Constitution"
+    ],
+    "ratio_decidendi_summary": "The Court established mandatory chain-of-custody protocols and Section 65B certification requirements for electronic records, holding that digital evidence extracted without contemporaneous hash validation is inadmissible in criminal trials.",
+    "source_path": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CRIMINAL\\CyberCrime.pdf"
+  }
+]
