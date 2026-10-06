@@ -1,0 +1,121 @@
+[
+  {
+    "query_id": "LQ-001",
+    "query": "What are the essential legal tests to distinguish premeditated murder from sudden fight under Section 302 IPC and Section 103 BNS?",
+    "target_case_title": "K.M. Nanavati vs. State of Maharashtra",
+    "expected_statutes": [
+      "Section 302 IPC",
+      "Section 300 Exception 4 IPC",
+      "Section 103 BNS"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "Under Section 302 IPC (corresponding to Section 103 BNS), premeditation requires an established mens rea before the act. Exception 4 to Section 300 IPC applies only when death is caused without premeditation in a sudden fight in the heat of passion upon a sudden quarrel, and the offender has not taken undue advantage or acted in a cruel or unusual manner. The fatal blow must directly emanate from the sudden passion without adequate cooling time."
+  },
+  {
+    "query_id": "LQ-002",
+    "query": "What are the four objective ingredients established in Virsa Singh to prove thirdly of Section 300 IPC for conviction under Section 302 IPC?",
+    "target_case_title": "Virsa Singh vs. State of Punjab",
+    "expected_statutes": [
+      "Section 300 Clause 3 IPC",
+      "Section 302 IPC",
+      "Section 103 BNS"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "The Supreme Court in Virsa Singh established four ingredients: (1) objective bodily injury must be present; (2) the nature of the injury must be proved; (3) it must be established that there was intention to inflict that particular bodily injury and not an accidental injury; and (4) it must be proved that the injury so intended is sufficient in the ordinary course of nature to cause death. This constitutes binding Ratio Decidendi."
+  },
+  {
+    "query_id": "LQ-003",
+    "query": "How is fraudulent inducement distinguished from a mere breach of contract under Section 420 IPC and Section 318 BNS?",
+    "target_case_title": "Hridaya Ranjan Prasad Verma vs. State of Bihar",
+    "expected_statutes": [
+      "Section 415 IPC",
+      "Section 420 IPC",
+      "Section 318 BNS"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "To constitute cheating under Section 420 IPC (Section 318 BNS), the fraudulent or dishonest intention must exist at the very inception of the transaction. A mere failure to keep a promise or breach of contract subsequently does not give rise to criminal liability unless fraudulent inducement at the threshold is demonstrated."
+  },
+  {
+    "query_id": "LQ-004",
+    "query": "What constitutes 'soon before death' and statutory presumption for dowry death under Section 304B IPC and Section 80 BNS?",
+    "target_case_title": "Rajinder Singh vs. State of Punjab",
+    "expected_statutes": [
+      "Section 304B IPC",
+      "Section 113B Indian Evidence Act",
+      "Section 80 BNS"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "Under Section 304B IPC (Section 80 BNS), 'soon before death' is a relative term that implies an unbroken proximate link between cruelty or harassment relating to dowry and the subsequent death. Once the prosecution establishes that the deceased was subjected to cruelty for dowry soon before her unnatural death within seven years of marriage, Section 113B of the Evidence Act mandatorily requires the court to presume dowry death."
+  },
+  {
+    "query_id": "LQ-005",
+    "query": "Can Department of Space drivers seek trade union recognition under Central Civil Services Rules 1993 according to 2020 INSC 484?",
+    "target_case_title": "Government of India vs. ISRO Drivers Association (2020 INSC 484)",
+    "expected_statutes": [
+      "Central Civil Services (Recognition of Service Association) Rules 1993",
+      "2020 INSC 484"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "In 2020 INSC 484 (Government of India v. ISRO Drivers Association), the Supreme Court held that service association recognition under CCS Rules 1993 must satisfy statutory preconditions regarding common category of civil employees. The Department of Space cannot be compelled to recognize an association that does not conform to the distinct functional classification and security requirements of the space establishment."
+  },
+  {
+    "query_id": "LQ-006",
+    "query": "How did the Supreme Court define informational privacy and proportionality under Article 21 of the Indian Constitution?",
+    "target_case_title": "Justice K.S. Puttaswamy (Retd.) vs. Union of India",
+    "expected_statutes": [
+      "Article 21 Constitution of India",
+      "Article 14 Constitution of India"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "In Puttaswamy, the 9-judge Constitution Bench held that privacy is a fundamental right emanating from Article 21. Any state encroachment upon personal or informational privacy must satisfy the three-fold proportionality test: (1) legality (backed by valid law); (2) legitimate state aim; and (3) proportionality between the means adopted and the object sought to be achieved."
+  },
+  {
+    "query_id": "LQ-007",
+    "query": "What are the mandatory twin conditions for granting bail under Section 37 of the NDPS Act?",
+    "target_case_title": "Union of India vs. Shiv Shanker Kesari",
+    "expected_statutes": [
+      "Section 37 NDPS Act",
+      "Article 21 Constitution of India"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "Section 37 of the NDPS Act mandates that before granting bail for commercial quantities: (1) the Public Prosecutor must be given an opportunity to oppose; and (2) the Court must be satisfied that there are reasonable grounds for believing that the accused is not guilty of such offence and is not likely to commit any offence while on bail. 'Reasonable grounds' means substantial and probable causes."
+  },
+  {
+    "query_id": "LQ-008",
+    "query": "What is the crucial distinction between theft under Section 379 IPC and criminal breach of trust under Section 406 IPC?",
+    "target_case_title": "State of Gujarat vs. Jaswantlal Nathalal",
+    "expected_statutes": [
+      "Section 378 IPC",
+      "Section 379 IPC",
+      "Section 405 IPC",
+      "Section 406 IPC",
+      "Section 303 BNS",
+      "Section 316 BNS"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "In theft (Section 379 IPC / Section 303 BNS), movable property is moved out of the possession of any person without their consent. In criminal breach of trust (Section 406 IPC / Section 316 BNS), the property is lawful in the hands of the offender by virtue of an express entrustment or dominion, and the offence consists in subsequently dishonest misappropriation or conversion to own use."
+  },
+  {
+    "query_id": "LQ-009",
+    "query": "What are the five golden principles (Panchsheel) of circumstantial evidence required for conviction under Section 302 IPC?",
+    "target_case_title": "Sharad Birdhichand Sarda vs. State of Maharashtra",
+    "expected_statutes": [
+      "Section 302 IPC",
+      "Section 3 Indian Evidence Act",
+      "Section 103 BNS"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "In Sharad Birdhichand Sarda, the Supreme Court laid down five golden principles: (1) the circumstances from which the conclusion of guilt is drawn must be fully established; (2) the facts established should be consistent only with the hypothesis of guilt; (3) the circumstances should be of a conclusive nature and tendency; (4) they should exclude every possible hypothesis except guilt; and (5) the chain of evidence must be complete without any reasonable gap."
+  },
+  {
+    "query_id": "LQ-010",
+    "query": "Under what circumstances can an ISRO or Department of Space employee be terminated for unauthorized publication or foreign contact?",
+    "target_case_title": "V.R. Sanal Kumar vs. Union of India",
+    "expected_statutes": [
+      "Central Civil Services (Conduct) Rules",
+      "Article 311 Constitution of India"
+    ],
+    "target_role": "Ratio Decidendi",
+    "ground_truth_answer": "In V.R. Sanal Kumar v. Union of India, the court affirmed that scientists and technical officers in sensitive defense and space establishments (ISRO) are bound by rigorous statutory non-disclosure covenants. Unauthorized foreign travel, non-cleared research publications in international journals, or contact with foreign entities constitutes serious misconduct overriding ordinary domestic employment claims."
+  }
+]

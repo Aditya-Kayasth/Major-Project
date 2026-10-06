@@ -1,0 +1,665 @@
+{
+  "timestamp": "20261005_175545",
+  "queries_count": 10,
+  "collection_name": "indian_legal_precedents",
+  "summary_table": {
+    "Config 1 (Naive Dense)": {
+      "Hit@1": 0.0,
+      "Hit@3": 0.0,
+      "Hit@5": 0.0,
+      "MRR": 0.0,
+      "Latency Mean (ms)": 0.37,
+      "Latency p50 (ms)": 0.24,
+      "Latency p95 (ms)": 1.03,
+      "Groundedness (0-10)": 7.5,
+      "Ratio Decidendi (0-10)": 7.5,
+      "Statutory Concordance (0-10)": 7.5,
+      "Reasoning Quality (0-10)": 7.5,
+      "Overall Judicial Score": 7.5
+    },
+    "Config 2 (BM25 Lexical)": {
+      "Hit@1": 0.0,
+      "Hit@3": 0.0,
+      "Hit@5": 0.0,
+      "MRR": 0.0,
+      "Latency Mean (ms)": 0.01,
+      "Latency p50 (ms)": 0.01,
+      "Latency p95 (ms)": 0.01,
+      "Groundedness (0-10)": 7.5,
+      "Ratio Decidendi (0-10)": 7.5,
+      "Statutory Concordance (0-10)": 7.5,
+      "Reasoning Quality (0-10)": 7.5,
+      "Overall Judicial Score": 7.5
+    },
+    "Config 3 (Hybrid RRF)": {
+      "Hit@1": 0.0,
+      "Hit@3": 0.0,
+      "Hit@5": 0.0,
+      "MRR": 0.0,
+      "Latency Mean (ms)": 0.32,
+      "Latency p50 (ms)": 0.3,
+      "Latency p95 (ms)": 0.48,
+      "Groundedness (0-10)": 7.5,
+      "Ratio Decidendi (0-10)": 7.5,
+      "Statutory Concordance (0-10)": 7.5,
+      "Reasoning Quality (0-10)": 7.5,
+      "Overall Judicial Score": 7.5
+    },
+    "Config 4 (Full Legal Funnel)": {
+      "Hit@1": 0.0,
+      "Hit@3": 0.0,
+      "Hit@5": 0.0,
+      "MRR": 0.0,
+      "Latency Mean (ms)": 0.37,
+      "Latency p50 (ms)": 0.28,
+      "Latency p95 (ms)": 0.82,
+      "Groundedness (0-10)": 7.5,
+      "Ratio Decidendi (0-10)": 7.5,
+      "Statutory Concordance (0-10)": 7.5,
+      "Reasoning Quality (0-10)": 7.5,
+      "Overall Judicial Score": 7.5
+    }
+  },
+  "raw_results": {
+    "Config 1 (Naive Dense)": {
+      "rankings": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "latencies_ms": [
+        1.557699999466422,
+        0.21319999905244913,
+        0.28050000037183054,
+        0.16320000031555537,
+        0.26930000058200676,
+        0.392699999792967,
+        0.24050000138231553,
+        0.23099999998521525,
+        0.19500000053085387,
+        0.18810000074154232
+      ],
+      "judge_scores": {
+        "factual_groundedness": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "ratio_decidendi_isolation": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "statutory_concordance": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "legal_reasoning_quality": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "overall_score": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ]
+      },
+      "query_details": [
+        {
+          "query_id": "LQ-001",
+          "rank": null,
+          "latency_ms": 1.557699999466422,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-002",
+          "rank": null,
+          "latency_ms": 0.21319999905244913,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-003",
+          "rank": null,
+          "latency_ms": 0.28050000037183054,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-004",
+          "rank": null,
+          "latency_ms": 0.16320000031555537,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-005",
+          "rank": null,
+          "latency_ms": 0.26930000058200676,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-006",
+          "rank": null,
+          "latency_ms": 0.392699999792967,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-007",
+          "rank": null,
+          "latency_ms": 0.24050000138231553,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-008",
+          "rank": null,
+          "latency_ms": 0.23099999998521525,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-009",
+          "rank": null,
+          "latency_ms": 0.19500000053085387,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-010",
+          "rank": null,
+          "latency_ms": 0.18810000074154232,
+          "score": 7.5
+        }
+      ]
+    },
+    "Config 2 (BM25 Lexical)": {
+      "rankings": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "latencies_ms": [
+        0.01610000072105322,
+        0.008200000593205914,
+        0.0068999997893115506,
+        0.005599998985417187,
+        0.005699999746866524,
+        0.009999999747378752,
+        0.005899999450775795,
+        0.004999999873689376,
+        0.004100000296602957,
+        0.0070000005507608876
+      ],
+      "judge_scores": {
+        "factual_groundedness": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "ratio_decidendi_isolation": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "statutory_concordance": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "legal_reasoning_quality": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "overall_score": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ]
+      },
+      "query_details": [
+        {
+          "query_id": "LQ-001",
+          "rank": null,
+          "latency_ms": 0.01610000072105322,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-002",
+          "rank": null,
+          "latency_ms": 0.008200000593205914,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-003",
+          "rank": null,
+          "latency_ms": 0.0068999997893115506,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-004",
+          "rank": null,
+          "latency_ms": 0.005599998985417187,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-005",
+          "rank": null,
+          "latency_ms": 0.005699999746866524,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-006",
+          "rank": null,
+          "latency_ms": 0.009999999747378752,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-007",
+          "rank": null,
+          "latency_ms": 0.005899999450775795,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-008",
+          "rank": null,
+          "latency_ms": 0.004999999873689376,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-009",
+          "rank": null,
+          "latency_ms": 0.004100000296602957,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-010",
+          "rank": null,
+          "latency_ms": 0.0070000005507608876,
+          "score": 7.5
+        }
+      ]
+    },
+    "Config 3 (Hybrid RRF)": {
+      "rankings": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "latencies_ms": [
+        0.39029999970807694,
+        0.5148000000190223,
+        0.3625999997893814,
+        0.2406999992672354,
+        0.24900000062189065,
+        0.4473999997571809,
+        0.24760000087553635,
+        0.2221000013378216,
+        0.16010000035748817,
+        0.3490999988571275
+      ],
+      "judge_scores": {
+        "factual_groundedness": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "ratio_decidendi_isolation": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "statutory_concordance": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "legal_reasoning_quality": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "overall_score": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ]
+      },
+      "query_details": [
+        {
+          "query_id": "LQ-001",
+          "rank": null,
+          "latency_ms": 0.39029999970807694,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-002",
+          "rank": null,
+          "latency_ms": 0.5148000000190223,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-003",
+          "rank": null,
+          "latency_ms": 0.3625999997893814,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-004",
+          "rank": null,
+          "latency_ms": 0.2406999992672354,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-005",
+          "rank": null,
+          "latency_ms": 0.24900000062189065,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-006",
+          "rank": null,
+          "latency_ms": 0.4473999997571809,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-007",
+          "rank": null,
+          "latency_ms": 0.24760000087553635,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-008",
+          "rank": null,
+          "latency_ms": 0.2221000013378216,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-009",
+          "rank": null,
+          "latency_ms": 0.16010000035748817,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-010",
+          "rank": null,
+          "latency_ms": 0.3490999988571275,
+          "score": 7.5
+        }
+      ]
+    },
+    "Config 4 (Full Legal Funnel)": {
+      "rankings": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "latencies_ms": [
+        0.2832000009220792,
+        0.2532999988034135,
+        0.2576000006229151,
+        0.7236000001284992,
+        0.2906000008806586,
+        0.34670000059122685,
+        0.27009999939764384,
+        0.24529999973310623,
+        0.8921000007831026,
+        0.18339999951422215
+      ],
+      "judge_scores": {
+        "factual_groundedness": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "ratio_decidendi_isolation": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "statutory_concordance": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "legal_reasoning_quality": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "overall_score": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ]
+      },
+      "query_details": [
+        {
+          "query_id": "LQ-001",
+          "rank": null,
+          "latency_ms": 0.2832000009220792,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-002",
+          "rank": null,
+          "latency_ms": 0.2532999988034135,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-003",
+          "rank": null,
+          "latency_ms": 0.2576000006229151,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-004",
+          "rank": null,
+          "latency_ms": 0.7236000001284992,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-005",
+          "rank": null,
+          "latency_ms": 0.2906000008806586,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-006",
+          "rank": null,
+          "latency_ms": 0.34670000059122685,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-007",
+          "rank": null,
+          "latency_ms": 0.27009999939764384,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-008",
+          "rank": null,
+          "latency_ms": 0.24529999973310623,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-009",
+          "rank": null,
+          "latency_ms": 0.8921000007831026,
+          "score": 7.5
+        },
+        {
+          "query_id": "LQ-010",
+          "rank": null,
+          "latency_ms": 0.18339999951422215,
+          "score": 7.5
+        }
+      ]
+    }
+  }
+}

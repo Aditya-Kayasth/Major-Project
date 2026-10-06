@@ -1,0 +1,113 @@
+[
+  {
+    "index": 1,
+    "case_key": "2026041142",
+    "preferred_title": "2026041142",
+    "chunk_count": 768,
+    "courts": [
+      "High Court of Delhi"
+    ],
+    "years": [
+      "2025"
+    ],
+    "primary_source": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\2026041142.pdf",
+    "roles": {
+      "Obiter Dicta": 668,
+      "Precedents Cited": 71,
+      "Submissions": 15,
+      "Ratio Decidendi": 11,
+      "Order": 3
+    },
+    "statutes": [],
+    "acts": [],
+    "sample_snippet": "CRL.M.C. 3880/2025            Page 1 of 38\n\n$~ \n* IN THE HIGH COURT OF DELHI AT NEW DELHI \n%                               Judgment reserved on: 16.12.2025 \n             Judgment pronounced on: 11.03.2026 \n        Judgment uploaded on: 13.03.2026 \n+  CRL.M.C. 3880/2025 & CRL.M.A. 16947/2025 \n MINOR "
+  },
+  {
+    "index": 2,
+    "case_key": "2026071765",
+    "preferred_title": "2026071765",
+    "chunk_count": 694,
+    "courts": [
+      "Supreme Court of India"
+    ],
+    "years": [
+      "2026"
+    ],
+    "primary_source": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CRIMINAL\\2026071765.pdf",
+    "roles": {
+      "Obiter Dicta": 638,
+      "Precedents Cited": 40,
+      "Order": 16
+    },
+    "statutes": [],
+    "acts": [],
+    "sample_snippet": "2026 INSC 604\nPage 1 of 26\n\nREPORTABLE\n\nIN THE SUPREME COURT OF INDIA \nCRIMINAL / CIVIL ORIGINAL JURISDICTION\n\nWrit Petition (Crl.) No. 169 / 2025\n\nPila Pahan @ Peela Pahan and others                    \u2026Petitioner(s)\n\nversus\n\nState of Jharkhand and another                                          \u2026"
+  },
+  {
+    "index": 3,
+    "case_key": "2026092958",
+    "preferred_title": "2026092958",
+    "chunk_count": 180,
+    "courts": [
+      "Supreme Court of India"
+    ],
+    "years": [
+      "2026"
+    ],
+    "primary_source": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\2026092958.pdf",
+    "roles": {
+      "Obiter Dicta": 116,
+      "Order": 14,
+      "Ratio Decidendi": 10,
+      "Precedents Cited": 40
+    },
+    "statutes": [],
+    "acts": [],
+    "sample_snippet": "2026 INSC 831\n\nPage 1 of 23 \nCA @ SLP (C) No.4338 of 2025\n\nReportable\n\nIN THE SUPREME COURT OF INDIA \nCIVIL APPELLATE JURISDICTION\n\nCivil Appeal No.                  of 2026 \n(Arising out of SLP (C) No.4338 of 2025)\n\nBasudev & Ors.           \n ...Appellant(s)\n\nVersus\n\nSanjay Kumar & Ors.      \n  ..."
+  },
+  {
+    "index": 4,
+    "case_key": "V_R_Sanal_Kumar_vs_Union_Of_India_on_12_May_2023",
+    "preferred_title": "V R Sanal Kumar vs Union Of India",
+    "chunk_count": 178,
+    "courts": [
+      "Supreme Court of India"
+    ],
+    "years": [
+      "2023"
+    ],
+    "primary_source": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\V_R_Sanal_Kumar_vs_Union_Of_India_on_12_May_2023.PDF",
+    "roles": {
+      "Obiter Dicta": 153,
+      "Precedents Cited": 13,
+      "Ratio Decidendi": 11,
+      "Submissions": 1
+    },
+    "statutes": [],
+    "acts": [],
+    "sample_snippet": "V.R. Sanal Kumar vs Union Of India on 12 May, 2023\nAuthor: C.T. Ravikumar\nBench: M.R. Shah, C.T. Ravikumar\n                                                                             Reportable\n                                    IN THE SUPREME COURT OF INDIA\n                                     CI"
+  },
+  {
+    "index": 5,
+    "case_key": "2026020987",
+    "preferred_title": "2026020987",
+    "chunk_count": 80,
+    "courts": [
+      "High Court"
+    ],
+    "years": [
+      "2026"
+    ],
+    "primary_source": "E:\\GIT_HUB\\MAJOR PROJECT\\Major Project Data\\CIVIL\\2026020987.pdf",
+    "roles": {
+      "Obiter Dicta": 80
+    },
+    "statutes": [
+      "Section 311 CrPC"
+    ],
+    "acts": [
+      "CrPC"
+    ],
+    "sample_snippet": "CRL.M.C. 537/2026                                            Page 1 of 4 pages  \n$~58 \n* IN  THE  HIGH  COURT  OF  DELHI  AT  NEW  DELHI \n%                         Date of Decision: 21.01.2026  \n+  CRL.M.C. 537/2026, CRL.M.A. 2162/2026 & CRL.M.A. \n2161/2026\n\nRAM SWAROOP GUPTA & ORS.      .....Petiti"
+  }
+]
