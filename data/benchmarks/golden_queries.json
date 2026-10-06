@@ -1,0 +1,118 @@
+[
+  {
+    "query_id": "GQ-001",
+    "query": "Does the automatic vacation of interim stay orders after six months under the Asian Resurfacing doctrine apply mechanically to execution proceedings where the litigant is not at fault?",
+    "query_text": "Does the automatic vacation of interim stay orders after six months under the Asian Resurfacing doctrine apply mechanically to execution proceedings where the litigant is not at fault?",
+    "target_case_title": "Chandrapal Singh",
+    "target_citations": [
+      "2023:AHC:212021-FB",
+      "Chandrapal Singh vs. State of U.P."
+    ],
+    "domain": "Procedure & Stay Orders",
+    "expected_ratio": "Automatic vacation of stay orders under Asian Resurfacing cannot apply mechanically to execution proceedings or where hearings are pending without fault of the litigant, upholding judicial discretion under Article 226 and Section 482 CrPC.",
+    "ground_truth_answer": "Automatic vacation of stay orders under Asian Resurfacing cannot apply mechanically to execution proceedings or where hearings are pending without fault of the litigant, upholding judicial discretion under Article 226 and Section 482 CrPC."
+  },
+  {
+    "query_id": "GQ-002",
+    "query": "Can the High Court exercise inherent jurisdiction under Section 482 CrPC to extend an interim stay order beyond six months during the pendency of a revision?",
+    "query_text": "Can the High Court exercise inherent jurisdiction under Section 482 CrPC to extend an interim stay order beyond six months during the pendency of a revision?",
+    "target_case_title": "Chandrapal Singh",
+    "target_citations": [
+      "2023:AHC:212021-FB",
+      "Chandrapal Singh vs. State of U.P."
+    ],
+    "domain": "Criminal Procedure & Inherent Powers",
+    "expected_ratio": "The inherent powers of the High Court under Section 482 CrPC and Article 226 remain uncurtailed by mechanical administrative lapses.",
+    "ground_truth_answer": "The inherent powers of the High Court under Section 482 CrPC and Article 226 remain uncurtailed by mechanical administrative lapses."
+  },
+  {
+    "query_id": "GQ-003",
+    "query": "What special child-friendly procedures must Special Courts follow under Sections 33 and 36 of POCSO to prevent secondary victimization during cross-examination?",
+    "query_text": "What special child-friendly procedures must Special Courts follow under Sections 33 and 36 of POCSO to prevent secondary victimization during cross-examination?",
+    "target_case_title": "Minor Child K",
+    "target_citations": [
+      "2025:DHC:1142",
+      "Minor Child K vs. State NCT of Delhi"
+    ],
+    "domain": "POCSO & Vulnerable Witnesses",
+    "expected_ratio": "Vulnerable witness deposition complexes and assistance from child psychologists are mandatory to prevent secondary trauma during cross-examination under POCSO Sections 33 and 36.",
+    "ground_truth_answer": "Vulnerable witness deposition complexes and assistance from child psychologists are mandatory to prevent secondary trauma during cross-examination under POCSO Sections 33 and 36."
+  },
+  {
+    "query_id": "GQ-004",
+    "query": "Can Special Courts issue coercive processes or insist on repeated physical presence of a minor sexual assault victim on every date of bail hearing?",
+    "query_text": "Can Special Courts issue coercive processes or insist on repeated physical presence of a minor sexual assault victim on every date of bail hearing?",
+    "target_case_title": "Minor Child K",
+    "target_citations": ["2025:DHC:1142", "Minor Child K vs. State"],
+    "domain": "POCSO & Bail Procedure",
+    "expected_ratio": "Coercive processes including bailable warrants cannot be issued against minor victims, nor should repeated physical presence be insisted upon once objections are recorded.",
+    "ground_truth_answer": "Coercive processes including bailable warrants cannot be issued against minor victims, nor should repeated physical presence be insisted upon once objections are recorded."
+  },
+  {
+    "query_id": "GQ-005",
+    "query": "Does inordinate, unexplained delay in pronouncing a reserved judgment beyond six months violate the fundamental right to speedy justice under Article 21?",
+    "query_text": "Does inordinate, unexplained delay in pronouncing a reserved judgment beyond six months violate the fundamental right to speedy justice under Article 21?",
+    "target_case_title": "Pila Pahan",
+    "target_citations": ["2026 INSC 604", "Pila Pahan vs. State of Jharkhand"],
+    "domain": "Constitutional Law & Speedy Justice",
+    "expected_ratio": "Inordinate, unexplained delay in pronouncing reserved judgments violates the right to speedy justice under Article 21. Reserved judgments beyond six months require listing for fresh hearing.",
+    "ground_truth_answer": "Inordinate, unexplained delay in pronouncing reserved judgments violates the right to speedy justice under Article 21. Reserved judgments beyond six months require listing for fresh hearing."
+  },
+  {
+    "query_id": "GQ-006",
+    "query": "What procedural directions govern a case when a High Court bench fails to pronounce a reserved judgment within the prescribed period under Order XX Rule 1 CPC?",
+    "query_text": "What procedural directions govern a case when a High Court bench fails to pronounce a reserved judgment within the prescribed period under Order XX Rule 1 CPC?",
+    "target_case_title": "Pila Pahan",
+    "target_citations": ["2026 INSC 604", "Pila Pahan vs. State of Jharkhand"],
+    "domain": "Civil Procedure & Judgment Pronouncement",
+    "expected_ratio": "High Courts must pronounce reasoned judgments within a maximum period of 3 months from reserving, and certainly within six months, failing which the case is re-heard.",
+    "ground_truth_answer": "High Courts must pronounce reasoned judgments within a maximum period of 3 months from reserving, and certainly within six months, failing which the case is re-heard."
+  },
+  {
+    "query_id": "GQ-007",
+    "query": "Is a single composite appeal maintainable under Order XLI Rule 1 CPC when a trial court decrees a suit and dismisses a counterclaim in a common judgment?",
+    "query_text": "Is a single composite appeal maintainable under Order XLI Rule 1 CPC when a trial court decrees a suit and dismisses a counterclaim in a common judgment?",
+    "target_case_title": "Basudev",
+    "target_citations": ["2026 INSC 831", "Basudev vs. Sanjay Kumar"],
+    "domain": "Civil Procedure & Appellate Law",
+    "expected_ratio": "A common judgment in a suit and counter-claim can be challenged by a single composite appeal provided grounds challenge both decrees and composite court fees are paid.",
+    "ground_truth_answer": "A common judgment in a suit and counter-claim can be challenged by a single composite appeal provided grounds challenge both decrees and composite court fees are paid."
+  },
+  {
+    "query_id": "GQ-008",
+    "query": "Is the President's subjective satisfaction to dispense with an inquiry under Article 311(2) second proviso Clause (c) for national security subject to judicial review?",
+    "query_text": "Is the President's subjective satisfaction to dispense with an inquiry under Article 311(2) second proviso Clause (c) for national security subject to judicial review?",
+    "target_case_title": "Dr. V.R. Sanal Kumar",
+    "target_citations": [
+      "2023 INSC 524",
+      "Civil Appeal No. 6301 of 2013",
+      "Dr. V.R. Sanal Kumar vs. Union of India"
+    ],
+    "domain": "Service Law & Constitutional Security",
+    "expected_ratio": "Presidential subjective satisfaction under Article 311(2)(c) dispensing with departmental inquiry for state security is non-justiciable regarding adequacy of material absent proven mala fides.",
+    "ground_truth_answer": "Presidential subjective satisfaction under Article 311(2)(c) dispensing with departmental inquiry for state security is non-justiciable regarding adequacy of material absent proven mala fides."
+  },
+  {
+    "query_id": "GQ-009",
+    "query": "Can discretionary powers under Section 311 CrPC or Section 348 BNSS be invoked to recall witnesses if it amounts to filling up prosecution lacunae?",
+    "query_text": "Can discretionary powers under Section 311 CrPC or Section 348 BNSS be invoked to recall witnesses if it amounts to filling up prosecution lacunae?",
+    "target_case_title": "Ram Swaroop Gupta",
+    "target_citations": [
+      "2026:DHC:987",
+      "Ram Swaroop Gupta vs. State NCT of Delhi"
+    ],
+    "domain": "Criminal Procedure & Fair Trial",
+    "expected_ratio": "Discretionary power under Section 311 CrPC to recall witnesses must be exercised ex debito justitiae to discover the truth and cannot be invoked to fill up prosecution lacunae.",
+    "ground_truth_answer": "Discretionary power under Section 311 CrPC to recall witnesses must be exercised ex debito justitiae to discover the truth and cannot be invoked to fill up prosecution lacunae."
+  },
+  {
+    "query_id": "GQ-010",
+    "query": "Is digital forensic evidence admissible in criminal proceedings if extracted without contemporaneous cryptographic hash generation under Section 65B?",
+    "query_text": "Is digital forensic evidence admissible in criminal proceedings if extracted without contemporaneous cryptographic hash generation under Section 65B?",
+    "target_case_title": "Cyber Forensics",
+    "target_citations": ["2024:HC:CYBER-01", "In Re: SOP for Cyber Forensics"],
+    "domain": "IT Act & Electronic Evidence",
+    "expected_ratio": "Digital evidence extracted without contemporaneous cryptographic hash validation and proper Section 65B certification is inadmissible in criminal trials.",
+    "ground_truth_answer": "Digital evidence extracted without contemporaneous cryptographic hash validation and proper Section 65B certification is inadmissible in criminal trials."
+  }
+]
