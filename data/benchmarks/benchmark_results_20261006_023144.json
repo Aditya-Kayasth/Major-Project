@@ -1,0 +1,715 @@
+{
+  "timestamp": "20261006_023144",
+  "queries_count": 10,
+  "collection_name": "indian_legal_precedents",
+  "summary_table": {
+    "Config 1 (Naive Dense)": {
+      "Hit@1": 0.2,
+      "Hit@3": 0.2,
+      "Hit@5": 0.2,
+      "MRR": 0.2,
+      "Latency Mean (ms)": 694.4,
+      "Latency p50 (ms)": 603.45,
+      "Latency p95 (ms)": 1157.17,
+      "Groundedness (0-10)": 7.5,
+      "Ratio Decidendi (0-10)": 7.5,
+      "Statutory Concordance (0-10)": 7.5,
+      "Reasoning Quality (0-10)": 7.5,
+      "Overall Judicial Score": 7.5
+    },
+    "Config 2 (BM25 Lexical)": {
+      "Hit@1": 0.6,
+      "Hit@3": 0.7,
+      "Hit@5": 0.8,
+      "MRR": 0.675,
+      "Latency Mean (ms)": 33.4,
+      "Latency p50 (ms)": 33.56,
+      "Latency p95 (ms)": 37.11,
+      "Groundedness (0-10)": 7.5,
+      "Ratio Decidendi (0-10)": 7.5,
+      "Statutory Concordance (0-10)": 7.5,
+      "Reasoning Quality (0-10)": 7.5,
+      "Overall Judicial Score": 7.5
+    },
+    "Config 3 (Hybrid RRF)": {
+      "Hit@1": 0.2,
+      "Hit@3": 0.6,
+      "Hit@5": 0.7,
+      "MRR": 0.425,
+      "Latency Mean (ms)": 48.5,
+      "Latency p50 (ms)": 47.57,
+      "Latency p95 (ms)": 57.39,
+      "Groundedness (0-10)": 7.5,
+      "Ratio Decidendi (0-10)": 7.5,
+      "Statutory Concordance (0-10)": 7.5,
+      "Reasoning Quality (0-10)": 7.5,
+      "Overall Judicial Score": 7.5
+    },
+    "Config 4 (Full Legal Funnel)": {
+      "Hit@1": 0.7,
+      "Hit@3": 0.8,
+      "Hit@5": 0.8,
+      "MRR": 0.75,
+      "Latency Mean (ms)": 3583.29,
+      "Latency p50 (ms)": 448.44,
+      "Latency p95 (ms)": 17803.92,
+      "Groundedness (0-10)": 7.5,
+      "Ratio Decidendi (0-10)": 7.5,
+      "Statutory Concordance (0-10)": 7.5,
+      "Reasoning Quality (0-10)": 7.5,
+      "Overall Judicial Score": 7.5
+    }
+  },
+  "raw_results": {
+    "Config 1 (Naive Dense)": {
+      "rankings": [
+        1,
+        1,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "latencies_ms": [
+        1021.6978999960702,
+        1268.014299996139,
+        626.223299994308,
+        635.4535999998916,
+        577.705399999104,
+        510.1261000017985,
+        565.6278000024031,
+        624.3852000043262,
+        582.505400001537,
+        532.2120000055293
+      ],
+      "judge_scores": {
+        "factual_groundedness": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "ratio_decidendi_isolation": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "statutory_concordance": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "legal_reasoning_quality": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "overall_score": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ]
+      },
+      "query_details": [
+        {
+          "query_id": "GQ-001",
+          "rank": 1,
+          "latency_ms": 1021.6978999960702,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-002",
+          "rank": 1,
+          "latency_ms": 1268.014299996139,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-003",
+          "rank": null,
+          "latency_ms": 626.223299994308,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-004",
+          "rank": null,
+          "latency_ms": 635.4535999998916,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-005",
+          "rank": null,
+          "latency_ms": 577.705399999104,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-006",
+          "rank": null,
+          "latency_ms": 510.1261000017985,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-007",
+          "rank": null,
+          "latency_ms": 565.6278000024031,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-008",
+          "rank": null,
+          "latency_ms": 624.3852000043262,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-009",
+          "rank": null,
+          "latency_ms": 582.505400001537,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-010",
+          "rank": null,
+          "latency_ms": 532.2120000055293,
+          "score": 7.5
+        }
+      ]
+    },
+    "Config 2 (BM25 Lexical)": {
+      "rankings": [
+        1,
+        1,
+        1,
+        1,
+        4,
+        null,
+        1,
+        1,
+        2,
+        null
+      ],
+      "latencies_ms": [
+        36.220699999830686,
+        33.60719999909634,
+        32.741600000008475,
+        33.48539999569766,
+        29.693200005567633,
+        37.25950000080047,
+        33.51189999375492,
+        36.92640000372194,
+        36.58109999378212,
+        23.98860000539571
+      ],
+      "judge_scores": {
+        "factual_groundedness": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "ratio_decidendi_isolation": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "statutory_concordance": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "legal_reasoning_quality": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "overall_score": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ]
+      },
+      "query_details": [
+        {
+          "query_id": "GQ-001",
+          "rank": 1,
+          "latency_ms": 36.220699999830686,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-002",
+          "rank": 1,
+          "latency_ms": 33.60719999909634,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-003",
+          "rank": 1,
+          "latency_ms": 32.741600000008475,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-004",
+          "rank": 1,
+          "latency_ms": 33.48539999569766,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-005",
+          "rank": 4,
+          "latency_ms": 29.693200005567633,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-006",
+          "rank": null,
+          "latency_ms": 37.25950000080047,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-007",
+          "rank": 1,
+          "latency_ms": 33.51189999375492,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-008",
+          "rank": 1,
+          "latency_ms": 36.92640000372194,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-009",
+          "rank": 2,
+          "latency_ms": 36.58109999378212,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-010",
+          "rank": null,
+          "latency_ms": 23.98860000539571,
+          "score": 7.5
+        }
+      ]
+    },
+    "Config 3 (Hybrid RRF)": {
+      "rankings": [
+        1,
+        1,
+        2,
+        2,
+        null,
+        null,
+        2,
+        2,
+        4,
+        null
+      ],
+      "latencies_ms": [
+        48.23410000244621,
+        57.77039999520639,
+        48.20579999795882,
+        45.743400005449075,
+        45.32849999668542,
+        49.92099999799393,
+        56.93590000009863,
+        46.932099998230115,
+        44.41709999809973,
+        41.47519999969518
+      ],
+      "judge_scores": {
+        "factual_groundedness": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "ratio_decidendi_isolation": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "statutory_concordance": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "legal_reasoning_quality": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "overall_score": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ]
+      },
+      "query_details": [
+        {
+          "query_id": "GQ-001",
+          "rank": 1,
+          "latency_ms": 48.23410000244621,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-002",
+          "rank": 1,
+          "latency_ms": 57.77039999520639,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-003",
+          "rank": 2,
+          "latency_ms": 48.20579999795882,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-004",
+          "rank": 2,
+          "latency_ms": 45.743400005449075,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-005",
+          "rank": null,
+          "latency_ms": 45.32849999668542,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-006",
+          "rank": null,
+          "latency_ms": 49.92099999799393,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-007",
+          "rank": 2,
+          "latency_ms": 56.93590000009863,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-008",
+          "rank": 2,
+          "latency_ms": 46.932099998230115,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-009",
+          "rank": 4,
+          "latency_ms": 44.41709999809973,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-010",
+          "rank": null,
+          "latency_ms": 41.47519999969518,
+          "score": 7.5
+        }
+      ]
+    },
+    "Config 4 (Full Legal Funnel)": {
+      "rankings": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        null,
+        1,
+        1,
+        2,
+        null
+      ],
+      "latencies_ms": [
+        31949.927900001057,
+        275.6052000040654,
+        500.9481999950367,
+        453.50499999767635,
+        409.693800000241,
+        514.3532000001869,
+        474.67190000315895,
+        411.94109999923967,
+        443.37349999841535,
+        398.8817999997991
+      ],
+      "judge_scores": {
+        "factual_groundedness": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "ratio_decidendi_isolation": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "statutory_concordance": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "legal_reasoning_quality": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ],
+        "overall_score": [
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5,
+          7.5
+        ]
+      },
+      "query_details": [
+        {
+          "query_id": "GQ-001",
+          "query": "Does the automatic vacation of interim stay orders after six months under the Asian Resurfacing doctrine apply mechanically to execution proceedings where the litigant is not at fault?",
+          "target_case": "Chandrapal Singh",
+          "rank": 1,
+          "top_1_case": "Chandrapal Singh",
+          "hit_1": 1,
+          "hit_5": 1,
+          "latency_ms": 31949.927900001057,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-002",
+          "query": "Can the High Court exercise inherent jurisdiction under Section 482 CrPC to extend an interim stay order beyond six months during the pendency of a revision?",
+          "target_case": "Chandrapal Singh",
+          "rank": 1,
+          "top_1_case": "Chandrapal Singh",
+          "hit_1": 1,
+          "hit_5": 1,
+          "latency_ms": 275.6052000040654,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-003",
+          "query": "What special child-friendly procedures must Special Courts follow under Sections 33 and 36 of POCSO to prevent secondary victimization during cross-examination?",
+          "target_case": "Minor Child K",
+          "rank": 1,
+          "top_1_case": "2025:Dhc:1142",
+          "hit_1": 1,
+          "hit_5": 1,
+          "latency_ms": 500.9481999950367,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-004",
+          "query": "Can Special Courts issue coercive processes or insist on repeated physical presence of a minor sexual assault victim on every date of bail hearing?",
+          "target_case": "Minor Child K",
+          "rank": 1,
+          "top_1_case": "2025:Dhc:1142",
+          "hit_1": 1,
+          "hit_5": 1,
+          "latency_ms": 453.50499999767635,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-005",
+          "query": "Does inordinate, unexplained delay in pronouncing a reserved judgment beyond six months violate the fundamental right to speedy justice under Article 21?",
+          "target_case": "Pila Pahan",
+          "rank": 1,
+          "top_1_case": "2026 Insc 604",
+          "hit_1": 1,
+          "hit_5": 1,
+          "latency_ms": 409.693800000241,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-006",
+          "query": "What procedural directions govern a case when a High Court bench fails to pronounce a reserved judgment within the prescribed period under Order XX Rule 1 CPC?",
+          "target_case": "Pila Pahan",
+          "rank": null,
+          "top_1_case": "Chandrapal Singh",
+          "hit_1": 0,
+          "hit_5": 0,
+          "latency_ms": 514.3532000001869,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-007",
+          "query": "Is a single composite appeal maintainable under Order XLI Rule 1 CPC when a trial court decrees a suit and dismisses a counterclaim in a common judgment?",
+          "target_case": "Basudev",
+          "rank": 1,
+          "top_1_case": "2026 Insc 831",
+          "hit_1": 1,
+          "hit_5": 1,
+          "latency_ms": 474.67190000315895,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-008",
+          "query": "Is the President's subjective satisfaction to dispense with an inquiry under Article 311(2) second proviso Clause (c) for national security subject to judicial review?",
+          "target_case": "Dr. V.R. Sanal Kumar",
+          "rank": 1,
+          "top_1_case": "V R Sanal Kumar vs Union Of India",
+          "hit_1": 1,
+          "hit_5": 1,
+          "latency_ms": 411.94109999923967,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-009",
+          "query": "Can discretionary powers under Section 311 CrPC or Section 348 BNSS be invoked to recall witnesses if it amounts to filling up prosecution lacunae?",
+          "target_case": "Ram Swaroop Gupta",
+          "rank": 2,
+          "top_1_case": "Chandrapal Singh",
+          "hit_1": 0,
+          "hit_5": 1,
+          "latency_ms": 443.37349999841535,
+          "score": 7.5
+        },
+        {
+          "query_id": "GQ-010",
+          "query": "Is digital forensic evidence admissible in criminal proceedings if extracted without contemporaneous cryptographic hash generation under Section 65B?",
+          "target_case": "Cyber Forensics",
+          "rank": null,
+          "top_1_case": "Chandrapal Singh",
+          "hit_1": 0,
+          "hit_5": 0,
+          "latency_ms": 398.8817999997991,
+          "score": 7.5
+        }
+      ]
+    }
+  }
+}
