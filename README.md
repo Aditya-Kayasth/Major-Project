@@ -237,17 +237,119 @@ python evaluate_pipeline.py --collection indian_legal_precedents --skip-llm-judg
 
 ---
 
-## 8. Next Phase Roadmap (Research Plan)
+## 8. Research Framework: Multi-Store Combinatorial Evaluation Matrix
 
-To transition from retrieval pipeline ablation to a multi-dimensional empirical study:
+A core hypothesis of this research is that **no single embedding model or chunking strategy is universally optimal across all legal domains**. Legal texts differ dramatically by jurisdiction and matter type: a criminal bail order revolves around procedural dates and witness depositions, a property suit pivots on deed covenants and land ceiling clauses, and a constitutional petition hinges on overarching jurisprudential doctrines.
 
-1. **Combinatorial $2 \times 2$ Store Matrix**:
-   - Build 4 isolated collections: `store_flat_bge`, `store_hierarchical_bge`, `store_flat_gemini`, `store_hierarchical_gemini`.
-   - Compare local embeddings (`bge-small-en-v1.5`) against remote API embeddings (`gemini-embedding-2`).
-2. **Domain-Segmented Routing**:
-   - Establish whether certain legal categories (e.g. Property vs. Criminal Law) achieve higher precision under specific chunking strategies.
-3. **Offline Batch GPU OCR**:
-   - Process the 25 queued scanned property PDFs (`P1`–`P25`) using Surya / EasyOCR on an external workstation to unlock dark data.
+To establish rigorous empirical benchmarks, the framework evaluates the complete Cartesian product of **Embedding Models** $\times$ **Chunking Strategies**, indexing each into independent vector stores and evaluating them under identical queries and retrieval funnels.
+
+### 8.1 The Combinatorial Design Dimensions
+
+```mermaid
+flowchart TD
+    subgraph Dimension1 ["Dimension 1: Embedding Model Families"]
+        M1["ZeroEntropy zembed-1<br>(High-reasoning / Legal benchmarked)"]
+        M2["Google gemini-embedding-2<br>(768-dim multilingual API)"]
+        M3["BAAI bge-base-en-v1.5<br>(Open-source local baseline)"]
+        M4["law-ai / InLegalBERT<br>(Indian legal domain fine-tuned)"]
+    end
+
+    subgraph Dimension2 ["Dimension 2: Chunking Strategies"]
+        C1["Hierarchical Parent-Child<br>(450 child / 1800 parent)"]
+        C2["Fixed Sliding Window<br>(512 tokens / 100 overlap)"]
+        C3["Structural / Judicial Section-Aware<br>(Ratio, Facts, Order, Headnotes)"]
+    end
+
+    Dimension1 --> Grid["Cartesian Combinatorial Grid (M × C Collections)"]
+    Dimension2 --> Grid
+
+    Grid --> StoreCol["Isolated ChromaDB Vector Stores<br>• col_zembed_hierarchical<br>• col_zembed_structural<br>• col_gemini_hierarchical<br>• col_inlegalbert_structural<br>...and all pairings"]
+
+    StoreCol --> EvalHarness["Standardized Retrieval Harness<br>(Dense + BM25 + RRF + Cross-Encoder)"]
+    EvalHarness --> BenchOutput["Domain-Wise & Overall Performance Matrix<br>Global Champion + Domain-Specific Route Recommendations"]
+```
+
+#### 1. Embedding Models Dimension:
+- **ZeroEntropy `zembed-1` (`zeroentropy/zembed-1`)**: Cutting-edge high-capacity retrieval model engineered for complex structural reasoning, enterprise documents, and domain-heavy technical/legal text.
+- **Google `gemini-embedding-2`**: High-dimensional (768-dim) cloud embedding providing deep multilingual contextual semantics across broad factual contexts.
+- **BAAI `bge-base-en-v1.5` / `bge-small-en-v1.5`**: State-of-the-art open-source general retrieval baseline running locally under strict GPU memory limits.
+- **Domain-Specific Legal Embedding (`law-ai/InLegalBERT` / `Euler-Legal-Embedding-V1`)**: Language models pre-trained specifically on Indian Supreme Court and High Court corpora, capturing Indian legal jargon, statutory shorthand, and procedural terminology.
+
+#### 2. Chunking Strategies Dimension:
+- **Strategy A: Hierarchical Parent-Child Chunking**:
+  - *Mechanism*: Small child chunks (~450 characters) optimized for tight semantic vector proximity; retrieval dynamically pulls the expanded parent section (~1,800 characters) for LLM context synthesis.
+  - *Hypothesis*: Optimal for pinpoint ratio identification without drowning the prompt in irrelevant judicial narrative.
+- **Strategy B: Fixed-Size Sliding Window (Flat)**:
+  - *Mechanism*: Standard 512-token chunks with 100-token overlap, indexed directly without parent hierarchy.
+  - *Hypothesis*: Industry baseline; tests whether the complexity of hierarchical parent storage is empirically justified.
+- **Strategy C: Structural / Judicial Section-Aware Chunking**:
+  - *Mechanism*: Parses judgment documents along formal judicial boundaries: *Headnote*, *Facts & Procedural History*, *Appellant Submissions*, *Respondent Submissions*, *Judicial Analysis & Precedents Cited*, *Ratio Decidendi*, and *Operative Decree / Order*.
+  - *Hypothesis*: Prevents cross-contamination between opposing arguments and the court's actual holding.
+
+---
+
+### 8.2 The $M \times C$ Store Matrix
+
+Every combination is compiled into its own isolated vector collection and lexical index:
+
+| Vector Store Identifier | Embedding Model | Chunking Strategy | Primary Empirical Target |
+|---|---|---|---|
+| `col_zembed_hierarchical` | `zeroentropy/zembed-1` | Hierarchical Parent-Child | High-capacity reasoning with expanded judicial context |
+| `col_zembed_structural` | `zeroentropy/zembed-1` | Judicial Section-Aware | Precision extraction of operative ratios vs. submissions |
+| `col_zembed_flat` | `zeroentropy/zembed-1` | Fixed Sliding Window | Baseline vector retrieval under Zembed-1 |
+| `col_gemini_hierarchical` | `gemini-embedding-2` | Hierarchical Parent-Child | Active production baseline (**70% Hit@1, 0.750 MRR**) |
+| `col_gemini_structural` | `gemini-embedding-2` | Judicial Section-Aware | Cloud embeddings on structurally partitioned legal sections |
+| `col_gemini_flat` | `gemini-embedding-2` | Fixed Sliding Window | Flat cloud embedding benchmark |
+| `col_inlegalbert_hierarchical` | `InLegalBERT` | Hierarchical Parent-Child | Indian legal vocabulary with parent context expansion |
+| `col_inlegalbert_structural` | `InLegalBERT` | Judicial Section-Aware | Domain-specific model on judicial section partitions |
+| `col_bge_hierarchical` | `bge-base-en-v1.5` | Hierarchical Parent-Child | Open-source local GPU execution baseline |
+| `col_bge_flat` | `bge-base-en-v1.5` | Fixed Sliding Window | Standard naive RAG baseline |
+
+---
+
+### 8.3 Domain-Specific Champion Identification & Dynamic Routing
+
+Evaluating solely on global aggregate metrics (overall Hit@1 / MRR) obscures critical domain variances. The benchmark suite evaluates each configuration across **domain-segmented query clusters**:
+
+```
+                                  ┌───────────────────────────┐
+                                  │ Incoming User Legal Query │
+                                  └─────────────┬─────────────┘
+                                                │
+                                  ┌─────────────▼─────────────┐
+                                  │ Legal Domain Classifier / │
+                                  │ Intent Router (Fast LLM)  │
+                                  └─────────────┬─────────────┘
+                                                │
+         ┌──────────────────────┬───────────────┴───────────────┬──────────────────────┐
+         ▼                      ▼                               ▼                      ▼
+┌──────────────────┐  ┌──────────────────┐            ┌──────────────────┐  ┌──────────────────┐
+│  Property Law /  │  │Criminal / POCSO /│            │  Constitutional  │  │ Civil Procedure  │
+│  Land Title      │  │ Witness Protocol │            │  & Writ Doctrine │  │ & Execution Stay │
+└────────┬─────────┘  └────────┬─────────┘            └────────┬─────────┘  └────────┬─────────┘
+         │                     │                               │                     │
+         ▼                     ▼                               ▼                     ▼
+┌──────────────────┐  ┌──────────────────┐            ┌──────────────────┐  ┌──────────────────┐
+│  Optimal Store:  │  │  Optimal Store:  │            │  Optimal Store:  │  │  Optimal Store:  │
+│ col_zembed_      │  │ col_inlegalbert_ │            │ col_gemini_      │  │ col_zembed_      │
+│ structural       │  │ hierarchical     │            │ hierarchical     │  │ hierarchical     │
+└──────────────────┘  └──────────────────┘            └──────────────────┘  └──────────────────┘
+```
+
+#### Empirical Research Questions Addressed by the Matrix:
+1. **Does Property Law favor Structural Chunking?** Property disputes center on specific deeds, schedules, mutation records, and statutory definitions; does boundary-aware section chunking prevent conflating recitals with covenants?
+2. **Does Criminal Procedure favor Domain-Trained Embeddings?** Concepts like *"Section 311 CrPC witness recall"*, *"vulnerable witness deposition"*, and *"default bail under Section 167(2)"* carry nuanced Indian procedural meanings that generic models frequently blur.
+3. **Is Reranking Still Mandatory with Strong Embeddings?** Testing whether next-generation models like `zembed-1` eliminate the need for cross-encoder reranking, or if the cross-encoder remains essential to detect inverted legal holdings (*"stay granted"* vs. *"stay vacated"*).
+
+---
+
+### 8.4 Roadmap & Execution Phases
+
+1. **Phase 1 (Completed)**: Hybrid Retrieval Pipeline with Gemini-Embedding-2 + Hierarchical Chunking + FP16 Cross-Encoder Reranker (**70% Hit@1, 80% Hit@5**).
+2. **Phase 2 (In-Progress)**: Structural / Judicial Section Chunker implementation in `src/document_loader.py` and integration of `zeroentropy/zembed-1` and `InLegalBERT` vector pipelines.
+3. **Phase 3 (Next)**: Automated batch generation of the $M \times C$ vector collections in `chromadb_store/`.
+4. **Phase 4 (Next)**: Matrix evaluation run yielding the multi-store Leaderboard and Domain Champion Routing Table.
+5. **Phase 5 (Next)**: Offline GPU OCR (Surya / Tesseract) on the 25 scanned property judgments (`P1`–`P25`) to incorporate the full Property Law corpus.
 
 ---
 
@@ -263,3 +365,4 @@ If you use this codebase or benchmarking methodology in your research, please ci
   howpublished = {\url{https://github.com/Aditya-Kayasth/Major-Project}}
 }
 ```
+
