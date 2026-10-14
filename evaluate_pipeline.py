@@ -283,8 +283,9 @@ Evaluate strictly according to the system rubric and return JSON:"""
         self,
         queries_path: Optional[Path] = None,
         top_k: int = 5,
+        champion_only: bool = False,
     ) -> Dict[str, Any]:
-        """Run ablation benchmark across all 4 retrieval configurations."""
+        """Run ablation benchmark across all 4 retrieval configurations (or champion only)."""
         bench_file = Path(queries_path or self.settings.benchmarks_dir / "golden_queries.json")
         if not bench_file.exists():
             raise FileNotFoundError(f"Golden benchmark dataset not found at {bench_file}")
@@ -294,12 +295,16 @@ Evaluate strictly according to the system rubric and return JSON:"""
 
         logger.info(f"Loaded {len(queries)} gold-standard legal queries for evaluation.")
 
-        configs = [
-            "Config 1 (Naive Dense)",
-            "Config 2 (BM25 Lexical)",
-            "Config 3 (Hybrid RRF)",
-            "Config 4 (Full Legal Funnel)",
-        ]
+        if champion_only:
+            configs = ["Config 4 (Full Legal Funnel)"]
+            logger.info("Evaluation Mode: CHAMPION-ONLY (Testing strictly Config 4: Full Legal Funnel).")
+        else:
+            configs = [
+                "Config 1 (Naive Dense)",
+                "Config 2 (BM25 Lexical)",
+                "Config 3 (Hybrid RRF)",
+                "Config 4 (Full Legal Funnel)",
+            ]
 
         results_by_config: Dict[str, Dict[str, Any]] = {
             cfg: {
@@ -318,7 +323,8 @@ Evaluate strictly according to the system rubric and return JSON:"""
         }
 
         print("\n" + "=" * 80)
-        print(" PHASE 4: AUTOMATED BENCHMARKING & ABLATION TEST SUITE ".center(80))
+        mode_str = "CHAMPION COMBINATION (CONFIG 4 ONLY)" if champion_only else "AUTOMATED BENCHMARKING & ABLATION TEST SUITE"
+        print(f" PHASE 4: {mode_str} ".center(80))
         print("=" * 80 + "\n")
 
         with tqdm(total=len(queries), desc="Evaluating Golden Queries", unit="query") as pbar:
@@ -329,103 +335,104 @@ Evaluate strictly according to the system rubric and return JSON:"""
                 target_cits = item.get("target_citations") or []
                 gt_answer = item.get("ground_truth_answer") or item.get("expected_ratio") or ""
 
-                # =========================================================
-                # Config 1: Naive Dense (Only Dense Cosine Retrieval)
-                # =========================================================
-                t0 = time.perf_counter()
-                try:
-                    dense_hits = self.vector_store.query_dense(
+                if not champion_only:
+                    # =========================================================
+                    # Config 1: Naive Dense (Only Dense Cosine Retrieval)
+                    # =========================================================
+                    t0 = time.perf_counter()
+                    try:
+                        dense_hits = self.vector_store.query_dense(
+                            query=q_text, top_k=top_k, collection_name=self.collection_name
+                        )
+                    except Exception as d_err:
+                        logger.warning(f"Dense query failed for {q_id} ({d_err}). Recording empty candidates.")
+                        dense_hits = []
+                    t_dense = (time.perf_counter() - t0) * 1000.0
+
+                    rank_c1 = None
+                    for idx, hit in enumerate(dense_hits, start=1):
+                        if is_case_match(hit, target_case, target_cits):
+                            rank_c1 = idx
+                            break
+
+                    c1_context = "\n\n".join(h.get("text", "") for h in dense_hits[:top_k])
+                    c1_answer = self._synthesize_answer(q_text, c1_context)
+                    c1_judge = self.evaluate_llm_judge(q_text, gt_answer, c1_context, c1_answer)
+
+                    results_by_config["Config 1 (Naive Dense)"]["rankings"].append(rank_c1)
+                    results_by_config["Config 1 (Naive Dense)"]["latencies_ms"].append(t_dense)
+                    self._record_judge_scores(results_by_config["Config 1 (Naive Dense)"], c1_judge)
+                    results_by_config["Config 1 (Naive Dense)"]["query_details"].append(
+                        {"query_id": q_id, "rank": rank_c1, "latency_ms": t_dense, "score": c1_judge["overall_score"]}
+                    )
+
+                    # =========================================================
+                    # Config 2: BM25 Lexical (Only BM25Okapi Search)
+                    # =========================================================
+                    t0 = time.perf_counter()
+                    bm25_hits = self.vector_store.query_bm25(
                         query=q_text, top_k=top_k, collection_name=self.collection_name
                     )
-                except Exception as d_err:
-                    logger.warning(f"Dense query failed for {q_id} ({d_err}). Recording empty candidates.")
-                    dense_hits = []
-                t_dense = (time.perf_counter() - t0) * 1000.0
+                    t_bm25 = (time.perf_counter() - t0) * 1000.0
 
-                rank_c1 = None
-                for idx, hit in enumerate(dense_hits, start=1):
-                    if is_case_match(hit, target_case, target_cits):
-                        rank_c1 = idx
-                        break
+                    rank_c2 = None
+                    for idx, hit in enumerate(bm25_hits, start=1):
+                        if is_case_match(hit, target_case, target_cits):
+                            rank_c2 = idx
+                            break
 
-                c1_context = "\n\n".join(h.get("text", "") for h in dense_hits[:top_k])
-                c1_answer = self._synthesize_answer(q_text, c1_context)
-                c1_judge = self.evaluate_llm_judge(q_text, gt_answer, c1_context, c1_answer)
+                    c2_context = "\n\n".join(h.get("text", "") for h in bm25_hits[:top_k])
+                    c2_answer = self._synthesize_answer(q_text, c2_context)
+                    c2_judge = self.evaluate_llm_judge(q_text, gt_answer, c2_context, c2_answer)
 
-                results_by_config["Config 1 (Naive Dense)"]["rankings"].append(rank_c1)
-                results_by_config["Config 1 (Naive Dense)"]["latencies_ms"].append(t_dense)
-                self._record_judge_scores(results_by_config["Config 1 (Naive Dense)"], c1_judge)
-                results_by_config["Config 1 (Naive Dense)"]["query_details"].append(
-                    {"query_id": q_id, "rank": rank_c1, "latency_ms": t_dense, "score": c1_judge["overall_score"]}
-                )
+                    results_by_config["Config 2 (BM25 Lexical)"]["rankings"].append(rank_c2)
+                    results_by_config["Config 2 (BM25 Lexical)"]["latencies_ms"].append(t_bm25)
+                    self._record_judge_scores(results_by_config["Config 2 (BM25 Lexical)"], c2_judge)
+                    results_by_config["Config 2 (BM25 Lexical)"]["query_details"].append(
+                        {"query_id": q_id, "rank": rank_c2, "latency_ms": t_bm25, "score": c2_judge["overall_score"]}
+                    )
 
-                # =========================================================
-                # Config 2: BM25 Lexical (Only BM25Okapi Search)
-                # =========================================================
-                t0 = time.perf_counter()
-                bm25_hits = self.vector_store.query_bm25(
-                    query=q_text, top_k=top_k, collection_name=self.collection_name
-                )
-                t_bm25 = (time.perf_counter() - t0) * 1000.0
-
-                rank_c2 = None
-                for idx, hit in enumerate(bm25_hits, start=1):
-                    if is_case_match(hit, target_case, target_cits):
-                        rank_c2 = idx
-                        break
-
-                c2_context = "\n\n".join(h.get("text", "") for h in bm25_hits[:top_k])
-                c2_answer = self._synthesize_answer(q_text, c2_context)
-                c2_judge = self.evaluate_llm_judge(q_text, gt_answer, c2_context, c2_answer)
-
-                results_by_config["Config 2 (BM25 Lexical)"]["rankings"].append(rank_c2)
-                results_by_config["Config 2 (BM25 Lexical)"]["latencies_ms"].append(t_bm25)
-                self._record_judge_scores(results_by_config["Config 2 (BM25 Lexical)"], c2_judge)
-                results_by_config["Config 2 (BM25 Lexical)"]["query_details"].append(
-                    {"query_id": q_id, "rank": rank_c2, "latency_ms": t_bm25, "score": c2_judge["overall_score"]}
-                )
-
-                # =========================================================
-                # Config 3: Hybrid RRF (Dense + BM25 + RRF + Parent Expansion)
-                # =========================================================
-                t0 = time.perf_counter()
-                try:
-                    d_cands = self.vector_store.query_dense(
+                    # =========================================================
+                    # Config 3: Hybrid RRF (Dense + BM25 + RRF + Parent Expansion)
+                    # =========================================================
+                    t0 = time.perf_counter()
+                    try:
+                        d_cands = self.vector_store.query_dense(
+                            query=q_text, top_k=25, collection_name=self.collection_name
+                        )
+                    except Exception:
+                        d_cands = []
+                    b_cands = self.vector_store.query_bm25(
                         query=q_text, top_k=25, collection_name=self.collection_name
                     )
-                except Exception:
-                    d_cands = []
-                b_cands = self.vector_store.query_bm25(
-                    query=q_text, top_k=25, collection_name=self.collection_name
-                )
-                rrf_hits = self.pipeline.compute_rrf(d_cands, b_cands, k=60)[:top_k]
-                t_rrf = (time.perf_counter() - t0) * 1000.0
+                    rrf_hits = self.pipeline.compute_rrf(d_cands, b_cands, k=60)[:top_k]
+                    t_rrf = (time.perf_counter() - t0) * 1000.0
 
-                rank_c3 = None
-                for idx, hit in enumerate(rrf_hits, start=1):
-                    if is_case_match(hit, target_case, target_cits):
-                        rank_c3 = idx
-                        break
+                    rank_c3 = None
+                    for idx, hit in enumerate(rrf_hits, start=1):
+                        if is_case_match(hit, target_case, target_cits):
+                            rank_c3 = idx
+                            break
 
-                # Parent expansion
-                c3_parents = []
-                for h in rrf_hits:
-                    pid = h.get("parent_id") or (h.get("metadata") or {}).get("parent_id")
-                    if pid:
-                        pdoc = self.pipeline.retrieve_parent_context(pid)
-                        if pdoc:
-                            c3_parents.append(pdoc.get("text", ""))
+                    # Parent expansion
+                    c3_parents = []
+                    for h in rrf_hits:
+                        pid = h.get("parent_id") or (h.get("metadata") or {}).get("parent_id")
+                        if pid:
+                            pdoc = self.pipeline.retrieve_parent_context(pid)
+                            if pdoc:
+                                c3_parents.append(pdoc.get("text", ""))
 
-                c3_context = "\n\n".join(c3_parents) if c3_parents else "\n\n".join(h.get("text", "") for h in rrf_hits)
-                c3_answer = self._synthesize_answer(q_text, c3_context)
-                c3_judge = self.evaluate_llm_judge(q_text, gt_answer, c3_context, c3_answer)
+                    c3_context = "\n\n".join(c3_parents) if c3_parents else "\n\n".join(h.get("text", "") for h in rrf_hits)
+                    c3_answer = self._synthesize_answer(q_text, c3_context)
+                    c3_judge = self.evaluate_llm_judge(q_text, gt_answer, c3_context, c3_answer)
 
-                results_by_config["Config 3 (Hybrid RRF)"]["rankings"].append(rank_c3)
-                results_by_config["Config 3 (Hybrid RRF)"]["latencies_ms"].append(t_rrf)
-                self._record_judge_scores(results_by_config["Config 3 (Hybrid RRF)"], c3_judge)
-                results_by_config["Config 3 (Hybrid RRF)"]["query_details"].append(
-                    {"query_id": q_id, "rank": rank_c3, "latency_ms": t_rrf, "score": c3_judge["overall_score"]}
-                )
+                    results_by_config["Config 3 (Hybrid RRF)"]["rankings"].append(rank_c3)
+                    results_by_config["Config 3 (Hybrid RRF)"]["latencies_ms"].append(t_rrf)
+                    self._record_judge_scores(results_by_config["Config 3 (Hybrid RRF)"], c3_judge)
+                    results_by_config["Config 3 (Hybrid RRF)"]["query_details"].append(
+                        {"query_id": q_id, "rank": rank_c3, "latency_ms": t_rrf, "score": c3_judge["overall_score"]}
+                    )
 
                 # =========================================================
                 # Config 4: Full Legal Funnel (Hybrid + RRF + BGE Reranker + Parents)
@@ -622,6 +629,11 @@ def main():
     parser.add_argument("--collection", type=str, default=None, help="Chroma collection name")
     parser.add_argument("--top-k", type=int, default=5, help="Number of retrieved candidates")
     parser.add_argument("--skip-llm-judge", action="store_true", help="Skip LLM Judge API scoring for quick retrieval latency check")
+    parser.add_argument(
+        "--champion-only",
+        action="store_true",
+        help="Evaluate ONLY the single champion combination (Config 4: Full Legal Funnel), skipping baseline ablations.",
+    )
     args = parser.parse_args()
 
     evaluator = BenchmarkEvaluator(
@@ -631,6 +643,7 @@ def main():
     evaluator.run_benchmark(
         queries_path=Path(args.queries) if args.queries else None,
         top_k=args.top_k,
+        champion_only=args.champion_only,
     )
 
 
