@@ -27,35 +27,57 @@ The system achieves **70.0% Hit@1, 80.0% Hit@5, and 0.750 MRR** under strict res
 
 ## 2. System Architecture
 
-The retrieval funnel executes across six decoupled, hardware-monitored stages:
+The Indian Legal Precedents RAG Engine operates across 5 decoupled layers integrating ingestion, dual storage, hardware guardrails, statutory concordance, and hybrid retrieval:
 
 ```mermaid
 flowchart TD
-    UserQuery["User Legal Query / Statutory Issue"] --> Stage0["Stage 0: 2024 Statutory Concordance Engine<br>Bi-Directional Expansion: CrPC ⟷ BNSS | IPC ⟷ BNS | IEA ⟷ BSA"]
-
-    Stage0 --> Stage1
-    subgraph Stage1 ["Stage 1: Parallel Candidate Generation"]
-        Dense["Dense Cosine Search<br>(zeroentropy/zembed-1 BF16 / gemini-embedding-2)<br>Top-25 Candidates"]
-        Sparse["Sparse Lexical Search<br>(BM25Okapi + Indian Legal Citation Tokenizer)<br>Top-25 Candidates"]
+    %% INGESTION PIPELINE
+    subgraph Ingestion ["1. Document Ingestion & Chunking Pipeline (src/document_loader.py)"]
+        PDFs["Raw Legal PDFs<br>(CIVIL, CRIMINAL, PROPERTY, SPACE)"] --> DocLoader["Document Loader & Extractor<br>(pypdf + Fast OCR Fallback)"]
+        DocLoader --> MetaExtract["Metadata Heuristic Parser<br>(Court, Year, Title, Domain)"]
+        MetaExtract --> Chunker3Tier["3-Tier Recursive Chunker<br>• Level 1: Document Boundary<br>• Level 2: Macro Sections (Facts, Analysis, Order)<br>• Level 3: Parent Paragraphs (~1,500 chars)"]
+        Chunker3Tier --> RhetoricalFlush{"Rhetorical Anchor Check?<br>('Learned Counsel argued', 'We hold that')"}
+        RhetoricalFlush -->|Match Detected| ForceFlush["Forced Chunk Boundary Flush<br>(Prevents Argument vs. Ratio Bleeding)"]
+        RhetoricalFlush -->|Standard| ChildGen["Child Vector Generator (~400 chars, 80 overlap)<br>Context Prepending: '[Role | Case Title]: text'"]
+        ForceFlush --> ChildGen
     end
 
-    Stage0 --> Dense
-    Stage0 --> Sparse
+    %% DUAL STORAGE LAYER
+    subgraph Storage ["2. Dual Storage & Indexing Layer"]
+        ChildGen -->|Dense Vectors (BF16 / 768-d)| ChromaDB["ChromaDB Vector Store<br>(zeroentropy/zembed-1 / gemini-embedding-2)"]
+        ChildGen -->|Legal Tokens (SCC, AIR, §)| BM25Store["BM25Okapi Keyword Registry<br>(data/chromadb_store/..._bm25.pkl)"]
+        Chunker3Tier -->|Parent Contexts| SQLiteDB[("SQLite Parent Store (WAL Mode)<br>data/parent_store.db<br>O(1) In-Memory Pointer Lookups")]
+    end
 
-    Dense --> Stage2["Stage 2: Stare Decisis Weighted RRF<br>Score = (1 / 60 + Rank) × Court Tier Multiplier<br>(Supreme Court: 1.25× | Full Bench: 1.15× | High Court: 1.10×)"]
-    Sparse --> Stage2
+    %% RESOURCE GUARDRAILS
+    subgraph Guardrails ["3. Hardware & Resource Guardrails (src/resource_guard.py)"]
+        RAMGuard["RAM Watchdog: Hard 20GB Cap<br>(Cooldown & Purge at 16GB)"]
+        DiskGuard["Storage Watchdog: Hard 30GB Cap<br>(Monitors ChromaDB, SQLite, Cache)"]
+        VRAMGuard["PyTorch VRAM Fraction<br>(0.85 on B200 / 0.45 on RTX 2050)"]
+    end
+    Guardrails -.-> Ingestion
+    Guardrails -.-> Storage
 
-    Stage2 --> TopPool["Merged Candidate Pool (Top 15–25)"]
+    %% QUERY & RETRIEVAL FUNNEL
+    subgraph Retrieval ["4. Hybrid Retrieval & Judicial Funnel (src/rag_pipeline.py)"]
+        UserQuery["User Legal Query / Statutory Issue"] --> Concordance["Statutory Concordance Layer (src/concordance.py)<br>CrPC ⟷ BNSS | IPC ⟷ BNS | IEA ⟷ BSA"]
+        Concordance -->|Expanded Query| DenseSearch["Stage 1A: Dense Search<br>(Top-25 Candidates)"]
+        Concordance -->|Expanded Query| SparseSearch["Stage 1B: BM25 Search<br>(Top-25 Candidates)"]
+        ChromaDB --> DenseSearch
+        BM25Store --> SparseSearch
+        DenseSearch --> RRF["Stage 2: Stare Decisis Weighted RRF<br>Score = (1 / 60 + Rank) × Court Tier Multiplier<br>(Supreme Court: 1.25× | Full Bench: 1.15× | High Court: 1.10×)"]
+        SparseSearch --> RRF
+        RRF --> Rerank["Stage 3: Cross-Encoder Neural Reranking<br>BAAI/bge-reranker-v2-m3 (FP16/BF16 on GPU)<br>Full All-to-All Cross Attention (Top 3–5)"]
+        Rerank --> ParentExpansion["Stage 4: O(1) Parent Document Expansion<br>Child ID ➔ Fetch Full Parent from SQLite DB"]
+        SQLiteDB --> ParentExpansion
+    end
 
-    TopPool --> Stage3["Stage 3: Cross-Encoder Neural Reranking<br>BAAI/bge-reranker-v2-m3 (FP16/BF16 on GPU)<br>Full Cross-Attention All-to-All Scoring"]
-
-    Stage3 --> RerankedHits["Top-K Precision Chunks (K = 3 to 5)"]
-
-    RerankedHits --> Stage4["Stage 4: O(1) SQLite Parent Context Expansion<br>Child Chunk (400 chars) ➔ Parent Section (1,500 chars)<br>Fetched from data/parent_store.db"]
-
-    Stage4 --> Stage5["Stage 5: Grounded Legal Synthesis<br>Gemini 3.5 Flash / Local Ollama (qwen2.5:7b)<br>Strict Anti-Hallucination Boundaries"]
-
-    Stage5 --> FinalOutput["Authoritative Judicial Analysis<br>Exact Citations & Ratio Decidendi"]
+    %% GENERATION LAYER
+    subgraph Synthesis ["5. Grounded Legal Synthesis"]
+        ParentExpansion --> PromptAssembler["Strict Anti-Hallucination Judicial Prompt<br>(Distinguishes Ratio Decidendi from Obiter Dicta)"]
+        PromptAssembler --> LLMGen["LLM Generator<br>(Gemini 3.5 Flash / Local Ollama: qwen2.5)"]
+        LLMGen --> FinalReport["Authoritative Legal Analysis<br>Exact Citations, Court Authority & Ratios"]
+    end
 ```
 
 ### Core Architecture Components:
