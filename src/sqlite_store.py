@@ -12,6 +12,7 @@ Features:
 import datetime
 import json
 import logging
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -206,4 +207,46 @@ class SQLiteParentStore:
         imported = self.insert_parents_batch(parents_to_import)
         logger.info(f"Successfully migrated {imported} parent documents from JSON files into SQLite.")
         return imported
+
+    def get_cases_by_judge(self, judge_query: str) -> List[Dict[str, Any]]:
+        """Retrieve all distinct cases authored by or featuring a specific judge in coram."""
+        clean_name = judge_query.lower().strip()
+        # Remove common honorifics for fuzzy matching
+        clean_name = re.sub(r"\b(justice|hon'ble|honourable|dr\.|mr\.|mrs\.|ms\.)\b", "", clean_name).strip()
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT DISTINCT case_title, court, year, metadata_json
+                FROM parent_chunks
+                WHERE LOWER(metadata_json) LIKE ? OR LOWER(text) LIKE ?
+                ORDER BY year DESC, case_title ASC;
+                """,
+                (f"%{clean_name}%", f"%{clean_name}%"),
+            )
+            cases = []
+            seen_titles = set()
+            for row in cursor.fetchall():
+                title = row["case_title"]
+                if not title or title in seen_titles:
+                    continue
+                seen_titles.add(title)
+                meta = {}
+                if row["metadata_json"]:
+                    try:
+                        meta = json.loads(row["metadata_json"])
+                    except Exception:
+                        meta = {}
+                cases.append({
+                    "case_title": title,
+                    "court": row["court"] or meta.get("court", "High Court / Supreme Court"),
+                    "year": row["year"] or meta.get("year", "N/A"),
+                    "author_judge": meta.get("author_judge", judge_query.title()),
+                    "coram": meta.get("coram", ""),
+                    "bench_type": meta.get("bench_type", "Single Bench"),
+                    "disposition": meta.get("disposition", "Not Stated"),
+                    "case_category": meta.get("case_category", "General"),
+                })
+            return cases
 

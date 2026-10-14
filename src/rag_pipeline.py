@@ -7,6 +7,7 @@ and Zero-Hallucination Grounded Legal Synthesis.
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -347,6 +348,24 @@ class IndianLegalRAGPipeline:
         """Execute Full Pipeline: Hybrid Funnel + Grounded Legal Generation + Telemetry."""
         total_start_t = time.perf_counter()
 
+        # Intent Routing: Detect Judge Profile / Catalog / Listing Queries
+        is_catalog_query = bool(
+            re.search(
+                r"\b(list|all|cases\s+of|cases\s+by|profile|track\s+record|rulings\s+by|tell\s+me\s+about\s+(?:the\s+)?cases)\b",
+                query,
+                re.IGNORECASE,
+            )
+        )
+        judge_match = re.search(r"\b(?:justice|judge|hon'ble\s+justice)\s+([A-Za-z\s\.]+)", query, re.IGNORECASE)
+        if is_catalog_query and judge_match:
+            raw_judge = judge_match.group(1).strip()
+            target_judge = re.split(r"\b(how|what|and|list|all|in|the)\b", raw_judge, flags=re.IGNORECASE)[0].strip()
+            if len(target_judge) >= 3:
+                profile = self.get_judge_profile(target_judge)
+                if profile["total_cases"] > 0:
+                    logger.info(f"Routed query to Judicial Profile Registry for Justice '{target_judge}' ({profile['total_cases']} cases found).")
+                    return self._synthesize_judge_profile_answer(query, profile, total_start_t)
+
         # Run 5-stage retrieval funnel
         funnel_output = self.retrieve_hybrid(
             query=query,
@@ -458,6 +477,99 @@ Analyze the legal query based exclusively on the provided judicial context. Prov
             "child_citations": child_citations,
             "timings": timings,
             "query": query,
+        }
+
+    def get_judge_profile(self, judge_query: str) -> Dict[str, Any]:
+        """Aggregate career statistics, behavioral metrics, and full case registry for a judge."""
+        clean_name = re.sub(
+            r"\b(justice|hon'ble|honourable|dr\.|mr\.|mrs\.|ms\.)\b",
+            "",
+            judge_query,
+            flags=re.IGNORECASE,
+        ).strip()
+        cases = self.sqlite_store.get_cases_by_judge(clean_name)
+
+        total_cases = len(cases)
+        dispositions = {"ALLOWED": 0, "DISMISSED": 0, "DISPOSED OF": 0, "PENDING/NOT_STATED": 0}
+        categories: Dict[str, int] = {}
+        courts: Dict[str, int] = {}
+        bench_types: Dict[str, int] = {}
+
+        for c in cases:
+            disp = str(c.get("disposition", "PENDING/NOT_STATED")).upper()
+            if disp in dispositions:
+                dispositions[disp] += 1
+            else:
+                dispositions["PENDING/NOT_STATED"] += 1
+
+            cat = c.get("case_category", "General")
+            categories[cat] = categories.get(cat, 0) + 1
+
+            court = c.get("court", "Court")
+            courts[court] = courts.get(court, 0) + 1
+
+            b_type = c.get("bench_type", "Single Bench")
+            bench_types[b_type] = bench_types.get(b_type, 0) + 1
+
+        decided = dispositions["ALLOWED"] + dispositions["DISMISSED"]
+        allowance_rate = round((dispositions["ALLOWED"] / decided) * 100.0, 1) if decided > 0 else 0.0
+
+        return {
+            "judge_query": judge_query,
+            "total_cases": total_cases,
+            "allowance_rate_pct": allowance_rate,
+            "dispositions": dispositions,
+            "categories": categories,
+            "courts": courts,
+            "bench_types": bench_types,
+            "cases": cases,
+        }
+
+    def _synthesize_judge_profile_answer(
+        self, query: str, profile: Dict[str, Any], total_start_t: float
+    ) -> Dict[str, Any]:
+        """Synthesize an exhaustive case registry and judicial behavioral profile."""
+        j_name = profile["judge_query"].strip().title()
+        total = profile["total_cases"]
+        rate = profile["allowance_rate_pct"]
+        disp = profile["dispositions"]
+        cases = profile["cases"]
+
+        lines = [
+            f"## Judicial Profile & Case Registry: Justice {j_name}\n",
+            f"### 1. Empirical Track Record & Behavioral Metrics",
+            f"- **Total Indexed Judgments in Corpus**: {total}",
+            f"- **Appeal / Petition Allowance Rate**: {rate}% ({disp.get('ALLOWED', 0)} Allowed vs {disp.get('DISMISSED', 0)} Dismissed)",
+            f"- **Case Dispositions**: Allowed: `{disp.get('ALLOWED', 0)}` | Dismissed: `{disp.get('DISMISSED', 0)}` | Disposed/Other: `{disp.get('DISPOSED OF', 0) + disp.get('PENDING/NOT_STATED', 0)}`",
+            f"- **Primary Benches**: " + ", ".join(f"{k} ({v})" for k, v in profile["bench_types"].items()),
+            f"- **Courts Presided**: " + ", ".join(f"{k} ({v})" for k, v in profile["courts"].items()),
+            "\n### 2. Complete Case Registry",
+            "| # | Case Title | Year | Court | Bench Strength | Disposition | Category |",
+            "|---|---|---|---|---|---|---|",
+        ]
+
+        for idx, c in enumerate(cases, start=1):
+            title = c.get("case_title", "Unknown Case")
+            year = c.get("year", "N/A")
+            court = c.get("court", "High Court / Supreme Court")
+            bench = c.get("bench_type", "Single Bench")
+            disposition = c.get("disposition", "Not Stated")
+            cat = c.get("case_category", "General")
+            lines.append(f"| {idx} | **{title}** | {year} | {court} | {bench} | `{disposition}` | {cat} |")
+
+        answer_text = "\n".join(lines)
+        total_latency = round(time.perf_counter() - total_start_t, 4)
+
+        return {
+            "answer": answer_text,
+            "retrieved_parents": [],
+            "child_citations": [],
+            "timings": {
+                "metadata_slicing_sec": total_latency,
+                "total_latency_sec": total_latency,
+            },
+            "query": query,
+            "judicial_profile": profile,
         }
 
     # Backward compatibility alias
