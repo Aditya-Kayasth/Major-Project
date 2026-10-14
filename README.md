@@ -3,11 +3,11 @@
 
 [![Python Version](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://python.org)
 [![Vector Store](https://img.shields.io/badge/ChromaDB-v0.6%2B-orange.svg)](https://www.trychroma.com/)
-[![Parent Store](https://img.shields.io/badge/SQLite-WAL%20O(1)-003B57.svg)](#embedded-sqlite-parent-store)
-[![Embeddings](https://img.shields.io/badge/Embeddings-zembed--1%20(BF16)%20%7C%20Gemini-4285F4.svg)](#local-neural-embedding-engine)
-[![Reranker](https://img.shields.io/badge/Reranker-BGE--Reranker--v2--m3%20(FP16)-green.svg)](https://huggingface.co/BAAI/bge-reranker-v2-m3)
-[![Hardware Profile](https://img.shields.io/badge/Hardware-NVIDIA%20B200%20(45GB)%20%2F%20RTX%202050-purple.svg)](#hardware-aware-resource-guardrails)
-[![Concordance](https://img.shields.io/badge/Concordance-IPC%2FCrPC%20%E2%86%94%20BNS%2FBNSS%2FBSA-red.svg)](#statutory-concordance-engine)
+[![Parent Store](https://img.shields.io/badge/SQLite-WAL%20O%281%29-003B57.svg)](#2-system-architecture)
+[![Embeddings](https://img.shields.io/badge/Embeddings-zembed--1%20%28BF16%29%20%7C%20Gemini-4285F4.svg)](#2-system-architecture)
+[![Reranker](https://img.shields.io/badge/Reranker-BGE--Reranker--v2--m3%20%28FP16%29-green.svg)](https://huggingface.co/BAAI/bge-reranker-v2-m3)
+[![Hardware Profile](https://img.shields.io/badge/Hardware-NVIDIA%20B200%20%2845GB%29%20%2F%20RTX%202050-purple.svg)](#2-system-architecture)
+[![Concordance](https://img.shields.io/badge/Concordance-IPC%2FCrPC%20%E2%86%94%20BNS%2FBNSS%2FBSA-red.svg)](#2-system-architecture)
 [![Retrieval SOTA](https://img.shields.io/badge/Hit%401-70.0%25%20%7C%20MRR-0.750-brightgreen.svg)](#5-empirical-ablation-benchmark-results)
 
 ---
@@ -36,17 +36,17 @@ flowchart TD
         PDFs["Raw Legal PDFs<br>(CIVIL, CRIMINAL, PROPERTY, SPACE)"] --> DocLoader["Document Loader & Extractor<br>(pypdf + Fast OCR Fallback)"]
         DocLoader --> MetaExtract["Metadata Heuristic Parser<br>(Court, Year, Title, Domain)"]
         MetaExtract --> Chunker3Tier["3-Tier Recursive Chunker<br>• Level 1: Document Boundary<br>• Level 2: Macro Sections (Facts, Analysis, Order)<br>• Level 3: Parent Paragraphs (~1,500 chars)"]
-        Chunker3Tier --> RhetoricalFlush{"Rhetorical Anchor Check?<br>('Learned Counsel argued', 'We hold that')"}
+        Chunker3Tier --> RhetoricalFlush{"Rhetorical Anchor Check?<br>Learned Counsel argued vs We hold that"}
         RhetoricalFlush -->|Match Detected| ForceFlush["Forced Chunk Boundary Flush<br>(Prevents Argument vs. Ratio Bleeding)"]
-        RhetoricalFlush -->|Standard| ChildGen["Child Vector Generator (~400 chars, 80 overlap)<br>Context Prepending: '[Role | Case Title]: text'"]
+        RhetoricalFlush -->|Standard| ChildGen["Child Vector Generator (~400 chars, 80 overlap)<br>Context Prepending: Role and Title tag"]
         ForceFlush --> ChildGen
     end
 
     %% DUAL STORAGE LAYER
     subgraph Storage ["2. Dual Storage & Indexing Layer"]
-        ChildGen -->|Dense Vectors (BF16 / 768-d)| ChromaDB["ChromaDB Vector Store<br>(zeroentropy/zembed-1 / gemini-embedding-2)"]
-        ChildGen -->|Legal Tokens (SCC, AIR, §)| BM25Store["BM25Okapi Keyword Registry<br>(data/chromadb_store/..._bm25.pkl)"]
-        Chunker3Tier -->|Parent Contexts| SQLiteDB[("SQLite Parent Store (WAL Mode)<br>data/parent_store.db<br>O(1) In-Memory Pointer Lookups")]
+        ChildGen -->|Dense Vectors| ChromaDB["ChromaDB Vector Store<br>(zeroentropy/zembed-1 / gemini-embedding-2)"]
+        ChildGen -->|Legal Tokens| BM25Store["BM25Okapi Keyword Registry<br>(data/chromadb_store/..._bm25.pkl)"]
+        Chunker3Tier -->|Parent Contexts| SQLiteDB[("SQLite Parent Store - WAL Mode<br>data/parent_store.db<br>O1 In-Memory Pointer Lookups")]
     end
 
     %% RESOURCE GUARDRAILS
@@ -60,15 +60,15 @@ flowchart TD
 
     %% QUERY & RETRIEVAL FUNNEL
     subgraph Retrieval ["4. Hybrid Retrieval & Judicial Funnel (src/rag_pipeline.py)"]
-        UserQuery["User Legal Query / Statutory Issue"] --> Concordance["Statutory Concordance Layer (src/concordance.py)<br>CrPC ⟷ BNSS | IPC ⟷ BNS | IEA ⟷ BSA"]
+        UserQuery["User Legal Query / Statutory Issue"] --> Concordance["Statutory Concordance Layer (src/concordance.py)<br>CrPC to BNSS / IPC to BNS / IEA to BSA"]
         Concordance -->|Expanded Query| DenseSearch["Stage 1A: Dense Search<br>(Top-25 Candidates)"]
         Concordance -->|Expanded Query| SparseSearch["Stage 1B: BM25 Search<br>(Top-25 Candidates)"]
         ChromaDB --> DenseSearch
         BM25Store --> SparseSearch
-        DenseSearch --> RRF["Stage 2: Stare Decisis Weighted RRF<br>Score = (1 / 60 + Rank) × Court Tier Multiplier<br>(Supreme Court: 1.25× | Full Bench: 1.15× | High Court: 1.10×)"]
+        DenseSearch --> RRF["Stage 2: Stare Decisis Weighted RRF<br>Score = 1/(60 + Rank) * Court Tier Multiplier<br>Supreme Court: 1.25x / Full Bench: 1.15x / High Court: 1.10x"]
         SparseSearch --> RRF
         RRF --> Rerank["Stage 3: Cross-Encoder Neural Reranking<br>BAAI/bge-reranker-v2-m3 (FP16/BF16 on GPU)<br>Full All-to-All Cross Attention (Top 3–5)"]
-        Rerank --> ParentExpansion["Stage 4: O(1) Parent Document Expansion<br>Child ID ➔ Fetch Full Parent from SQLite DB"]
+        Rerank --> ParentExpansion["Stage 4: O(1) Parent Document Expansion<br>Child ID Fetch Full Parent from SQLite DB"]
         SQLiteDB --> ParentExpansion
     end
 
@@ -93,17 +93,17 @@ flowchart TD
    - **Context Prepending**: Injects `[<Role> | <Case Title>]: <child text>` onto every vector chunk, solving lexical inversion in cosine space.
 
 3. **Embedded SQLite Parent Document Store (`src/sqlite_store.py`)**:
-   - Replaces thousands of loose `.json` files with an embedded, ACID-compliant SQLite database (`data/parent_store.db`) running in Write-Ahead Logging (WAL) mode with 64 MB in-memory cache for sub-millisecond $O(1)$ lookups.
+   - Replaces thousands of loose `.json` files with an embedded, ACID-compliant SQLite database (`data/parent_store.db`) running in Write-Ahead Logging (WAL) mode with 64 MB in-memory cache for sub-millisecond O(1) lookups.
 
 4. **2024 Statutory Concordance Layer (`src/concordance.py`)**:
    - Bidirectional synonym expansion mapping:
-     - CrPC $\longleftrightarrow$ BNSS (e.g. § 482 $\longleftrightarrow$ § 528, § 439 $\longleftrightarrow$ § 483, § 311 $\longleftrightarrow$ § 348)
-     - IPC $\longleftrightarrow$ BNS (e.g. § 302 $\longleftrightarrow$ § 103, § 420 $\longleftrightarrow$ § 318, § 304B $\longleftrightarrow$ § 80)
-     - IEA $\longleftrightarrow$ BSA (e.g. § 65B $\longleftrightarrow$ § 63, § 27 $\longleftrightarrow$ § 23)
+     - CrPC <--> BNSS (e.g. § 482 <--> § 528, § 439 <--> § 483, § 311 <--> § 348)
+     - IPC <--> BNS (e.g. § 302 <--> § 103, § 420 <--> § 318, § 304B <--> § 80)
+     - IEA <--> BSA (e.g. § 65B <--> § 63, § 27 <--> § 23)
 
 5. **Local Neural Embedding Engine (`src/local_embeddings.py`)**:
    - Hosts `zeroentropy/zembed-1` (4B parameters) in native BF16 on GPU with zero external API calls, zero rate-limits, and zero cost.
-   - Intelligent hardware fallback: Automatically switches to `BAAI/bge-small-en-v1.5` if GPU VRAM is $< 7\text{ GB}$.
+   - Intelligent hardware fallback: Automatically switches to `BAAI/bge-small-en-v1.5` if GPU VRAM is < 7 GB.
 
 6. **Streaming Checkpointed Ingestion (`index_corpus.py`)**:
    - Streams documents in micro-batches (5–8 PDFs at a time). Never accumulates 400 PDFs in RAM.
@@ -115,10 +115,14 @@ flowchart TD
 
 8. **Multi-Tier Authority & Stare Decisis Weighted RRF (`src/rag_pipeline.py`)**:
    - Computes a composite precedent authority score:
-     $$\text{Final Score} = \left(\frac{1}{k + \text{rank}_{\text{dense}}} + \frac{1}{k + \text{rank}_{\text{bm25}}}\right) \times (W_{\text{stare\_decisis}} \times W_{\text{binding\_role}} \times W_{\text{judge\_affinity}})$$
-   - **Stare Decisis ($W_{\text{stare\_decisis}}$)**: Apex Supreme Court Constitution Bench ($1.5625\times$) down to High Court Single Bench ($1.10\times$).
-   - **Binding Role ($W_{\text{binding\_role}}$)**: Binding `Ratio Decidendi` and `Order` (+15% boost) vs. non-binding partisan `Submissions` (-15% penalty) and `Obiter Dicta` / `Dissent` (-20% penalty).
-   - **Judicial Affinity ($W_{\text{judge\_affinity}}$)**: +25% boost for rulings authored by the target judge.
+
+$$
+\text{Final Score} = \left(\frac{1}{k + \text{rank(dense)}} + \frac{1}{k + \text{rank(sparse)}}\right) \times (W_{\text{stare-decisis}} \times W_{\text{binding-role}} \times W_{\text{judge-affinity}})
+$$
+
+   - **Stare Decisis (`W_stare_decisis`)**: Apex Supreme Court Constitution Bench (1.5625x) down to High Court Single Bench (1.10x).
+   - **Binding Role (`W_binding_role`)**: Binding `Ratio Decidendi` and `Order` (+15% boost) vs. non-binding partisan `Submissions` (-15% penalty) and `Obiter Dicta` / `Dissent` (-20% penalty).
+   - **Judicial Affinity (`W_judge_affinity`)**: +25% boost for rulings authored by the target judge.
 
 9. **Metadata Slicing & Dicing across Dense & Sparse Search (`src/vector_store.py`)**:
    - **Dense Semantic Slicing**: Passes normalized filters to ChromaDB (`where={"court": "...", "year": ..., "legal_role": "..."}`).
@@ -132,11 +136,11 @@ Every architectural component in this engine was selected to solve a documented 
 
 | Architectural Decision | Chosen Implementation | Alternative Rejected | Engineering & Judicial Rationale |
 |---|---|---|---|
-| **Parent Store Persistence** | **Embedded SQLite (WAL Mode)** | PostgreSQL + pgvector / Redis | **Zero-daemon, in-process $O(1)$ lookups.** Our server audit revealed a restricted Docker container without passwordless sudo. Running PostgreSQL requires dedicated daemon management, open ports (triggering firewall/ban risks), and network socket latency. SQLite with WAL mode delivers microsecond in-memory pointer retrieval with zero setup and zero cost. |
-| **Local Neural Embeddings** | **`zeroentropy/zembed-1` (BF16)** | Pure OpenAI / Gemini API Embeddings | **High-capacity domain reasoning with zero API rate limits.** 4B parameter model running natively on the NVIDIA DGX B200 (45 GB VRAM). Embeds 400 judgments in micro-batches without API cost, rate limiting, or network timeouts. Includes automated fallback to `BAAI/bge-small-en-v1.5` for developer environments ($<7\text{ GB}$ VRAM). |
+| **Parent Store Persistence** | **Embedded SQLite (WAL Mode)** | PostgreSQL + pgvector / Redis | **Zero-daemon, in-process O(1) lookups.** Our server audit revealed a restricted Docker container without passwordless sudo. Running PostgreSQL requires dedicated daemon management, open ports (triggering firewall/ban risks), and network socket latency. SQLite with WAL mode delivers microsecond in-memory pointer retrieval with zero setup and zero cost. |
+| **Local Neural Embeddings** | **`zeroentropy/zembed-1` (BF16)** | Pure OpenAI / Gemini API Embeddings | **High-capacity domain reasoning with zero API rate limits.** 4B parameter model running natively on the NVIDIA DGX B200 (45 GB VRAM). Embeds 400 judgments in micro-batches without API cost, rate limiting, or network timeouts. Includes automated fallback to `BAAI/bge-small-en-v1.5` for developer environments (< 7 GB VRAM). |
 | **Legal Document Chunking** | **3-Tier Recursive Chunking + Rhetorical Flush** | Fixed-size sliding windows (512 tokens) | **Eliminates argument vs. ratio bleeding.** Fixed windows split paragraphs arbitrarily. Counsel arguments and the judge's binding ratio share 95% vocabulary. Our hard rhetorical anchor scanner detects transition markers (*"Learned Counsel argued"* vs. *"We hold that"*) and forces an immediate chunk flush, preventing partisan arguments from being retrieved as binding law. |
-| **Precedent Ranking** | **Multi-Tier Weighted RRF** | Score-level linear combination ($\alpha \cdot \text{Dense} + (1-\alpha) \cdot \text{BM25}$) | **Distribution-independent rank fusion + Article 141 hierarchy.** Cosine similarity and BM25 scores have incompatible score distributions. RRF operates purely on ordinal ranks. Multiplying by Stare Decisis ($1.10\times$ to $1.56\times$) and Binding Role ($1.15\times$ vs. $0.85\times$) ensures Apex Constitution Bench holdings mathematically dominate single-judge orders or lawyer arguments. |
-| **Statutory Bridge** | **2024 Bidirectional Concordance** | Raw query pass-through | **Overcomes the 2024 transition gap.** Indian criminal law transitioned on July 1, 2024 (CrPC $\rightarrow$ BNSS, IPC $\rightarrow$ BNS, IEA $\rightarrow$ BSA). A query citing "Section 528 BNSS" returns zero results on 70 years of precedent unless expanded to "Section 482 CrPC". |
+| **Precedent Ranking** | **Multi-Tier Weighted RRF** | Score-level linear combination (`α * Dense + (1-α) * BM25`) | **Distribution-independent rank fusion + Article 141 hierarchy.** Cosine similarity and BM25 scores have incompatible score distributions. RRF operates purely on ordinal ranks. Multiplying by Stare Decisis (1.10x to 1.56x) and Binding Role (1.15x vs. 0.85x) ensures Apex Constitution Bench holdings mathematically dominate single-judge orders or lawyer arguments. |
+| **Statutory Bridge** | **2024 Bidirectional Concordance** | Raw query pass-through | **Overcomes the 2024 transition gap.** Indian criminal law transitioned on July 1, 2024 (CrPC -> BNSS, IPC -> BNS, IEA -> BSA). A query citing "Section 528 BNSS" returns zero results on 70 years of precedent unless expanded to "Section 482 CrPC". |
 | **Judicial Profiling** | **Dual-Route Intent Profiler + SQLite Registry** | Naive top-K vector search | **Solves the catalog search failure mode.** Standard vector RAG fails on *"list all cases by Justice XYZ"*, returning only 5 arbitrary snippets. Our router intercepts catalog queries, queries SQLite for distinct cases, calculates empirical allowance/disposition rates, and renders a complete case registry table. |
 
 ---
@@ -161,7 +165,7 @@ Every architectural component in this engine was selected to solve a documented 
 
 ### In-Progress & Upcoming Phases:
 - [ ] **Large-Scale Corpus Ingestion**: Ingesting the full ~400 judgment Kaggle corpus on the NVIDIA B200 server.
-- [ ] **Multi-Store Combinatorial Grid Run**: Executing the $M \times C$ benchmark matrix across all 10 isolated stores.
+- [ ] **Multi-Store Combinatorial Grid Run**: Executing the M x C benchmark matrix across all 10 isolated stores.
 - [ ] **Offline Batch GPU OCR**: Batch converting the 25 queued scanned property PDFs (`P1`–`P25`) via Docling/Surya.
 
 ---
@@ -346,7 +350,7 @@ python evaluate_pipeline.py --collection indian_legal_precedents --skip-llm-judg
 
 A core hypothesis of this research is that **no single embedding model or chunking strategy is universally optimal across all legal domains**. Legal texts differ dramatically by jurisdiction and matter type: a criminal bail order revolves around procedural dates and witness depositions, a property suit pivots on deed covenants and land ceiling clauses, and a constitutional petition hinges on overarching jurisprudential doctrines.
 
-To establish rigorous empirical benchmarks, the framework evaluates the complete Cartesian product of **Embedding Models** $\times$ **Chunking Strategies**, indexing each into independent vector stores and evaluating them under identical queries and retrieval funnels.
+To establish rigorous empirical benchmarks, the framework evaluates the complete Cartesian product of **Embedding Models** x **Chunking Strategies**, indexing each into independent vector stores and evaluating them under identical queries and retrieval funnels.
 
 ### 9.1 The Combinatorial Design Dimensions
 
@@ -365,10 +369,10 @@ flowchart TD
         C3["Structural / Judicial Section-Aware<br>(Ratio, Facts, Order, Headnotes)"]
     end
 
-    Dimension1 --> Grid["Cartesian Combinatorial Grid (M × C Collections)"]
+    Dimension1 --> Grid["Cartesian Combinatorial Grid (M x C Collections)"]
     Dimension2 --> Grid
 
-    Grid --> StoreCol["Isolated ChromaDB Vector Stores<br>• col_zembed_hierarchical<br>• col_zembed_structural<br>• col_gemini_hierarchical<br>• col_inlegalbert_structural<br>...and all pairings"]
+    Grid --> StoreCol["Isolated ChromaDB Vector Stores<br>- col_zembed_hierarchical<br>- col_zembed_structural<br>- col_gemini_hierarchical<br>- col_inlegalbert_structural<br>...and all pairings"]
 
     StoreCol --> EvalHarness["Standardized Retrieval Harness<br>(Dense + BM25 + RRF + Cross-Encoder)"]
     EvalHarness --> BenchOutput["Domain-Wise & Performance Matrix<br>Global Champion + Domain-Specific Route Recommendations"]
@@ -390,7 +394,7 @@ flowchart TD
 
 ---
 
-### 9.2 The $M \times C$ Store Matrix
+### 9.2 The M x C Store Matrix
 
 | Vector Store Identifier | Embedding Model | Chunking Strategy | Primary Empirical Target |
 |---|---|---|---|
