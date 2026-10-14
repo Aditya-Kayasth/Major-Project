@@ -154,14 +154,23 @@ class IndianLegalRAGPipeline:
         dense_results: List[Dict[str, Any]],
         bm25_results: List[Dict[str, Any]],
         k: int = 60,
+        query: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Perform Stare Decisis Weighted Reciprocal Rank Fusion (RRF).
+        """Perform Multi-Tier Weighted Reciprocal Rank Fusion (RRF).
 
         Formula:
-            Final Score = (1.0 / (k + dense_rank) + 1.0 / (k + bm25_rank)) * Court_Tier_Weight
+            Final Score = (1.0 / (k + dense_rank) + 1.0 / (k + bm25_rank)) * Authority_Weight
+            where Authority_Weight = Stare_Decisis_Weight * Role_Weight * Judge_Affinity
         """
         rrf_scores: Dict[str, float] = {}
         candidate_map: Dict[str, Dict[str, Any]] = {}
+
+        # Extract target judge from query if present
+        target_judge = None
+        if query:
+            j_match = re.search(r"\b(?:justice|judge|hon'ble\s+justice)\s+([A-Za-z\s\.]+)", query, re.IGNORECASE)
+            if j_match:
+                target_judge = j_match.group(1).strip()
 
         # 1. Process Dense Ranking
         for rank, item in enumerate(dense_results, start=1):
@@ -186,11 +195,39 @@ class IndianLegalRAGPipeline:
             meta = candidate.get("metadata") or {}
             court = candidate.get("court") or meta.get("court", "")
             bench = candidate.get("bench_type") or meta.get("bench_type", "")
-            court_weight = get_stare_decisis_weight(court, bench)
+            role = candidate.get("legal_role") or meta.get("legal_role") or meta.get("role", "")
+            author = candidate.get("author_judge") or meta.get("author_judge", "")
+            coram = candidate.get("coram") or meta.get("coram", "")
+
+            # 1. Stare Decisis Precedent Multiplier (Court Tier + Bench Strength)
+            stare_weight = get_stare_decisis_weight(court, bench)
+
+            # 2. Binding Ratio Decidendi Authority Multiplier
+            role_l = str(role).lower()
+            role_weight = 1.0
+            if "ratio" in role_l or "holding" in role_l or "order" in role_l:
+                role_weight = 1.15  # Binding judicial holding gets +15% boost
+            elif "precedent" in role_l:
+                role_weight = 1.05  # Precedent citations get +5% boost
+            elif "submission" in role_l or "contention" in role_l:
+                role_weight = 0.85  # Non-binding counsel arguments penalized -15%
+            elif "obiter" in role_l or "dissent" in role_l:
+                role_weight = 0.80  # Non-binding dicta / dissent penalized -20%
+
+            # 3. Judicial Entity Affinity Multiplier
+            judge_affinity = 1.0
+            if target_judge:
+                clean_target = re.sub(r"\b(justice|hon'ble|dr\.|mr\.|mrs\.|ms\.)\b", "", target_judge, flags=re.IGNORECASE).strip().lower()
+                if clean_target and (clean_target in author.lower() or clean_target in coram.lower()):
+                    judge_affinity = 1.25  # +25% boost for target judge opinions
+
+            final_authority_weight = round(stare_weight * role_weight * judge_affinity, 4)
 
             candidate["raw_rrf_score"] = float(score)
-            candidate["court_tier_weight"] = court_weight
-            candidate["rrf_score"] = float(score) * court_weight
+            candidate["court_tier_weight"] = stare_weight
+            candidate["role_weight"] = role_weight
+            candidate["judge_affinity"] = judge_affinity
+            candidate["rrf_score"] = float(score) * final_authority_weight
             fused_candidates.append(candidate)
 
         fused_candidates.sort(key=lambda x: x["rrf_score"], reverse=True)
@@ -264,7 +301,7 @@ class IndianLegalRAGPipeline:
         # Stage 3: Reciprocal Rank Fusion
         # ---------------------------------------------------------
         s3_start = time.perf_counter()
-        fused_candidates = self.compute_rrf(dense_candidates, bm25_candidates, k=60)
+        fused_candidates = self.compute_rrf(dense_candidates, bm25_candidates, k=60, query=query)
         # Select top 15 fused candidates for cross-encoder reranking
         top_fused = fused_candidates[:15]
         timings["rrf_fusion_sec"] = round(time.perf_counter() - s3_start, 4)
@@ -405,9 +442,16 @@ class IndianLegalRAGPipeline:
             p_court = p_meta.get("court", "Court")
             p_year = p_meta.get("year", "")
             p_heading = p_meta.get("structural_heading", "Legal Section")
+            p_role = p_meta.get("role") or p_meta.get("legal_role", "Ratio Decidendi")
+            p_bench = p_meta.get("bench_type", "Bench")
+            p_author = p_meta.get("author_judge", "Judge")
+            p_disp = p_meta.get("disposition", "Not Stated")
             p_text = parent.get("text", "")
             context_blocks.append(
-                f"### [Precedent {idx}] {p_title} ({p_court}, {p_year}) - Section: {p_heading}\n{p_text}"
+                f"### [Precedent {idx}] {p_title} ({p_court}, {p_year})\n"
+                f"- **Authority & Bench**: {p_court} | {p_bench} (Author: {p_author})\n"
+                f"- **Binding Status**: [{p_role}] | Outcome: `{p_disp}` | Section: {p_heading}\n"
+                f"{p_text}"
             )
 
         context_str = "\n\n".join(context_blocks)
