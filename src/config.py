@@ -29,15 +29,49 @@ def _resolve_path(env_val: Optional[str], default_rel: str) -> Path:
 class Settings(BaseModel):
     """Production settings and hyperparameters for Indian Legal RAG."""
 
-    # Gemini API Configuration
+    # Resource Guardrails (Strict Memory & Storage Ceilings)
+    max_ram_gb: float = Field(
+        default_factory=lambda: float(os.getenv("MAX_RAM_GB", "20.0"))
+    )
+    warn_ram_gb: float = Field(
+        default_factory=lambda: float(os.getenv("WARN_RAM_GB", "16.0"))
+    )
+    max_storage_gb: float = Field(
+        default_factory=lambda: float(os.getenv("MAX_STORAGE_GB", "30.0"))
+    )
+    vram_safety_fraction: float = Field(
+        default_factory=lambda: float(os.getenv("VRAM_SAFETY_FRACTION", "0.85"))
+    )
+    num_threads: int = Field(
+        default_factory=lambda: int(os.getenv("NUM_THREADS", "8"))
+    )
+
+    # Embedding Provider Configuration (local vs. gemini)
+    embedding_provider: str = Field(
+        default_factory=lambda: os.getenv("EMBEDDING_PROVIDER", "local").lower()
+    )
+    local_embedding_model: str = Field(
+        default_factory=lambda: os.getenv("LOCAL_EMBEDDING_MODEL", "zeroentropy/zembed-1")
+    )
+    gemini_embedding_model: str = Field(
+        default_factory=lambda: os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")
+    )
+
+    # Synthesis Provider Configuration (gemini vs. ollama)
+    synthesis_provider: str = Field(
+        default_factory=lambda: os.getenv("SYNTHESIS_PROVIDER", "gemini").lower()
+    )
     gemini_api_key: str = Field(
         default_factory=lambda: os.getenv("GEMINI_API_KEY", "")
     )
     gemini_model: str = Field(
         default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
     )
-    gemini_embedding_model: str = Field(
-        default_factory=lambda: os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
+    ollama_base_url: str = Field(
+        default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    )
+    ollama_model: str = Field(
+        default_factory=lambda: os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
     )
 
     # Vector Store & Collection
@@ -48,12 +82,12 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("COLLECTION_NAME", "indian_legal_precedents")
     )
 
-    # Hierarchical Legal Chunking Hyperparameters
+    # 3-Tier Hierarchical Legal Chunking Hyperparameters
     parent_chunk_size: int = Field(
-        default_factory=lambda: int(os.getenv("PARENT_CHUNK_SIZE", "1800"))
+        default_factory=lambda: int(os.getenv("PARENT_CHUNK_SIZE", "1500"))
     )
     child_chunk_size: int = Field(
-        default_factory=lambda: int(os.getenv("CHILD_CHUNK_SIZE", "450"))
+        default_factory=lambda: int(os.getenv("CHILD_CHUNK_SIZE", "400"))
     )
     chunk_overlap: int = Field(
         default_factory=lambda: int(os.getenv("CHUNK_OVERLAP", "80"))
@@ -64,7 +98,13 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
     )
 
-    # Data Storage Directories
+    # Data Storage Directories & SQLite Path
+    sqlite_db_path: Path = Field(
+        default_factory=lambda: _resolve_path(os.getenv("SQLITE_DB_PATH"), "data/parent_store.db")
+    )
+    checkpoint_path: Path = Field(
+        default_factory=lambda: _resolve_path(os.getenv("CHECKPOINT_PATH"), "data/processed/indexing_checkpoint.json")
+    )
     parent_store_dir: Path = Field(
         default_factory=lambda: _resolve_path(os.getenv("PARENT_STORE_DIR"), "data/parent_store")
     )
@@ -86,12 +126,14 @@ class Settings(BaseModel):
         """Validate critical configuration and ensure all storage directories exist on disk."""
         cfg = instance or cls()
 
-        # Validate Gemini API Key presence
-        if not cfg.gemini_api_key or cfg.gemini_api_key in ("your_gemini_api_key_here", ""):
-            raise ValueError(
-                "GEMINI_API_KEY is not set or set to placeholder in .env. "
-                "Please configure a valid Google Gemini API key."
-            )
+        # Only require GEMINI_API_KEY if Gemini is selected for either embeddings or synthesis
+        if (cfg.embedding_provider == "gemini" or cfg.synthesis_provider == "gemini"):
+            if not cfg.gemini_api_key or cfg.gemini_api_key in ("your_gemini_api_key_here", ""):
+                # Issue warning or raise depending on usage
+                import logging
+                logging.getLogger("IndianLegalRAG.Config").warning(
+                    "GEMINI_API_KEY is not set or using placeholder. Cloud Gemini operations will be disabled."
+                )
 
         # Validate chunking parameters
         if cfg.child_chunk_size >= cfg.parent_chunk_size:
@@ -108,6 +150,8 @@ class Settings(BaseModel):
         # Automatically create all required directories
         target_directories = [
             cfg.chroma_db_dir,
+            cfg.sqlite_db_path.parent,
+            cfg.checkpoint_path.parent,
             cfg.parent_store_dir,
             cfg.raw_data_dir,
             cfg.processed_data_dir,

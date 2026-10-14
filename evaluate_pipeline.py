@@ -33,10 +33,17 @@ from src.config import Settings, get_settings
 from src.rag_pipeline import IndianLegalRAGPipeline
 from src.vector_store import VectorStoreManager
 
-# Enforce hardware-aware thermal constraints
-torch.set_num_threads(2)
-if torch.cuda.is_available():
-    torch.cuda.set_per_process_memory_fraction(0.45, 0)
+from src.resource_guard import ResourceGuard
+
+_settings = get_settings()
+_guard = ResourceGuard(
+    max_ram_gb=_settings.max_ram_gb,
+    warn_ram_gb=_settings.warn_ram_gb,
+    max_storage_gb=_settings.max_storage_gb,
+    vram_safety_fraction=_settings.vram_safety_fraction,
+    num_cpu_threads=_settings.num_threads,
+)
+_guard.initialize_hardware()
 
 # Configure logger
 logger = logging.getLogger("IndianLegalRAG.Evaluator")

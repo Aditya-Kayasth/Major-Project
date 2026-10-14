@@ -8,6 +8,10 @@ venv/
 # Vector DB & Local Storage
 chromadb_store/
 data/parent_store/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/processed/indexing_checkpoint*.json
 
 # Python Bytecode & Cache
 __pycache__/
@@ -18,3 +22,4 @@ __pycache__/
 
 # Logs
 *.log
+data/logs/

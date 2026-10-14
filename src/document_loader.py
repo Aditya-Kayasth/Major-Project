@@ -22,9 +22,26 @@ from google.genai.errors import APIError
 from tqdm import tqdm
 
 from src.config import Settings, get_settings
+from src.resource_guard import ResourceGuard
+from src.sqlite_store import SQLiteParentStore
 
 # Configure logger
 logger = logging.getLogger("IndianLegalRAG.DocumentLoader")
+
+# Hard Rhetorical Transition Markers in Indian Judgments
+RHETORICAL_ANCHORS_PATTERN = re.compile(
+    r"(?:\n|^)(?:"
+    r"Learned\s+(?:Senior\s+)?Counsel\s+(?:for\s+the\s+appellant|for\s+the\s+respondent|submitted|contended|argued)|"
+    r"Having\s+heard\s+(?:the\s+learned\s+counsel|both\s+sides|the\s+parties)|"
+    r"Having\s+considered\s+the\s+(?:rival\s+submissions|material\s+on\s+record|evidence)|"
+    r"We\s+are\s+of\s+the\s+(?:considered\s+)?opinion\s+that|"
+    r"In\s+our\s+(?:considered\s+)?view|"
+    r"The\s+question\s+(?:that\s+falls\s+for\s+our\s+consideration|for\s+determination\s+is)|"
+    r"We\s+hold\s+and\s+direct\s+that|It\s+is\s+held\s+that|We\s+accordingly\s+hold|"
+    r"For\s+the\s+reasons\s+stated\s+above|In\s+the\s+result|The\s+appeal\s+is\s+(?:allowed|dismissed)"
+    r")",
+    re.IGNORECASE,
+)
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
@@ -52,7 +69,7 @@ Your mission is to accurately transcribe and structurally normalize the provided
 
 
 class LegalDocumentLoader:
-    """Production document loader with Multimodal OCR fallback and Hierarchical Legal Chunking."""
+    """Production document loader with Multimodal OCR fallback and 3-Tier Hierarchical Legal Chunking."""
 
     def __init__(self, settings: Optional[Settings] = None, enable_ocr: bool = True):
         self.settings = settings or get_settings()
@@ -60,6 +77,22 @@ class LegalDocumentLoader:
         self.client: Optional[genai.Client] = None
         if self.settings.gemini_api_key and self.settings.gemini_api_key != "your_gemini_api_key_here":
             self.client = genai.Client(api_key=self.settings.gemini_api_key)
+
+        # Initialize embedded SQLite parent store
+        self.sqlite_store = SQLiteParentStore(self.settings.sqlite_db_path)
+
+        # Initialize resource guardrail monitor
+        self.guard = ResourceGuard(
+            max_ram_gb=self.settings.max_ram_gb,
+            warn_ram_gb=self.settings.warn_ram_gb,
+            max_storage_gb=self.settings.max_storage_gb,
+            storage_check_paths=[
+                self.settings.chroma_db_dir,
+                self.settings.parent_store_dir,
+                self.settings.sqlite_db_path.parent,
+            ],
+            num_cpu_threads=self.settings.num_threads,
+        )
 
     def _get_gemini_client(self) -> genai.Client:
         """Ensure authenticated Gemini Client is available."""
@@ -350,12 +383,13 @@ class LegalDocumentLoader:
     def create_parent_child_chunks(
         self, text: str, source_path: str
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """Implement production Hierarchical Legal Chunking.
+        """Implement production 3-Tier Hierarchical Legal Chunking.
 
-        1. Parent Chunks: Split text into coherent legal sections (~1800 characters)
-           and persist each to data/parent_store/{parent_id}.json.
-        2. Child Chunks: Subdivide Parent Chunks into granular chunks (~450 characters, 80 char overlap)
-           tagged with parent_id, chunk_id, case_title, court, year, role, and char_length.
+        1. Macro Sections & Rhetorical Anchoring: Split text into coherent legal sections
+           (~1500 characters) while immediately flushing on counsel/court transition markers.
+        2. SQLite Storage: Store all parent sections atomically in SQLite database for O(1) retrieval.
+        3. Child Chunks with Context Prepending: Subdivide into ~400-char granular chunks with
+           prepended rhetorical breadcrumbs '[<Role> | <Case Title>]: <text>' to eliminate lexical inversion.
 
         Returns:
             Tuple of (parent_chunks, child_chunks)
@@ -366,10 +400,6 @@ class LegalDocumentLoader:
         court = base_meta["court"]
         year = base_meta["year"]
 
-        # Ensure parent store directory exists
-        parent_store_dir = self.settings.parent_store_dir
-        parent_store_dir.mkdir(parents=True, exist_ok=True)
-
         parent_size = self.settings.parent_chunk_size
         child_size = self.settings.child_chunk_size
         overlap = self.settings.chunk_overlap
@@ -379,14 +409,22 @@ class LegalDocumentLoader:
         if not raw_paragraphs:
             raw_paragraphs = [text.strip()] if text.strip() else [""]
 
-        # Build Parent Chunks respecting paragraph boundaries
+        # Build Parent Chunks respecting paragraph boundaries and Hard Rhetorical Flush
         parent_blocks: List[str] = []
         current_block: List[str] = []
         current_len = 0
 
         for para in raw_paragraphs:
             para_len = len(para)
-            if current_len + para_len > parent_size and current_block:
+            is_rhetorical_transition = bool(RHETORICAL_ANCHORS_PATTERN.search(para))
+
+            # Force immediate flush if rhetorical transition marker is detected
+            # (Ensures counsel submissions and judicial findings never contaminate the same parent chunk)
+            if is_rhetorical_transition and current_block:
+                parent_blocks.append("\n\n".join(current_block))
+                current_block = [para]
+                current_len = para_len
+            elif current_len + para_len > parent_size and current_block:
                 parent_blocks.append("\n\n".join(current_block))
                 current_block = [para]
                 current_len = para_len
@@ -422,11 +460,6 @@ class LegalDocumentLoader:
                 },
             }
 
-            # Save full parent section context to local disk
-            parent_file = parent_store_dir / f"{parent_id}.json"
-            with open(parent_file, "w", encoding="utf-8") as f:
-                json.dump(parent_chunk_data, f, ensure_ascii=False, indent=2)
-
             parent_chunks.append(parent_chunk_data)
 
             # Subdivide Parent Chunk into Child Chunks with sliding window overlap
@@ -441,6 +474,9 @@ class LegalDocumentLoader:
                     role = self._detect_legal_role(c_text, active_heading)
                     child_id = str(uuid.uuid4())
 
+                    # Context Prepending: Inject structural breadcrumbs into vector representation
+                    prepended_vector_text = f"[{role} | {case_title}]: {c_text}"
+
                     child_chunk_data = {
                         "parent_id": parent_id,
                         "chunk_id": child_id,
@@ -448,8 +484,10 @@ class LegalDocumentLoader:
                         "court": court,
                         "year": year,
                         "role": role,
-                        "char_length": len(c_text),
-                        "text": c_text,
+                        "char_length": len(prepended_vector_text),
+                        "raw_char_length": len(c_text),
+                        "text": prepended_vector_text,  # Vectors capture role & case authority
+                        "raw_text": c_text,             # Clean snippet for prompt injection
                         "source_path": str(path),
                         "parent_index": p_idx,
                     }
@@ -458,6 +496,23 @@ class LegalDocumentLoader:
                 if child_end >= p_len:
                     break
                 child_start += child_size - overlap
+
+        # Persist parent chunks atomically to SQLite database
+        try:
+            self.sqlite_store.insert_parents_batch(parent_chunks)
+        except Exception as sql_err:
+            logger.warning(f"Could not persist parents to SQLite: {sql_err}")
+
+        # Also maintain JSON backup in parent_store_dir for backward compatibility
+        parent_store_dir = self.settings.parent_store_dir
+        parent_store_dir.mkdir(parents=True, exist_ok=True)
+        for pc in parent_chunks:
+            p_file = parent_store_dir / f"{pc['parent_id']}.json"
+            try:
+                with open(p_file, "w", encoding="utf-8") as f:
+                    json.dump(pc, f, ensure_ascii=False)
+            except Exception:
+                pass
 
         return parent_chunks, child_chunks
 

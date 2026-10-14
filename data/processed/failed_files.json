@@ -754,5 +754,17 @@
     "filename": "corrupted_scan.pdf",
     "timestamp": "2026-10-05T20:49:30.371867",
     "error": "OCR processing failed after 3 retries"
+  },
+  {
+    "file_path": "data\\raw_judgments\\corrupted_scan.pdf",
+    "filename": "corrupted_scan.pdf",
+    "timestamp": "2026-10-14T13:32:35.566650",
+    "error": "OCR processing failed after 3 retries"
+  },
+  {
+    "file_path": "data\\raw_judgments\\corrupted_scan.pdf",
+    "filename": "corrupted_scan.pdf",
+    "timestamp": "2026-10-14T13:38:23.890245",
+    "error": "OCR processing failed after 3 retries"
   }
 ]

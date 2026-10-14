@@ -22,6 +22,8 @@ from rank_bm25 import BM25Okapi
 from tqdm import tqdm
 
 from src.config import Settings, get_settings
+from src.local_embeddings import LocalEmbeddingEngine
+from src.resource_guard import ResourceGuard
 
 # Configure logger
 logger = logging.getLogger("IndianLegalRAG.VectorStore")
@@ -216,6 +218,26 @@ class VectorStoreManager:
             else None
         )
 
+        # Initialize local neural embedding engine if configured
+        self.local_embedding_engine: Optional[LocalEmbeddingEngine] = None
+        if getattr(self.settings, "embedding_provider", "local") == "local":
+            try:
+                self.local_embedding_engine = LocalEmbeddingEngine(
+                    model_name=getattr(self.settings, "local_embedding_model", "zeroentropy/zembed-1"),
+                    batch_size=32,
+                )
+            except Exception as err:
+                logger.warning(f"LocalEmbeddingEngine deferred or failed to init: {err}")
+
+        # Initialize resource guardrail monitor
+        self.guard = ResourceGuard(
+            max_ram_gb=self.settings.max_ram_gb,
+            warn_ram_gb=self.settings.warn_ram_gb,
+            max_storage_gb=self.settings.max_storage_gb,
+            storage_check_paths=[self.persist_dir],
+            num_cpu_threads=self.settings.num_threads,
+        )
+
         self._active_collections: Dict[str, Collection] = {}
         self._bm25_registries: Dict[str, BM25Registry] = {}
         self._query_embedding_cache: Dict[str, List[float]] = {}
@@ -277,9 +299,18 @@ class VectorStoreManager:
     def _embed_texts_batch(
         self, texts: List[str], task_type: str = "RETRIEVAL_DOCUMENT"
     ) -> List[List[float]]:
-        """Embed text batch with Gemini embedding model, handling retries and rate limit backoff."""
+        """Embed text batch using LocalEmbeddingEngine (zembed-1/bge) or Gemini API."""
+        if not texts:
+            return []
+
+        # Route to Local Embedding Engine if configured
+        if getattr(self.settings, "embedding_provider", "local") == "local" and self.local_embedding_engine:
+            return self.local_embedding_engine.embed_texts(texts, show_progress=False)
+
         if not self.client:
-            raise ValueError("GEMINI_API_KEY is not configured for embedding generation.")
+            raise ValueError(
+                "Neither local embedding engine nor GEMINI_API_KEY is configured for embedding generation."
+            )
 
         model_candidates = [
             self.settings.gemini_embedding_model,
@@ -442,6 +473,9 @@ class VectorStoreManager:
                     meta = {k: v for k, v in c.items() if k not in ["chunk_id", "text"]}
                     batch_metas.append(sanitize_metadata_for_chroma(meta))
 
+                # Check and enforce system RAM & storage guardrails before processing batch
+                guard_status = self.guard.enforce_guardrails("VectorStore.Index")
+
                 # Step 1: Generate Dense Embeddings
                 batch_embeddings = self._embed_texts_batch(
                     batch_texts, task_type="RETRIEVAL_DOCUMENT"
@@ -459,11 +493,17 @@ class VectorStoreManager:
                 elapsed = time.perf_counter() - start_time
                 throughput = indexed_count / elapsed if elapsed > 0 else 0.0
 
-                pbar.set_postfix({"throughput": f"{throughput:.1f} ch/s"})
+                pbar.set_postfix({
+                    "throughput": f"{throughput:.1f} ch/s",
+                    "ram": f"{guard_status['proc_ram_gb']:.1f}GB",
+                })
                 pbar.update(len(batch))
 
-                # Rate-Limit Pacing: sleep 3.5s between batches to respect rolling RPM limits and laptop thermals
-                time.sleep(3.5)
+                # Adaptive Pacing: 0.05s for local GPU embeddings vs. 2.0s for API rate limits
+                if getattr(self.settings, "embedding_provider", "local") == "local":
+                    time.sleep(0.05)
+                else:
+                    time.sleep(2.0)
 
         finally:
             pbar.close()

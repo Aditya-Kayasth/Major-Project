@@ -17,10 +17,27 @@ from google.genai import types
 from google.genai.errors import APIError
 
 from src.config import Settings, get_settings
+from src.concordance import StatutoryConcordance
+from src.resource_guard import ResourceGuard
+from src.sqlite_store import SQLiteParentStore
 from src.vector_store import VectorStoreManager
 
 # Configure logger
 logger = logging.getLogger("IndianLegalRAG.Pipeline")
+
+
+def get_stare_decisis_weight(court_name: str) -> float:
+    """Compute Stare Decisis authoritative weight multiplier based on Indian judicial hierarchy."""
+    c = (court_name or "").lower()
+    if "supreme court" in c or "insc" in c:
+        return 1.25  # Apex authority binding across all jurisdictions (Art. 141)
+    elif "full bench" in c:
+        return 1.15  # Multi-judge Full Bench decision binding on Division Benches
+    elif "high court" in c:
+        return 1.10  # State-level constitutional precedent
+    elif "tribunal" in c or "central administrative" in c:
+        return 1.05  # Specialized statutory tribunal
+    return 1.0       # Standard baseline
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
@@ -57,24 +74,34 @@ class IndianLegalRAGPipeline:
             if self.settings.gemini_api_key and self.settings.gemini_api_key != "your_gemini_api_key_here"
             else None
         )
+        self.sqlite_store = SQLiteParentStore(self.settings.sqlite_db_path)
+        self.guard = ResourceGuard(
+            max_ram_gb=self.settings.max_ram_gb,
+            warn_ram_gb=self.settings.warn_ram_gb,
+            max_storage_gb=self.settings.max_storage_gb,
+            num_cpu_threads=self.settings.num_threads,
+        )
         self._reranker: Optional[Any] = None
 
     def _get_reranker(self) -> Any:
-        """Lazy loader for sentence_transformers.CrossEncoder with hardware-throttled low-power profile."""
+        """Lazy loader for sentence_transformers.CrossEncoder with hardware-throttled profile."""
         if self._reranker is None:
             import torch
-            torch.set_num_threads(2)
+            torch.set_num_threads(self.settings.num_threads)
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
             if device == "cuda":
-                # Hard cap at ~1.8 GB VRAM (0.45 on 4 GB RTX 2050)
-                torch.cuda.set_per_process_memory_fraction(0.45, 0)
-                logger.info(
-                    f"Configured PyTorch CUDA memory fraction cap: 0.45 (~1.8GB) on '{torch.cuda.get_device_name(0)}'"
-                )
+                # Apply configured VRAM safety cap (e.g. 0.85 on B200 or 0.45 on RTX 2050)
+                try:
+                    torch.cuda.set_per_process_memory_fraction(self.settings.vram_safety_fraction, 0)
+                    logger.info(
+                        f"Configured PyTorch CUDA memory fraction: {self.settings.vram_safety_fraction} on '{torch.cuda.get_device_name(0)}'"
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not set VRAM memory fraction: {e}")
 
             logger.info(
-                f"Lazy-initializing CrossEncoder ('{self.settings.reranker_model}') on device '{device}' (CPU threads: 2)..."
+                f"Lazy-initializing CrossEncoder ('{self.settings.reranker_model}') on device '{device}' (threads: {self.settings.num_threads})..."
             )
             from sentence_transformers import CrossEncoder
 
@@ -85,12 +112,21 @@ class IndianLegalRAGPipeline:
                 model_kwargs=model_kwargs,
             )
             if device == "cuda":
-                logger.info("Enabled FP16 half-precision on CrossEncoder model (VRAM ~1.06 GB).")
+                logger.info(f"Enabled FP16 half-precision on CrossEncoder model '{self.settings.reranker_model}'.")
 
         return self._reranker
 
     def retrieve_parent_context(self, parent_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch the original parent chunk context from local disk parent store."""
+        """Fetch original parent chunk context from SQLite key-value store, falling back to JSON."""
+        # 1. First attempt: Fast O(1) SQLite query
+        try:
+            parent_doc = self.sqlite_store.get_parent(parent_id)
+            if parent_doc:
+                return parent_doc
+        except Exception as err:
+            logger.debug(f"SQLite lookup skipped ({err}). Checking disk JSON files...")
+
+        # 2. Second attempt: Local disk parent store
         parent_file = self.settings.parent_store_dir / f"{parent_id}.json"
         if parent_file.exists():
             try:
@@ -106,10 +142,10 @@ class IndianLegalRAGPipeline:
         bm25_results: List[Dict[str, Any]],
         k: int = 60,
     ) -> List[Dict[str, Any]]:
-        """Perform Reciprocal Rank Fusion (RRF) on dense and sparse candidate rankings.
+        """Perform Stare Decisis Weighted Reciprocal Rank Fusion (RRF).
 
-        RRF Score Formula:
-            score = 1.0 / (k + dense_rank) + 1.0 / (k + bm25_rank)
+        Formula:
+            Final Score = (1.0 / (k + dense_rank) + 1.0 / (k + bm25_rank)) * Court_Tier_Weight
         """
         rrf_scores: Dict[str, float] = {}
         candidate_map: Dict[str, Dict[str, Any]] = {}
@@ -130,11 +166,17 @@ class IndianLegalRAGPipeline:
                 candidate_map[chunk_id] = dict(item)
             candidate_map[chunk_id]["bm25_rank"] = rank
 
-        # 3. Build Fused List
+        # 3. Build Fused List with Stare Decisis Multiplier
         fused_candidates: List[Dict[str, Any]] = []
         for chunk_id, score in rrf_scores.items():
             candidate = candidate_map[chunk_id]
-            candidate["rrf_score"] = float(score)
+            meta = candidate.get("metadata") or {}
+            court = candidate.get("court") or meta.get("court", "")
+            court_weight = get_stare_decisis_weight(court)
+
+            candidate["raw_rrf_score"] = float(score)
+            candidate["court_tier_weight"] = court_weight
+            candidate["rrf_score"] = float(score) * court_weight
             fused_candidates.append(candidate)
 
         fused_candidates.sort(key=lambda x: x["rrf_score"], reverse=True)
@@ -161,6 +203,11 @@ class IndianLegalRAGPipeline:
         funnel_start_t = time.perf_counter()
 
         # ---------------------------------------------------------
+        # Stage 0: Statutory Concordance Query Expansion (IPC/CrPC <-> BNS/BNSS)
+        # ---------------------------------------------------------
+        search_query = StatutoryConcordance.expand_query(query)
+
+        # ---------------------------------------------------------
         # Stage 1: Metadata Slicing
         # ---------------------------------------------------------
         s1_start = time.perf_counter()
@@ -178,7 +225,7 @@ class IndianLegalRAGPipeline:
         s2_dense_start = time.perf_counter()
         try:
             dense_candidates = self.vector_store.query_dense(
-                query=query,
+                query=search_query,
                 top_k=candidate_pool_size,
                 filters=filters,
                 collection_name=collection_name,
@@ -192,7 +239,7 @@ class IndianLegalRAGPipeline:
 
         s2_bm25_start = time.perf_counter()
         bm25_candidates = self.vector_store.query_bm25(
-            query=query,
+            query=search_query,
             top_k=candidate_pool_size,
             allowed_ids=allowed_ids,
             collection_name=collection_name,
