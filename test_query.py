@@ -5,15 +5,17 @@ torch.set_num_threads(2)
 if torch.cuda.is_available():
     torch.cuda.set_per_process_memory_fraction(0.45, 0)
 
+import sys
 from src.rag_pipeline import IndianLegalRAGPipeline
 
 pipe = IndianLegalRAGPipeline()
-query = (
+default_query = (
     "Can a Special Court under POCSO issue bailable warrants or compel "
     "the physical attendance of a minor victim during bail hearings of the accused?"
 )
+query = sys.argv[1] if len(sys.argv) > 1 else default_query
 
-print("\n--- RUNNING LEGAL FUNNEL ON RTX 2050 ---")
+print(f"\n--- RUNNING LEGAL FUNNEL (Query: '{query}') ---")
 
 # Resilient query execution with automatic retry on 503 / 429
 max_retries = 3

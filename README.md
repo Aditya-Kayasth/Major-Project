@@ -8,7 +8,7 @@
 [![Reranker](https://img.shields.io/badge/Reranker-BGE--Reranker--v2--m3%20(FP16)-green.svg)](https://huggingface.co/BAAI/bge-reranker-v2-m3)
 [![Hardware Profile](https://img.shields.io/badge/Hardware-NVIDIA%20B200%20(45GB)%20%2F%20RTX%202050-purple.svg)](#hardware-aware-resource-guardrails)
 [![Concordance](https://img.shields.io/badge/Concordance-IPC%2FCrPC%20%E2%86%94%20BNS%2FBNSS%2FBSA-red.svg)](#statutory-concordance-engine)
-[![Retrieval SOTA](https://img.shields.io/badge/Hit%401-70.0%25%20%7C%20MRR-0.750-brightgreen.svg)](#empirical-ablation-benchmark-results)
+[![Retrieval SOTA](https://img.shields.io/badge/Hit%401-70.0%25%20%7C%20MRR-0.750-brightgreen.svg)](#5-empirical-ablation-benchmark-results)
 
 ---
 
@@ -109,9 +109,39 @@ flowchart TD
    - Streams documents in micro-batches (5–8 PDFs at a time). Never accumulates 400 PDFs in RAM.
    - Checkpoint state recorded in `data/processed/indexing_checkpoint.json` enabling resilient stop-and-resume execution.
 
+7. **Judicial Profiling & Entity-Level Behavioral Modeling (`src/rag_pipeline.py` & `src/sqlite_store.py`)**:
+   - Extracts structured judicial metadata: `author_judge`, `coram` (sitting bench), `bench_type` (Single, Division, Full, Constitution Bench), and `disposition` (`ALLOWED`, `DISMISSED`, `DISPOSED OF`).
+   - Dynamic catalog & profile routing: Intent-aware handler for queries like *"tell me about the cases of Justice XYZ, how to list all"*, computing real-time allowance rates, bench distribution, and returning a structured Case Registry table.
+
+8. **Multi-Tier Authority & Stare Decisis Weighted RRF (`src/rag_pipeline.py`)**:
+   - Computes a composite precedent authority score:
+     $$\text{Final Score} = \left(\frac{1}{k + \text{rank}_{\text{dense}}} + \frac{1}{k + \text{rank}_{\text{bm25}}}\right) \times (W_{\text{stare\_decisis}} \times W_{\text{binding\_role}} \times W_{\text{judge\_affinity}})$$
+   - **Stare Decisis ($W_{\text{stare\_decisis}}$)**: Apex Supreme Court Constitution Bench ($1.5625\times$) down to High Court Single Bench ($1.10\times$).
+   - **Binding Role ($W_{\text{binding\_role}}$)**: Binding `Ratio Decidendi` and `Order` (+15% boost) vs. non-binding partisan `Submissions` (-15% penalty) and `Obiter Dicta` / `Dissent` (-20% penalty).
+   - **Judicial Affinity ($W_{\text{judge\_affinity}}$)**: +25% boost for rulings authored by the target judge.
+
+9. **Metadata Slicing & Dicing across Dense & Sparse Search (`src/vector_store.py`)**:
+   - **Dense Semantic Slicing**: Passes normalized filters to ChromaDB (`where={"court": "...", "year": ..., "legal_role": "..."}`).
+   - **Sparse Lexical Slicing**: Uses `filter_ids_by_metadata()` to restrict BM25 scoring strictly to matching `allowed_ids`.
+
 ---
 
-## 3. Project Status: Completed vs. In-Progress
+## 3. Architectural Decisions & Engineering Rationales (The "Why & How")
+
+Every architectural component in this engine was selected to solve a documented failure mode in Indian legal information retrieval and restricted compute environments:
+
+| Architectural Decision | Chosen Implementation | Alternative Rejected | Engineering & Judicial Rationale |
+|---|---|---|---|
+| **Parent Store Persistence** | **Embedded SQLite (WAL Mode)** | PostgreSQL + pgvector / Redis | **Zero-daemon, in-process $O(1)$ lookups.** Our server audit revealed a restricted Docker container without passwordless sudo. Running PostgreSQL requires dedicated daemon management, open ports (triggering firewall/ban risks), and network socket latency. SQLite with WAL mode delivers microsecond in-memory pointer retrieval with zero setup and zero cost. |
+| **Local Neural Embeddings** | **`zeroentropy/zembed-1` (BF16)** | Pure OpenAI / Gemini API Embeddings | **High-capacity domain reasoning with zero API rate limits.** 4B parameter model running natively on the NVIDIA DGX B200 (45 GB VRAM). Embeds 400 judgments in micro-batches without API cost, rate limiting, or network timeouts. Includes automated fallback to `BAAI/bge-small-en-v1.5` for developer environments ($<7\text{ GB}$ VRAM). |
+| **Legal Document Chunking** | **3-Tier Recursive Chunking + Rhetorical Flush** | Fixed-size sliding windows (512 tokens) | **Eliminates argument vs. ratio bleeding.** Fixed windows split paragraphs arbitrarily. Counsel arguments and the judge's binding ratio share 95% vocabulary. Our hard rhetorical anchor scanner detects transition markers (*"Learned Counsel argued"* vs. *"We hold that"*) and forces an immediate chunk flush, preventing partisan arguments from being retrieved as binding law. |
+| **Precedent Ranking** | **Multi-Tier Weighted RRF** | Score-level linear combination ($\alpha \cdot \text{Dense} + (1-\alpha) \cdot \text{BM25}$) | **Distribution-independent rank fusion + Article 141 hierarchy.** Cosine similarity and BM25 scores have incompatible score distributions. RRF operates purely on ordinal ranks. Multiplying by Stare Decisis ($1.10\times$ to $1.56\times$) and Binding Role ($1.15\times$ vs. $0.85\times$) ensures Apex Constitution Bench holdings mathematically dominate single-judge orders or lawyer arguments. |
+| **Statutory Bridge** | **2024 Bidirectional Concordance** | Raw query pass-through | **Overcomes the 2024 transition gap.** Indian criminal law transitioned on July 1, 2024 (CrPC $\rightarrow$ BNSS, IPC $\rightarrow$ BNS, IEA $\rightarrow$ BSA). A query citing "Section 528 BNSS" returns zero results on 70 years of precedent unless expanded to "Section 482 CrPC". |
+| **Judicial Profiling** | **Dual-Route Intent Profiler + SQLite Registry** | Naive top-K vector search | **Solves the catalog search failure mode.** Standard vector RAG fails on *"list all cases by Justice XYZ"*, returning only 5 arbitrary snippets. Our router intercepts catalog queries, queries SQLite for distinct cases, calculates empirical allowance/disposition rates, and renders a complete case registry table. |
+
+---
+
+## 4. Project Status: Completed vs. In-Progress
 
 ### What Is Completed & Verified:
 - [x] **Resource Guardrail Watchdog** (`src/resource_guard.py`): Hard 20 GB RAM and 30 GB storage monitoring with adaptive memory purge.
@@ -119,13 +149,15 @@ flowchart TD
 - [x] **2024 Statutory Concordance Layer** (`src/concordance.py`): Automatic query expansion across IPC/CrPC $\leftrightarrow$ BNS/BNSS.
 - [x] **Local Embedding Engine** (`src/local_embeddings.py`): `zeroentropy/zembed-1` BF16 inference on Blackwell/CUDA with BGE fallback.
 - [x] **3-Tier Recursive Chunker & Rhetorical Anchors** (`src/document_loader.py`): Flush-on-transition and context prepending.
-- [x] **Stare Decisis Weighted RRF** (`src/rag_pipeline.py`): Court tier multipliers in Reciprocal Rank Fusion.
+- [x] **Judicial Behavioral Profiling & Case Registry** (`src/rag_pipeline.py`, `src/sqlite_store.py`): Extracts coram, author judge, bench strength, and disposition; models real-time allowance rates.
+- [x] **Multi-Tier Authority & Stare Decisis Weighted RRF** (`src/rag_pipeline.py`): Stare Decisis + Binding Role + Judge Affinity scoring.
+- [x] **Metadata Slicing & Dicing** (`src/vector_store.py`): Pre-retrieval candidate space partitioning for both Dense and BM25.
 - [x] **Streaming Resumable Ingestion Engine** (`index_corpus.py`): Micro-batching, progress bars (`tqdm`), and checkpoint resumption.
 - [x] **Kaggle Automated Downloader** (`scripts/download_kaggle_corpus.py`): Automated pipeline pulling 400+ legal PDFs.
-- [x] **Automated Evaluation Harness** (`evaluate_pipeline.py`): 4-configuration ablation suite with judicial metrics.
+- [x] **Automated Evaluation Harness** (`evaluate_pipeline.py`): 4-configuration ablation suite and `--champion-only` benchmark mode.
 - [x] **Curated Golden Benchmark** (`data/benchmarks/golden_queries.json`): 10 vetted queries targeting indexed Indian legal precedents.
 - [x] **Master Case Catalog** (`data/indexed_cases_metadata.json`, `data/benchmarks/case_catalog.json`): Comprehensive metadata catalog.
-- [x] **Automated Unit Test Suite** (`tests/`): All 22 tests passing with 100% success (`Ran 22 tests in 156.338s: OK`).
+- [x] **Automated Unit Test Suite** (`tests/`): All 22 tests passing with 100% success (`Ran 22 tests in 26.900s: OK`).
 
 ### In-Progress & Upcoming Phases:
 - [ ] **Large-Scale Corpus Ingestion**: Ingesting the full ~400 judgment Kaggle corpus on the NVIDIA B200 server.
@@ -134,11 +166,11 @@ flowchart TD
 
 ---
 
-## 4. Empirical Ablation Benchmark Results
+## 5. Empirical Ablation Benchmark Results
 
 We benchmarked 4 retrieval configurations across the **10 Golden Legal Benchmark Queries** on the active corpus:
 
-### 4.1 Comparative Ablation Matrix
+### 5.1 Comparative Ablation Matrix
 | Metric | Config 1: Naive Dense | Config 2: BM25 Lexical | Config 3: Hybrid RRF | Config 4: Full Legal Funnel |
 |---|:---:|:---:|:---:|:---:|
 | **Hit@1** | 20.00% (0.2000) | 60.00% (0.6000) | 20.00% (0.2000) | **70.00% (0.7000)** |
@@ -151,7 +183,7 @@ We benchmarked 4 retrieval configurations across the **10 Golden Legal Benchmark
 
 *\*Note: Mean latency for Config 4 includes the one-time cold initialization of `bge-reranker-v2-m3` on Query 1. Warm inference settled at **~448 ms** on GPU.*
 
-### 4.2 Per-Query Retrieval Breakdown (Full Legal Funnel)
+### 5.2 Per-Query Retrieval Breakdown (Full Legal Funnel)
 | Query ID | Legal Domain | Target Precedent Case | Hit@1 | Hit@5 | Top-1 Retrieved Authority | Rank |
 |:---:|---|---|:---:|:---:|---|:---:|
 | **GQ-001** | Stay Orders & Asian Resurfacing | Chandrapal Singh | **[HIT]** | **[HIT]** | *Chandrapal Singh* (AHC Full Bench) | **Rank 1** |
@@ -167,7 +199,7 @@ We benchmarked 4 retrieval configurations across the **10 Golden Legal Benchmark
 
 ---
 
-## 5. Active Corpus Catalog (Indexed Precedents)
+## 6. Active Corpus Catalog (Indexed Precedents)
 
 | # | Case Title & Neutral Citation | Court & Year | Chunks | Parents | PDF Size | Domain & Statutory Core |
 |---|---|---|:---:|:---:|:---:|---|
@@ -181,7 +213,7 @@ We benchmarked 4 retrieval configurations across the **10 Golden Legal Benchmark
 
 ---
 
-## 6. Repository Layout & Artifacts
+## 7. Repository Layout & Artifacts
 
 ```
 Project/
@@ -189,8 +221,8 @@ Project/
 ├── .gitignore                                 # Ignores virtualenv, parent_store.db, checkpoints, logs
 ├── requirements.txt                           # PyTorch, Chroma, Transformers, Kaggle, Psutil
 ├── index_corpus.py                            # Resumable, stream-based indexing engine with guardrails
-├── test_query.py                              # Interactive test query runner on GPU
-├── evaluate_pipeline.py                       # Automated 4-config ablation benchmarking suite
+├── test_query.py                              # Interactive query & judicial profiling runner on GPU
+├── evaluate_pipeline.py                       # Automated 4-config ablation & champion-only benchmarking suite
 │
 ├── src/                                       # Core Engine Modules
 │   ├── __init__.py
@@ -231,9 +263,9 @@ Project/
 
 ---
 
-## 7. Installation & Server Run Guide (NVIDIA B200 / Linux)
+## 8. Installation & Server Run Guide (NVIDIA B200 / Linux)
 
-### 7.1 Clone & Setup Environment
+### 8.1 Clone & Setup Environment
 ```bash
 git clone https://github.com/Aditya-Kayasth/Major-Project.git
 cd Major-Project
@@ -246,7 +278,7 @@ source venv/bin/activate  # On Windows: .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 7.2 Configure Environment (`.env`)
+### 8.2 Configure Environment (`.env`)
 ```bash
 cp .env.example .env
 ```
@@ -271,13 +303,13 @@ CHROMA_DB_DIR=chromadb_store
 COLLECTION_NAME=indian_legal_precedents
 ```
 
-### 7.3 Download Kaggle Legal Corpus (~400 PDFs)
+### 8.3 Download Kaggle Legal Corpus (~400 PDFs)
 Place your `kaggle.json` at `~/.kaggle/kaggle.json` (`chmod 600 ~/.kaggle/kaggle.json`) or set `KAGGLE_USERNAME` and `KAGGLE_KEY` in `.env`, then run:
 ```bash
 python scripts/download_kaggle_corpus.py --dataset "<username/dataset-slug>"
 ```
 
-### 7.4 Run the Guardrailed Stream Ingestion
+### 8.4 Run the Guardrailed Stream Ingestion
 ```bash
 python index_corpus.py --data-dir "data/raw_judgments" --doc-batch-size 8 --embedding-batch-size 32
 ```
@@ -285,25 +317,38 @@ python index_corpus.py --data-dir "data/raw_judgments" --doc-batch-size 8 --embe
 - **Resilient**: If stopped (`Ctrl+C`), re-running resumes from the exact last unindexed PDF.
 - **SQLite Persistence**: Automatically inserts parent contexts into `data/parent_store.db`.
 
-### 7.5 Run Test Query on GPU
+### 8.5 Run Interactive Queries & Judicial Profiling
+Run substantive legal queries or query judicial profiles directly from the CLI:
 ```bash
+# 1. Standard substantive legal query (default POCSO vulnerable witness test)
 python test_query.py
+
+# 2. Custom substantive query via CLI argument
+python test_query.py "What is the procedure for recording child victim testimony under POCSO?"
+
+# 3. Judicial catalog & behavioral profiling query (automatic intent routing to Case Registry)
+python test_query.py "tell me about the cases of justice Girish, how to list all"
 ```
 
-### 7.6 Execute the Benchmark Suite
+### 8.6 Execute the Benchmark Suite (Ablation or Champion-Only)
+Run either the fast champion-only validation or the full 4-configuration comparative ablation:
 ```bash
+# Option A: Fast Champion-Only Evaluation (Config 4: Full Legal Funnel with Reranker & Stare Decisis)
+python evaluate_pipeline.py --champion-only --skip-llm-judge
+
+# Option B: Complete 4-Configuration Comparative Ablation Matrix (Dense vs BM25 vs Hybrid vs Funnel)
 python evaluate_pipeline.py --collection indian_legal_precedents --skip-llm-judge
 ```
 
 ---
 
-## 8. Research Framework: Multi-Store Combinatorial Evaluation Matrix
+## 9. Research Framework: Multi-Store Combinatorial Evaluation Matrix
 
 A core hypothesis of this research is that **no single embedding model or chunking strategy is universally optimal across all legal domains**. Legal texts differ dramatically by jurisdiction and matter type: a criminal bail order revolves around procedural dates and witness depositions, a property suit pivots on deed covenants and land ceiling clauses, and a constitutional petition hinges on overarching jurisprudential doctrines.
 
 To establish rigorous empirical benchmarks, the framework evaluates the complete Cartesian product of **Embedding Models** $\times$ **Chunking Strategies**, indexing each into independent vector stores and evaluating them under identical queries and retrieval funnels.
 
-### 8.1 The Combinatorial Design Dimensions
+### 9.1 The Combinatorial Design Dimensions
 
 ```mermaid
 flowchart TD
@@ -326,7 +371,7 @@ flowchart TD
     Grid --> StoreCol["Isolated ChromaDB Vector Stores<br>• col_zembed_hierarchical<br>• col_zembed_structural<br>• col_gemini_hierarchical<br>• col_inlegalbert_structural<br>...and all pairings"]
 
     StoreCol --> EvalHarness["Standardized Retrieval Harness<br>(Dense + BM25 + RRF + Cross-Encoder)"]
-    EvalHarness --> BenchOutput["Domain-Wise & Overall Performance Matrix<br>Global Champion + Domain-Specific Route Recommendations"]
+    EvalHarness --> BenchOutput["Domain-Wise & Performance Matrix<br>Global Champion + Domain-Specific Route Recommendations"]
 ```
 
 #### 1. Embedding Models Dimension:
@@ -345,7 +390,7 @@ flowchart TD
 
 ---
 
-### 8.2 The $M \times C$ Store Matrix
+### 9.2 The $M \times C$ Store Matrix
 
 | Vector Store Identifier | Embedding Model | Chunking Strategy | Primary Empirical Target |
 |---|---|---|---|
@@ -362,7 +407,7 @@ flowchart TD
 
 ---
 
-### 8.3 Domain-Specific Champion Identification & Dynamic Routing
+### 9.3 Domain-Specific Champion Identification & Dynamic Routing
 
 Evaluating solely on global aggregate metrics (overall Hit@1 / MRR) obscures critical domain variances. The benchmark suite evaluates each configuration across **domain-segmented query clusters**:
 
@@ -393,7 +438,7 @@ Evaluating solely on global aggregate metrics (overall Hit@1 / MRR) obscures cri
 
 ---
 
-## 9. Citation & Attribution
+## 10. Citation & Attribution
 
 If you use this codebase or benchmarking methodology in your research, please cite:
 ```bibtex
