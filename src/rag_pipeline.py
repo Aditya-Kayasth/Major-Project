@@ -26,18 +26,30 @@ from src.vector_store import VectorStoreManager
 logger = logging.getLogger("IndianLegalRAG.Pipeline")
 
 
-def get_stare_decisis_weight(court_name: str) -> float:
-    """Compute Stare Decisis authoritative weight multiplier based on Indian judicial hierarchy."""
+def get_stare_decisis_weight(court_name: str, bench_type: Optional[str] = None) -> float:
+    """Compute Stare Decisis authoritative weight multiplier based on court tier and bench strength."""
     c = (court_name or "").lower()
+    b = (bench_type or "").lower()
+
+    # Court Tier Multiplier
+    court_weight = 1.0
     if "supreme court" in c or "insc" in c:
-        return 1.25  # Apex authority binding across all jurisdictions (Art. 141)
-    elif "full bench" in c:
-        return 1.15  # Multi-judge Full Bench decision binding on Division Benches
+        court_weight = 1.25  # Apex authority binding across all jurisdictions (Art. 141)
     elif "high court" in c:
-        return 1.10  # State-level constitutional precedent
+        court_weight = 1.10  # State-level constitutional precedent
     elif "tribunal" in c or "central administrative" in c:
-        return 1.05  # Specialized statutory tribunal
-    return 1.0       # Standard baseline
+        court_weight = 1.05
+
+    # Bench Strength Multiplier
+    bench_weight = 1.0
+    if "constitution bench" in b:
+        bench_weight = 1.25  # 5+ judges
+    elif "full bench" in b or "full bench" in c:
+        bench_weight = 1.15  # 3-4 judges
+    elif "division bench" in b:
+        bench_weight = 1.05  # 2 judges
+
+    return round(court_weight * bench_weight, 4)
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
@@ -172,7 +184,8 @@ class IndianLegalRAGPipeline:
             candidate = candidate_map[chunk_id]
             meta = candidate.get("metadata") or {}
             court = candidate.get("court") or meta.get("court", "")
-            court_weight = get_stare_decisis_weight(court)
+            bench = candidate.get("bench_type") or meta.get("bench_type", "")
+            court_weight = get_stare_decisis_weight(court, bench)
 
             candidate["raw_rrf_score"] = float(score)
             candidate["court_tier_weight"] = court_weight

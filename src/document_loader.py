@@ -340,6 +340,9 @@ class LegalDocumentLoader:
             if text_years:
                 year = int(text_years[0])
 
+        # 5. Judicial Profile & Coram Extraction
+        judge_info = self._extract_judicial_profile(text)
+
         return {
             "source_path": str(file_path),
             "filename": filename,
@@ -347,6 +350,90 @@ class LegalDocumentLoader:
             "case_category": case_category,
             "court": court,
             "year": year,
+            "author_judge": judge_info["author_judge"],
+            "coram": judge_info["coram"],
+            "bench_type": judge_info["bench_type"],
+            "disposition": judge_info["disposition"],
+        }
+
+    def _extract_judicial_profile(self, text: str) -> Dict[str, Any]:
+        """Extract Coram (sitting judges), Author Judge, Bench Type, and Case Disposition."""
+        first_chunk = text[:3500]
+        coram: List[str] = []
+        author_judge: Optional[str] = None
+        disposition: str = "PENDING/NOT_STATED"
+
+        # Coram Extraction: Supreme Court bracketed list [JUSTICE A, JUSTICE B, JJ.]
+        sc_coram = re.search(r"\[([A-Z\s\,\.\n]+?(?:JJ\.|J\.))\]", first_chunk)
+        if sc_coram:
+            raw = sc_coram.group(1).replace("\n", " ")
+            raw = re.sub(r"\b(?:JJ\.|J\.)\b", "", raw)
+            parts = re.split(r"\,|\bAND\b", raw)
+            for p in parts:
+                clean_p = p.strip().title()
+                if len(clean_p) > 3 and not any(w in clean_p.lower() for w in ["court", "judgment", "report"]):
+                    coram.append(clean_p)
+
+        # Coram Extraction: High Court CORAM: / BEFORE:
+        if not coram:
+            c_match = re.search(r"(?:CORAM|BEFORE)\s*:\s*([^\n\r]+(?:\n[^\n\r]+)?)", first_chunk, re.IGNORECASE)
+            if c_match:
+                raw = c_match.group(1).replace("\n", " ")
+                raw = re.sub(r"J\s*U\s*D\s*G\s*M\s*E\s*N\s*T", "", raw, flags=re.IGNORECASE)
+                names = re.findall(
+                    r"(?:HON(?:'BLE|OURABLE)\s+)?(?:MR\.|MS\.|MRS\.|DR\.)?\s*(?:JUSTICE\s+)?([A-Z\s\.]+)",
+                    raw,
+                )
+                for n in names:
+                    clean_n = n.strip().title()
+                    if len(clean_n) > 3 and clean_n.lower() not in ["court", "judgment", "cav", "order"]:
+                        coram.append(clean_n)
+
+        # Author Judge Extraction
+        deliv = re.search(
+            r"Judgment\s+of\s+the\s+Court\s+was\s+delivered\s+by\s*[:\n\s]*([A-Z\s\.]+?)(?:,|\.|\n)",
+            first_chunk,
+            re.IGNORECASE,
+        )
+        if deliv:
+            raw_author = deliv.group(1).strip().title()
+            if len(raw_author) > 3:
+                author_judge = raw_author
+        elif re.search(r"([A-Z\s\.]+),\s*J\b", first_chunk):
+            matches = re.findall(r"([A-Z\s\.]+),\s*J\b", first_chunk)
+            for m in matches:
+                clean_m = m.strip().replace("\n", " ").title()
+                if len(clean_m) > 3 and clean_m.lower() not in ["court", "judgment"]:
+                    author_judge = clean_m
+                    break
+        elif len(coram) == 1:
+            author_judge = coram[0]
+
+        # Bench Type Classification
+        num_judges = max(1, len(coram))
+        if num_judges >= 5:
+            bench_type = "Constitution Bench"
+        elif num_judges >= 3:
+            bench_type = "Full Bench"
+        elif num_judges == 2:
+            bench_type = "Division Bench"
+        else:
+            bench_type = "Single Bench"
+
+        # Disposition Classification
+        last_chunk = text[-3000:].lower()
+        if any(w in last_chunk for w in ["appeal is allowed", "petition is allowed", "bail is granted", "conviction is set aside"]):
+            disposition = "ALLOWED"
+        elif any(w in last_chunk for w in ["appeal is dismissed", "petition is dismissed", "bail is rejected", "no merit"]):
+            disposition = "DISMISSED"
+        elif any(w in last_chunk for w in ["disposed of", "stands disposed", "partly allowed"]):
+            disposition = "DISPOSED OF"
+
+        return {
+            "coram": ", ".join(coram) if coram else "Not Recorded",
+            "author_judge": author_judge or (coram[0] if coram else "Not Recorded"),
+            "bench_type": bench_type,
+            "disposition": disposition,
         }
 
     def _detect_legal_role(self, chunk_text: str, current_heading: Optional[str]) -> str:
