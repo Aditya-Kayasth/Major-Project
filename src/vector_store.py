@@ -379,7 +379,7 @@ class VectorStoreManager:
 
         raise RuntimeError(f"Failed to generate embeddings across all candidate models. Error: {last_error}")
 
-def build_and_save_bm25_from_collection(self, collection_name: Optional[str] = None) -> Path:
+    def build_and_save_bm25_from_collection(self, collection_name: Optional[str] = None) -> Path:
         """Build BM25 index across ALL chunks (existing + new) in ChromaDB collection and persist to disk."""
         target_name = collection_name or self.default_collection_name
         collection = self.get_or_create_collection(target_name)
