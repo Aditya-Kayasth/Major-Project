@@ -379,16 +379,32 @@ class VectorStoreManager:
 
         raise RuntimeError(f"Failed to generate embeddings across all candidate models. Error: {last_error}")
 
-    def build_and_save_bm25_from_collection(self, collection_name: Optional[str] = None) -> Path:
+def build_and_save_bm25_from_collection(self, collection_name: Optional[str] = None) -> Path:
         """Build BM25 index across ALL chunks (existing + new) in ChromaDB collection and persist to disk."""
         target_name = collection_name or self.default_collection_name
         collection = self.get_or_create_collection(target_name)
         bm25_path = self._get_bm25_path(target_name)
 
-        all_records = collection.get(include=["documents", "metadatas"])
-        all_ids = all_records.get("ids", []) if all_records else []
-        all_texts = all_records.get("documents", []) if all_records else []
-        all_metas = all_records.get("metadatas", []) if all_records else []
+        # --- PAGINATED FETCHING TO PREVENT SQLITE CRASH ---
+        total_count = collection.count()
+        batch_size = 5000
+        
+        all_ids = []
+        all_texts = []
+        all_metas = []
+
+        if total_count > 0:
+            for offset in range(0, total_count, batch_size):
+                batch = collection.get(
+                    include=["documents", "metadatas"],
+                    limit=batch_size,
+                    offset=offset
+                )
+                if batch and batch.get("ids"):
+                    all_ids.extend(batch.get("ids", []))
+                    all_texts.extend(batch.get("documents", []))
+                    all_metas.extend(batch.get("metadatas", []))
+        # ----------------------------------------------------
 
         registry = BM25Registry()
         if all_ids:
