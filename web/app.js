@@ -63,7 +63,7 @@ document.querySelectorAll(".tab").forEach((btn) => {
 /* ---------------------------------------------------------------- status */
 async function loadStatus() {
   try {
-    const s = await api("/api/status");
+    const s = await api("api/status");
     $("#status").innerHTML = [
       `<span class="chip ok"><b>${s.chunks_indexed.toLocaleString()}</b> chunks</span>`,
       `<span class="chip"><b>${s.parents_indexed.toLocaleString()}</b> sections</span>`,
@@ -81,7 +81,7 @@ async function loadStatus() {
 
 async function loadExamples() {
   try {
-    const examples = await api("/api/examples");
+    const examples = await api("api/examples");
     $("#examples").innerHTML = examples.map((q) => `<button type="button" class="example">${escapeHtml(q)}</button>`).join("");
     document.querySelectorAll(".example").forEach((b) => b.addEventListener("click", () => { $("#query").value = b.textContent; $("#query").focus(); }));
   } catch (_) { /* examples are optional */ }
@@ -150,7 +150,7 @@ $("#search-form").addEventListener("submit", async (e) => {
   btn.innerHTML = `<span class="spinner"></span>Searching…`;
   $("#search-error").classList.add("hidden");
   try {
-    const data = await api("/api/search", {
+    const data = await api("api/search", {
       method: "POST",
       body: JSON.stringify({
         query,
@@ -193,7 +193,7 @@ let benchmarkLoaded = false;
 async function loadBenchmark() {
   if (benchmarkLoaded) return;
   try {
-    const b = await api("/api/benchmark");
+    const b = await api("api/benchmark");
     benchmarkLoaded = true;
     const configs = Object.keys(b.summary_table);
     const metrics = configs.length ? Object.keys(b.summary_table[configs[0]]) : [];
