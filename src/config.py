@@ -74,7 +74,7 @@ class Settings(BaseModel):
     )
     llm_api_key: str = Field(default_factory=lambda: os.getenv("LLM_API_KEY", "").strip())
     llm_model: str = Field(
-        default_factory=lambda: os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+        default_factory=lambda: os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
     )
     # Comma-separated backup models on the same API, tried when the primary is rate-limited
     llm_fallback_models: List[str] = Field(
