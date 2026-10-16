@@ -14,6 +14,7 @@ Then open http://localhost:8000 (via SSH tunnel: ssh -L 8000:localhost:8000 <use
 
 import argparse
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Any, Dict, List
@@ -53,6 +54,11 @@ class SearchRequest(BaseModel):
     one_per_case: bool = True
 
 
+def _clean_title(title: Any) -> str:
+    """Drop Kaggle's duplicate-file suffix ('..._on_8_January_2025_1.pdf' -> trailing ' 1')."""
+    return re.sub(r"\s+\d{1,2}$", "", str(title or "")).strip()
+
+
 def _doc_key(candidate: Dict[str, Any]) -> str:
     meta = candidate.get("metadata") or {}
     source = str(candidate.get("source_path") or meta.get("source_path") or "")
@@ -66,7 +72,7 @@ def _format_candidate(rank: int, c: Dict[str, Any]) -> Dict[str, Any]:
     )
     return {
         "rank": rank,
-        "case_title": c.get("case_title") or meta.get("case_title", "Unknown case"),
+        "case_title": _clean_title(c.get("case_title") or meta.get("case_title", "Unknown case")),
         "court": c.get("court") or meta.get("court", ""),
         "year": c.get("year") or meta.get("year", ""),
         "role": c.get("role") or meta.get("role", ""),
@@ -162,7 +168,11 @@ def benchmark() -> Dict[str, Any]:
         "summary_table": report.get("summary_table", {}),
         "subset_metrics": report.get("subset_metrics", {}),
         "per_query": [
-            {k: q.get(k) for k in ("query_id", "query", "target_case", "rank", "top_1_case", "latency_ms", "score")}
+            {
+                **{k: q.get(k) for k in ("query_id", "query", "rank", "latency_ms", "score")},
+                "target_case": _clean_title(q.get("target_case")),
+                "top_1_case": _clean_title(q.get("top_1_case")),
+            }
             for q in details
         ],
     }
