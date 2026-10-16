@@ -244,6 +244,12 @@ class GeminiBudget:
                 if resp.status_code == 400 and json_mode and "response_format" in model_payload:
                     model_payload.pop("response_format")  # model without JSON mode: rely on the prompt
                     continue
+                # "Request too large": input + max_tokens exceeds the model's per-minute token budget.
+                # Shrink the output reservation and retry the same model before giving up on it.
+                if resp.status_code in (413, 429) and "too large" in body.lower() and model_payload["max_tokens"] > 800:
+                    model_payload["max_tokens"] = max(800, model_payload["max_tokens"] // 2)
+                    logger.info(f"Request too large for '{model_name}'; retrying with max_tokens={model_payload['max_tokens']}.")
+                    continue
                 if resp.status_code in (429, 500, 502, 503, 504):
                     retry_after = resp.headers.get("retry-after")
                     wait = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else 5.0 * (attempt + 1)
