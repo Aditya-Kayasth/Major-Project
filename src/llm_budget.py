@@ -201,6 +201,8 @@ class GeminiBudget:
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if self.settings.llm_reasoning_effort:
+            payload["reasoning_effort"] = self.settings.llm_reasoning_effort
         headers = {"Authorization": f"Bearer {self.settings.llm_api_key}", "Content-Type": "application/json"}
 
         for attempt in range(max_retries + 1):
@@ -225,6 +227,9 @@ class GeminiBudget:
                 return LocalLLM._extract_json(text) if json_mode else text
 
             body = resp.text[:300]
+            if resp.status_code == 400 and "reasoning_effort" in payload and "reasoning" in body.lower():
+                payload.pop("reasoning_effort")  # model does not support reasoning_effort
+                continue
             if resp.status_code == 400 and json_mode and "response_format" in payload:
                 payload.pop("response_format")  # provider/model without JSON mode: rely on the prompt
                 continue

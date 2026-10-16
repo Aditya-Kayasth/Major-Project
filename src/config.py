@@ -78,6 +78,8 @@ class Settings(BaseModel):
     )
     llm_rpm: float = Field(default_factory=lambda: float(os.getenv("LLM_RPM", "20")))
     llm_max_tokens: int = Field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "1500")))
+    # For reasoning models (e.g. openai/gpt-oss-120b): low | medium | high. Empty = not sent.
+    llm_reasoning_effort: str = Field(default_factory=lambda: os.getenv("LLM_REASONING_EFFORT", "").strip())
 
     # Local open-weights LLM (src/local_llm.py): SYNTHESIS_PROVIDER=local, or the last fallback
     # in the provider chain when LOCAL_LLM_FALLBACK=true.
