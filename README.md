@@ -1,349 +1,293 @@
-# Indian Legal Precedents RAG Engine
-### High-Precision Multi-Index Retrieval & Evaluation Framework for Indian Jurisprudence
+# Indian Legal Precedents RAG
 
-[![Python Version](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://python.org)
-[![Vector Store](https://img.shields.io/badge/ChromaDB-v0.6%2B-orange.svg)](https://www.trychroma.com/)
-[![Parent Store](https://img.shields.io/badge/SQLite-WAL%20O%281%29-003B57.svg)](#2-system-architecture)
-[![Embeddings](https://img.shields.io/badge/Embeddings-zembed--1%20%28BF16%29%20%7C%20Gemini-4285F4.svg)](#2-system-architecture)
-[![Reranker](https://img.shields.io/badge/Reranker-BGE--Reranker--v2--m3%20%28FP16%29-green.svg)](https://huggingface.co/BAAI/bge-reranker-v2-m3)
-[![Hardware Profile](https://img.shields.io/badge/Hardware-NVIDIA%20B200%20%2845GB%29%20%2F%20RTX%202050-purple.svg)](#2-system-architecture)
-[![Concordance](https://img.shields.io/badge/Concordance-IPC%2FCrPC%20%E2%86%94%20BNS%2FBNSS%2FBSA-red.svg)](#2-system-architecture)
-[![Corpus](https://img.shields.io/badge/Corpus-Kaggle%20SC%20Judgments%202025-blue.svg)](#6-corpus)
+### A precedent-retrieval engine for Indian Supreme Court judgments: hybrid search, legal-aware ranking and grounded answers, evaluated with a reproducible ablation study
 
----
+![Corpus](https://img.shields.io/badge/Corpus-400%20SC%20judgments%20(2025)-blue)
+![Index](https://img.shields.io/badge/Index-45%2C000%20chunks-informational)
+![Hit@5](https://img.shields.io/badge/Hit%405-1.00-brightgreen)
+![MRR](https://img.shields.io/badge/MRR-0.861-brightgreen)
+![GPU](https://img.shields.io/badge/GPU-NVIDIA%20B200%20MIG%201g.45gb-76b900)
 
-## 1. Executive Summary
-
-Legal research across Indian Supreme Court and High Court jurisprudence presents unique structural, linguistic, and temporal challenges:
-- **Document Length**: Judgments routinely span 30–80 pages (over 5,000 words per case) filled with complex procedural histories, evidence extracts, and statutory recitals.
-- **Lexical Inversion**: Petitions, submissions, and final holdings share up to 95% identical legal vocabulary while reaching completely opposite conclusions. Standard cosine similarity cannot distinguish counsel submissions from binding ratios.
-- **The 2024 Statutory Transition**: Historical precedents cite the Indian Penal Code (IPC 1860), Code of Criminal Procedure (CrPC 1973), and Indian Evidence Act (IEA 1872), whereas modern legal briefs query the Bharatiya Nyaya Sanhita (BNS 2023), Bharatiya Nagarik Suraksha Sanhita (BNSS 2023), and Bharatiya Sakshya Adhiniyam (BSA 2023).
-
-This repository implements a **production-grade, hardware-guardrailed Legal RAG architecture** designed specifically for Indian judicial precedents. It combines **3-tier section-bounded recursive chunking with hard rhetorical boundary anchoring**, **statutory concordance query expansion**, **dual dense-sparse candidate generation**, **Stare Decisis weighted Reciprocal Rank Fusion (RRF)**, **neural cross-encoder reranking**, and **O(1) SQLite parent context expansion**.
-
-The system is evaluated with a 4-configuration ablation (dense, BM25, hybrid RRF, full funnel) over Supreme Court of India judgments, under strict resource guardrails (**~30 GB RAM, shared 45 GB GPU slice on an NVIDIA DGX B200**) and the Gemini free tier (rate-limited, budgeted and cached LLM calls).
+A lawyer asks a legal question in plain English. The system finds the Supreme Court judgments that actually decided that question, ranks them, shows the exact passages, and writes an answer that cites only those judgments.
 
 ---
 
-## 2. System Architecture
+## 1. Why this is not "just another RAG"
 
-The Indian Legal Precedents RAG Engine operates across 5 decoupled layers integrating ingestion, dual storage, hardware guardrails, statutory concordance, and hybrid retrieval:
+A basic Retrieval-Augmented Generation (RAG) system cuts documents into equal pieces, finds the pieces whose embedding is closest to the question, and pastes them into an LLM prompt. On Indian case law that fails in specific, measurable ways. Each component here exists to fix one of them, and the ablation in Section 5 measures each one.
+
+| Problem with a basic RAG on judgments | What this system does |
+|---|---|
+| Embeddings capture *topic*, not *the exact case*. Hundreds of judgments discuss bail, so "similar" is not "correct". Dense-only search scores **Hit@1 = 0.325** here. | **Hybrid retrieval**: semantic (dense) search plus keyword (BM25) search, merged with Reciprocal Rank Fusion. |
+| Statute numbers, Latin terms and rare facts ("Section 113A", "firing-pin marks") get blurred by embeddings. | **BM25** matches those exact tokens. |
+| Fusing two rankings adds noise at the very top (Hit@1 drops to 0.425). | **Cross-encoder reranker** reads the question and each passage *together*, restoring precision (Hit@5 = **1.00**, MRR = **0.861**). |
+| Fixed-size chunks mix the lawyer's argument with the court's holding, so the answer can quote an argument the court rejected. | **Legal-aware chunking** flushes section boundaries at rhetorical markers ("Learned counsel submitted…" vs "We hold that…") and tags each chunk with its role. |
+| In July 2024 IPC/CrPC/Evidence Act became BNS/BNSS/BSA. A query citing the new section misses every older judgment. | **Statutory concordance**: queries are expanded with the equivalent old/new section numbers. |
+| Not all precedent carries equal weight (Article 141). | **Bounded Stare Decisis prior**: court tier and binding role act as a small (±5%) tie-breaker. It never overrides relevance. |
+| LLMs invent citations. | **Grounded synthesis**: the LLM only sees retrieved sections with their case metadata, under a zero-hallucination instruction, and the UI shows the source passages beside the answer. |
+| "It works" is usually a demo, not a measurement. | **Ablation benchmark** with exact-document ground truth, latency percentiles and an optional LLM judge. |
+
+---
+
+## 2. Headline results
+
+Corpus: **400 Supreme Court of India judgments from 2025** (Kaggle), **45,000 chunks**, **4,807 parent sections**. Benchmark: **40 questions**, each with exactly one correct judgment. Hardware: one NVIDIA B200 MIG 1g.45gb slice.
+
+| Configuration | Hit@1 | Hit@3 | Hit@5 | MRR | Latency p50 | Latency p95 |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| 1. Naive Dense (embeddings only) | 0.325 | 0.375 | 0.450 | 0.369 | 35 ms | 37 ms |
+| 2. BM25 Lexical (keywords only) | 0.775 | 0.875 | 0.925 | 0.832 | 186 ms | 414 ms |
+| 3. Hybrid RRF (1 + 2 fused) | 0.425 | 0.750 | 0.875 | 0.587 | 193 ms | 413 ms |
+| **4. Full Legal Funnel** (3 + concordance + cross-encoder + authority prior) | **0.775** | **0.950** | **1.000** | **0.861** | 241 ms | 487 ms |
+
+Answer quality of the Full Legal Funnel, scored 0–10 by an LLM judge on 10 questions: **groundedness 7.45, ratio decidendi 7.65, statutory concordance 6.95, reasoning 7.30, overall 7.35**.
+
+**How to read this.** Dense search finds the right *area of law* but rarely the right *judgment*. BM25 is strong because legal questions contain rare, precise terms. Naively fusing the two raises recall (Hit@5 0.45 → 0.875) but adds noise at rank 1. The cross-encoder fixes the ordering: the correct judgment is in the top 5 for **every** question. Two identical runs produced identical retrieval numbers (the pipeline is deterministic).
+
+Limitations are stated in Section 5.4.
+
+---
+
+## 3. Architecture
 
 ```mermaid
-flowchart TD
-    %% INGESTION PIPELINE
-    subgraph Ingestion ["1. Document Ingestion & Chunking Pipeline (src/document_loader.py)"]
-        PDFs["Raw Legal PDFs<br>(Kaggle SC Judgments)"] --> DocLoader["Document Loader & Extractor<br>(pypdf + Fast OCR Fallback)"]
-        DocLoader --> MetaExtract["Metadata Heuristic Parser<br>(Court, Year, Title, Domain)"]
-        MetaExtract --> Chunker3Tier["3-Tier Recursive Chunker<br>• Level 1: Document Boundary<br>• Level 2: Macro Sections (Facts, Analysis, Order)<br>• Level 3: Parent Paragraphs (~1,500 chars)"]
-        Chunker3Tier --> RhetoricalFlush{"Rhetorical Anchor Check?<br>Learned Counsel argued vs We hold that"}
-        RhetoricalFlush -->|Match Detected| ForceFlush["Forced Chunk Boundary Flush<br>(Prevents Argument vs. Ratio Bleeding)"]
-        RhetoricalFlush -->|Standard| ChildGen["Child Vector Generator (~400 chars, 80 overlap)<br>Context Prepending: Role and Title tag"]
-        ForceFlush --> ChildGen
+flowchart LR
+    subgraph Offline["Offline: indexing (once, ~17 min)"]
+        A[Kaggle PDFs] --> B[Text extraction<br/>pypdf]
+        B --> C[Legal metadata<br/>title, court, year, coram]
+        C --> D[Parent sections<br/>about 1500 chars<br/>flushed at rhetorical markers]
+        D --> E[Child chunks<br/>400 chars, 80 overlap<br/>role and title prefix]
+        E --> F[(ChromaDB<br/>zembed-1 vectors<br/>+ metadata)]
+        E --> G[(BM25 index)]
+        D --> H[(SQLite<br/>parent sections)]
     end
-
-    %% DUAL STORAGE LAYER
-    subgraph Storage ["2. Dual Storage & Indexing Layer"]
-        ChildGen -->|Dense Vectors| ChromaDB["ChromaDB Vector Store<br>(zeroentropy/zembed-1 / gemini-embedding-2)"]
-        ChildGen -->|Legal Tokens| BM25Store["BM25Okapi Keyword Registry<br>(data/chromadb_store/..._bm25.pkl)"]
-        Chunker3Tier -->|Parent Contexts| SQLiteDB[("SQLite Parent Store - WAL Mode<br>data/parent_store.db<br>O1 In-Memory Pointer Lookups")]
+    subgraph Online["Online: answering a question (~0.25 s + LLM)"]
+        Q[Question] --> X[Statutory concordance<br/>IPC/CrPC to BNS/BNSS]
+        X --> R1[Dense top 60]
+        X --> R2[BM25 top 60]
+        R1 --> RRF[Reciprocal Rank Fusion<br/>top 30]
+        R2 --> RRF
+        RRF --> CE[Cross-encoder rerank<br/>+ bounded authority prior]
+        CE --> P[Parent expansion<br/>SQLite lookup]
+        P --> L[LLM grounded answer<br/>with citations]
     end
-
-    %% RESOURCE GUARDRAILS
-    subgraph Guardrails ["3. Hardware & Resource Guardrails (src/resource_guard.py)"]
-        RAMGuard["RAM Watchdog: Hard 20GB Cap<br>(Cooldown & Purge at 16GB)"]
-        DiskGuard["Storage Watchdog: Hard 30GB Cap<br>(Monitors ChromaDB, SQLite, Cache)"]
-        VRAMGuard["PyTorch VRAM Fraction<br>(0.85 on B200 / 0.45 on RTX 2050)"]
-    end
-    Guardrails -.-> Ingestion
-    Guardrails -.-> Storage
-
-    %% QUERY & RETRIEVAL FUNNEL
-    subgraph Retrieval ["4. Hybrid Retrieval & Judicial Funnel (src/rag_pipeline.py)"]
-        UserQuery["User Legal Query / Statutory Issue"] --> Concordance["Statutory Concordance Layer (src/concordance.py)<br>CrPC to BNSS / IPC to BNS / IEA to BSA"]
-        Concordance -->|Expanded Query| DenseSearch["Stage 1A: Dense Search<br>(Top-25 Candidates)"]
-        Concordance -->|Expanded Query| SparseSearch["Stage 1B: BM25 Search<br>(Top-25 Candidates)"]
-        ChromaDB --> DenseSearch
-        BM25Store --> SparseSearch
-        DenseSearch --> RRF["Stage 2: Stare Decisis Weighted RRF<br>Score = 1/(60 + Rank) * Court Tier Multiplier<br>Supreme Court: 1.25x / Full Bench: 1.15x / High Court: 1.10x"]
-        SparseSearch --> RRF
-        RRF --> Rerank["Stage 3: Cross-Encoder Neural Reranking<br>BAAI/bge-reranker-v2-m3 (FP16/BF16 on GPU)<br>Full All-to-All Cross Attention (Top 3–5)"]
-        Rerank --> ParentExpansion["Stage 4: O(1) Parent Document Expansion<br>Child ID Fetch Full Parent from SQLite DB"]
-        SQLiteDB --> ParentExpansion
-    end
-
-    %% GENERATION LAYER
-    subgraph Synthesis ["5. Grounded Legal Synthesis"]
-        ParentExpansion --> PromptAssembler["Strict Anti-Hallucination Judicial Prompt<br>(Distinguishes Ratio Decidendi from Obiter Dicta)"]
-        PromptAssembler --> LLMGen["LLM Generator<br>(Gemini 3.5 Flash / Local Ollama: qwen2.5)"]
-        LLMGen --> FinalReport["Authoritative Legal Analysis<br>Exact Citations, Court Authority & Ratios"]
-    end
-```
-
-### Core Architecture Components:
-
-1. **Hardware-Aware Resource Guardrails (`src/resource_guard.py`)**:
-   - **RAM Ceiling**: Hard cap at **20.0 GB** process RAM. Warn threshold at **16.0 GB** triggers aggressive garbage collection (`gc.collect()`), CUDA cache flush (`torch.cuda.empty_cache()`), and execution cooldowns to eliminate cgroup OOM kills.
-   - **Storage Ceiling**: Real-time disk monitoring capping total project storage (ChromaDB, SQLite, model weights) at **30.0 GB**.
-   - **GPU VRAM Fraction**: Enforces safe allocation caps (`0.85` on 45 GB B200; `0.45` on mobile GPUs) to leave headroom for driver kernels.
-
-2. **3-Tier Section-Bounded Recursive Chunking & Rhetorical Flush (`src/document_loader.py`)**:
-   - **Macro Legal Sections**: Partitioned along formal judicial boundaries (*Headnotes*, *Facts*, *Submissions*, *Precedents*, *Ratio Decidendi*, *Order*).
-   - **Hard Rhetorical Boundary Anchoring**: Automatically scans for judicial transition markers (*"Learned Senior Counsel contended"*, *"We are of the considered opinion that"*) and **forces an immediate parent chunk flush**, ensuring counsel arguments and the court's binding ratio never share a chunk.
-   - **Context Prepending**: Injects `[<Role> | <Case Title>]: <child text>` onto every vector chunk, solving lexical inversion in cosine space.
-
-3. **Embedded SQLite Parent Document Store (`src/sqlite_store.py`)**:
-   - Replaces thousands of loose `.json` files with an embedded, ACID-compliant SQLite database (`data/parent_store.db`) running in Write-Ahead Logging (WAL) mode with 64 MB in-memory cache for sub-millisecond O(1) lookups.
-
-4. **2024 Statutory Concordance Layer (`src/concordance.py`)**:
-   - Bidirectional synonym expansion mapping:
-     - CrPC <--> BNSS (e.g. § 482 <--> § 528, § 439 <--> § 483, § 311 <--> § 348)
-     - IPC <--> BNS (e.g. § 302 <--> § 103, § 420 <--> § 318, § 304B <--> § 80)
-     - IEA <--> BSA (e.g. § 65B <--> § 63, § 27 <--> § 23)
-
-5. **Local Neural Embedding Engine (`src/local_embeddings.py`)**:
-   - Hosts `zeroentropy/zembed-1` (4B parameters) in native BF16 on GPU with zero external API calls, zero rate-limits, and zero cost.
-   - Intelligent hardware fallback: Automatically switches to `BAAI/bge-small-en-v1.5` if GPU VRAM is < 7 GB.
-
-6. **Streaming Checkpointed Ingestion (`index_corpus.py`)**:
-   - Streams documents in micro-batches (5–8 PDFs at a time). Never accumulates 400 PDFs in RAM.
-   - Checkpoint state recorded in `data/processed/indexing_checkpoint.json` enabling resilient stop-and-resume execution.
-
-7. **Judicial Profiling & Entity-Level Behavioral Modeling (`src/rag_pipeline.py` & `src/sqlite_store.py`)**:
-   - Extracts structured judicial metadata: `author_judge`, `coram` (sitting bench), `bench_type` (Single, Division, Full, Constitution Bench), and `disposition` (`ALLOWED`, `DISMISSED`, `DISPOSED OF`).
-   - Dynamic catalog & profile routing: Intent-aware handler for queries like *"tell me about the cases of Justice XYZ, how to list all"*, computing real-time allowance rates, bench distribution, and returning a structured Case Registry table.
-
-8. **Multi-Tier Authority & Stare Decisis Weighted RRF (`src/rag_pipeline.py`)**:
-   - Computes a composite precedent authority score:
-
-$$
-\text{Final Score} = \left(\frac{1}{k + \text{rank(dense)}} + \frac{1}{k + \text{rank(sparse)}}\right) \times (W_{\text{stare-decisis}} \times W_{\text{binding-role}} \times W_{\text{judge-affinity}})
-$$
-
-   - **Stare Decisis (`W_stare_decisis`)**: Apex Supreme Court Constitution Bench (1.5625x) down to High Court Single Bench (1.10x).
-   - **Binding Role (`W_binding_role`)**: Binding `Ratio Decidendi` and `Order` (+15% boost) vs. non-binding partisan `Submissions` (-15% penalty) and `Obiter Dicta` / `Dissent` (-20% penalty).
-   - **Judicial Affinity (`W_judge_affinity`)**: +25% boost for rulings authored by the target judge.
-
-9. **Metadata Slicing & Dicing across Dense & Sparse Search (`src/vector_store.py`)**:
-   - **Dense Semantic Slicing**: Passes normalized filters to ChromaDB (`where={"court": "...", "year": ..., "legal_role": "..."}`).
-   - **Sparse Lexical Slicing**: Uses `filter_ids_by_metadata()` to restrict BM25 scoring strictly to matching `allowed_ids`.
-
----
-
-## 3. Architectural Decisions & Engineering Rationales (The "Why & How")
-
-Every architectural component in this engine was selected to solve a documented failure mode in Indian legal information retrieval and restricted compute environments:
-
-| Architectural Decision | Chosen Implementation | Alternative Rejected | Engineering & Judicial Rationale |
-|---|---|---|---|
-| **Parent Store Persistence** | **Embedded SQLite (WAL Mode)** | PostgreSQL + pgvector / Redis | **Zero-daemon, in-process O(1) lookups.** Our server audit revealed a restricted Docker container without passwordless sudo. Running PostgreSQL requires dedicated daemon management, open ports (triggering firewall/ban risks), and network socket latency. SQLite with WAL mode delivers microsecond in-memory pointer retrieval with zero setup and zero cost. |
-| **Local Neural Embeddings** | **`zeroentropy/zembed-1` (BF16)** | Pure OpenAI / Gemini API Embeddings | **High-capacity domain reasoning with zero API rate limits.** 4B parameter model running natively on the NVIDIA DGX B200 (45 GB VRAM). Embeds 400 judgments in micro-batches without API cost, rate limiting, or network timeouts. Includes automated fallback to `BAAI/bge-small-en-v1.5` for developer environments (< 7 GB VRAM). |
-| **Legal Document Chunking** | **3-Tier Recursive Chunking + Rhetorical Flush** | Fixed-size sliding windows (512 tokens) | **Eliminates argument vs. ratio bleeding.** Fixed windows split paragraphs arbitrarily. Counsel arguments and the judge's binding ratio share 95% vocabulary. Our hard rhetorical anchor scanner detects transition markers (*"Learned Counsel argued"* vs. *"We hold that"*) and forces an immediate chunk flush, preventing partisan arguments from being retrieved as binding law. |
-| **Precedent Ranking** | **Multi-Tier Weighted RRF** | Score-level linear combination (`α * Dense + (1-α) * BM25`) | **Distribution-independent rank fusion + Article 141 hierarchy.** Cosine similarity and BM25 scores have incompatible score distributions. RRF operates purely on ordinal ranks. Stare Decisis (court tier, bench strength) and binding role enter as a **bounded log-scale prior** (`1 + clamp(0.1·ln(w), ±5%)`): it breaks ties in favour of binding, higher-authority holdings without letting a weakly relevant Constitution Bench chunk outrank the relevant one. Set `AUTHORITY_STRENGTH=0` for a pure-relevance ablation. |
-| **Statutory Bridge** | **2024 Bidirectional Concordance** | Raw query pass-through | **Overcomes the 2024 transition gap.** Indian criminal law transitioned on July 1, 2024 (CrPC -> BNSS, IPC -> BNS, IEA -> BSA). A query citing "Section 528 BNSS" returns zero results on 70 years of precedent unless expanded to "Section 482 CrPC". |
-| **Judicial Profiling** | **Dual-Route Intent Profiler + SQLite Registry** | Naive top-K vector search | **Solves the catalog search failure mode.** Standard vector RAG fails on *"list all cases by Justice XYZ"*, returning only 5 arbitrary snippets. Our router intercepts catalog queries, queries SQLite for distinct cases, calculates empirical allowance/disposition rates, and renders a complete case registry table. |
-
----
-
-## 4. Project Status: Completed vs. In-Progress
-
-### What Is Completed & Verified:
-- [x] **Resource Guardrail Watchdog** (`src/resource_guard.py`): RAM / VRAM / storage monitoring with adaptive memory purge.
-- [x] **Embedded SQLite Parent Store** (`src/sqlite_store.py`): O(1) WAL database for parent sections.
-- [x] **2024 Statutory Concordance Layer** (`src/concordance.py`): Query expansion across IPC/CrPC/IEA $\leftrightarrow$ BNS/BNSS/BSA.
-- [x] **Local Embedding Engine** (`src/local_embeddings.py`): `zeroentropy/zembed-1` BF16 with asymmetric query/document prompts.
-- [x] **3-Tier Chunker & Rhetorical Anchors** (`src/document_loader.py`): Flush-on-transition, role tagging, deterministic chunk IDs.
-- [x] **Bounded Stare Decisis Prior** (`src/rag_pipeline.py`): Court tier, bench strength and binding role as a ±5% tie-breaker on RRF and cross-encoder scores.
-- [x] **Streaming Resumable Ingestion** (`index_corpus.py`): Micro-batching, checkpoints, idempotent re-runs, single BM25 build.
-- [x] **Gemini Free-Tier Guard** (`src/llm_budget.py`): RPM limiter, daily request budget, on-disk response cache.
-- [x] **Synthetic Known-Item Benchmark** (`scripts/generate_synthetic_queries.py`): Leakage-controlled questions with exact target documents.
-- [x] **Evaluation Harness** (`evaluate_pipeline.py`): 4-configuration ablation, exact document matching, warm-up excluded from latency.
-- [x] **Web Demo** (`server.py`, `web/`): FastAPI backend with an HTML/CSS/JS research interface.
-
-### In-Progress & Upcoming Phases:
-- [ ] **Multi-Store Combinatorial Grid Run**: Embedding model x chunking strategy matrix (Section 9).
-- [ ] **Human validation** of synthetic benchmark queries and a larger multi-year corpus.
-
----
-
-## 5. Evaluation Methodology
-
-- **Corpus**: Supreme Court of India judgments (2025) from the Kaggle dataset `adarshsingh0903/legal-dataset-sc-judgments-india-19502024`.
-- **Benchmark**: synthetic known-item queries (InPars / Promptagator style). For each sampled judgment, the passage most resembling the court's holding is selected and Gemini writes a lawyer-style question it answers. Questions naming parties, judges, citations or dates are rejected. Each query stores the exact `target_doc_stem`.
-- **Retrieval metrics**: Hit@1, Hit@3, Hit@5 and MRR@5, matched on exact document identity; latency mean / p50 / p95 after a model warm-up.
-- **Generation metrics (optional)**: LLM-as-a-judge (groundedness, ratio decidendi isolation, statutory concordance, reasoning) on a budgeted subset; reported as N/A when not run, never imputed.
-- **Ablation**: (1) dense only, (2) BM25 only, (3) hybrid RRF, (4) full funnel = hybrid + concordance + cross-encoder + bounded authority prior + parent expansion.
-
-Results are written to `data/benchmarks/benchmark_results_<timestamp>.json` and shown in the web demo's **Evaluation** tab.
-
----
-
-## 6. Corpus
-
-Judgment PDFs are **not stored in this repository**. They are downloaded on the server by `scripts/download_kaggle_corpus.py` (default: the 2025 folder, ~400 judgments) into `data/raw_judgments/`. Case titles are taken from the Indian Kanoon file names (`<Party A>_vs_<Party B>_on_<date>.pdf`).
-
----
-
-## 7. Repository Layout
-
-```
-Project/
-├── index_corpus.py                 # Resumable, guardrailed stream indexing
-├── evaluate_pipeline.py            # 4-config ablation benchmark
-├── server.py                       # FastAPI backend for the web demo
-├── web/                            # index.html, style.css, app.js (no build step)
-├── src/
-│   ├── config.py                   # Settings (.env)
-│   ├── document_loader.py          # PDF extraction, legal metadata, 3-tier chunking
-│   ├── local_embeddings.py         # zembed-1 / BGE embeddings (query vs document prompts)
-│   ├── vector_store.py             # ChromaDB + BM25 registry
-│   ├── rag_pipeline.py             # 5-stage funnel, bounded authority prior, synthesis
-│   ├── concordance.py              # IPC/CrPC/IEA <-> BNS/BNSS/BSA
-│   ├── llm_budget.py               # Gemini free-tier guard
-│   ├── sqlite_store.py             # Parent section store
-│   └── resource_guard.py           # RAM / VRAM / storage guardrails
-├── scripts/
-│   ├── setup_server.sh             # venv on top of the server's preinstalled libraries
-│   ├── download_kaggle_corpus.py   # Kaggle download, extracts selected year folders only
-│   ├── generate_synthetic_queries.py
-│   └── inspect_corpus_cases.py
-├── data/                           # raw_judgments/, processed/, benchmarks/ (corpus is gitignored)
-└── tests/
+    F -.-> R1
+    G -.-> R2
+    H -.-> P
 ```
 
 ---
 
-## 8. Server Run Guide (NVIDIA DGX B200 / Linux)
+## 4. How it works, step by step
 
-```bash
-# 1. Code + environment (reuses the server's PyTorch/Transformers; installs only what is missing, into ./venv)
-git clone https://github.com/Aditya-Kayasth/Major-Project.git ~/adkmajorproject && cd ~/adkmajorproject
-bash scripts/setup_server.sh && source venv/bin/activate
-nano .env                                   # set GEMINI_API_KEY; adjust GEMINI_RPM / GEMINI_DAILY_BUDGET
+### 4.1 Indexing a judgment
 
-# 2. Corpus: kagglehub downloads the whole dataset once (Kaggle has no per-folder download),
-#    then only the 2025 PDFs are copied to data/raw_judgments/sc_2025/
-python scripts/download_kaggle_corpus.py --years 2025
+1. **Text extraction.** `pypdf` reads the PDF. Scanned PDFs with no text layer are skipped and logged (0 of 400 here).
+2. **Metadata.** Case title comes from the Indian Kanoon file name (`<Party A>_vs_<Party B>_on_<date>.pdf`). Court, year, coram, author judge, bench type and disposition come from regex heuristics over the first and last pages.
+3. **Parent sections (~1,500 characters).** Paragraphs are accumulated into sections. A new section is forced whenever a *rhetorical marker* appears, such as "Learned counsel for the appellant submitted…", "We are of the opinion that…" or "In the result…". This keeps a lawyer's argument and the court's holding in different sections.
+4. **Child chunks (400 characters, 80 overlap).** Each section is cut into small overlapping windows. Small chunks give precise matching; the parent provides context later.
+5. **Role tag and breadcrumb.** Each child is tagged Ratio Decidendi / Facts / Submissions / Precedents Cited / Order by keyword cues. The text that gets embedded is prefixed with `[<role> | <case title>]: `, so the vector "knows" which case it belongs to.
+6. **Deterministic IDs.** `chunk_id = sha1(file name)[:16]-p<section>-c<chunk>`. Re-indexing the same file overwrites instead of duplicating.
+7. **Three stores are written:**
+   - **ChromaDB**: one record per child chunk (vector + text + metadata).
+   - **BM25 index**: a keyword index over the same chunk texts, built once at the end of the run.
+   - **SQLite**: one row per parent section (full text + document-level metadata).
 
-# 3. Index (zembed-1 on GPU; no API calls)
-python index_corpus.py --data-dir data/raw_judgments --reset
+### 4.2 What is actually stored
 
-# 4. Benchmark: generate questions (~40 Gemini calls), then retrieval metrics (0 calls)
-python scripts/generate_synthetic_queries.py --num-docs 40
-python evaluate_pipeline.py --skip-llm-judge
-python evaluate_pipeline.py --judge-limit 15          # optional: LLM-judged answers (~30 calls)
+You can print a real stored record with `python scripts/explain_query.py --show-record`. A ChromaDB record has this shape (illustrative ID, text shortened):
 
-# 5. Web demo
-python server.py --port 8000                          # then open http://localhost:8000 (SSH tunnel)
-```
-
----
-
-## 9. Research Framework: Multi-Store Combinatorial Evaluation Matrix
-
-A core hypothesis of this research is that **no single embedding model or chunking strategy is universally optimal across all legal domains**. Legal texts differ dramatically by jurisdiction and matter type: a criminal bail order revolves around procedural dates and witness depositions, a property suit pivots on deed covenants and land ceiling clauses, and a constitutional petition hinges on overarching jurisprudential doctrines.
-
-To establish rigorous empirical benchmarks, the framework evaluates the complete Cartesian product of **Embedding Models** x **Chunking Strategies**, indexing each into independent vector stores and evaluating them under identical queries and retrieval funnels.
-
-### 9.1 The Combinatorial Design Dimensions
-
-```mermaid
-flowchart TD
-    subgraph Dimension1 ["Dimension 1: Embedding Model Families"]
-        M1["ZeroEntropy zembed-1<br>(High-reasoning / Legal benchmarked)"]
-        M2["Google gemini-embedding-2<br>(768-dim multilingual API)"]
-        M3["BAAI bge-base-en-v1.5<br>(Open-source local baseline)"]
-        M4["law-ai / InLegalBERT<br>(Indian legal domain fine-tuned)"]
-    end
-
-    subgraph Dimension2 ["Dimension 2: Chunking Strategies"]
-        C1["Hierarchical Parent-Child<br>(400 child / 1500 parent)"]
-        C2["Fixed Sliding Window<br>(512 tokens / 100 overlap)"]
-        C3["Structural / Judicial Section-Aware<br>(Ratio, Facts, Order, Headnotes)"]
-    end
-
-    Dimension1 --> Grid["Cartesian Combinatorial Grid (M x C Collections)"]
-    Dimension2 --> Grid
-
-    Grid --> StoreCol["Isolated ChromaDB Vector Stores<br>- col_zembed_hierarchical<br>- col_zembed_structural<br>- col_gemini_hierarchical<br>- col_inlegalbert_structural<br>...and all pairings"]
-
-    StoreCol --> EvalHarness["Standardized Retrieval Harness<br>(Dense + BM25 + RRF + Cross-Encoder)"]
-    EvalHarness --> BenchOutput["Domain-Wise & Performance Matrix<br>Global Champion + Domain-Specific Route Recommendations"]
-```
-
-#### 1. Embedding Models Dimension:
-- **ZeroEntropy `zembed-1` (`zeroentropy/zembed-1`)**: Cutting-edge high-capacity retrieval model engineered for complex structural reasoning, enterprise documents, and domain-heavy technical/legal text.
-- **Google `gemini-embedding-2`**: High-dimensional (768-dim) cloud embedding providing deep multilingual contextual semantics across broad factual contexts.
-- **BAAI `bge-base-en-v1.5` / `bge-small-en-v1.5`**: State-of-the-art open-source general retrieval baseline running locally under strict GPU memory limits.
-- **Domain-Specific Legal Embedding (`law-ai/InLegalBERT` / `Euler-Legal-Embedding-V1`)**: Language models pre-trained specifically on Indian Supreme Court and High Court corpora.
-
-#### 2. Chunking Strategies Dimension:
-- **Strategy A: 3-Tier Hierarchical Parent-Child Chunking**:
-  - Small child chunks (~400 characters) with prepended role tags for vector proximity; retrieval dynamically pulls expanded parent sections (~1,500 characters) from SQLite.
-- **Strategy B: Fixed-Size Sliding Window (Flat)**:
-  - Standard 512-token chunks with 100-token overlap, indexed directly without parent hierarchy.
-- **Strategy C: Structural / Judicial Section-Aware Chunking**:
-  - Parses judgments along formal judicial boundaries (*Headnote*, *Facts*, *Appellant Submissions*, *Respondent Submissions*, *Ratio Decidendi*, *Order*).
-
----
-
-### 9.2 The M x C Store Matrix
-
-| Vector Store Identifier | Embedding Model | Chunking Strategy | Primary Empirical Target |
-|---|---|---|---|
-| `col_zembed_hierarchical` | `zeroentropy/zembed-1` | Hierarchical Parent-Child | High-capacity reasoning with expanded judicial context |
-| `col_zembed_structural` | `zeroentropy/zembed-1` | Judicial Section-Aware | Precision extraction of operative ratios vs. submissions |
-| `col_zembed_flat` | `zeroentropy/zembed-1` | Fixed Sliding Window | Baseline vector retrieval under Zembed-1 |
-| `col_gemini_hierarchical` | `gemini-embedding-2` | Hierarchical Parent-Child | Active production baseline (**70% Hit@1, 0.750 MRR**) |
-| `col_gemini_structural` | `gemini-embedding-2` | Judicial Section-Aware | Cloud embeddings on structurally partitioned legal sections |
-| `col_gemini_flat` | `gemini-embedding-2` | Fixed Sliding Window | Flat cloud embedding benchmark |
-| `col_inlegalbert_hierarchical` | `InLegalBERT` | Hierarchical Parent-Child | Indian legal vocabulary with parent context expansion |
-| `col_inlegalbert_structural` | `InLegalBERT` | Judicial Section-Aware | Domain-specific model on judicial section partitions |
-| `col_bge_hierarchical` | `bge-base-en-v1.5` | Hierarchical Parent-Child | Open-source local GPU execution baseline |
-| `col_bge_flat` | `bge-base-en-v1.5` | Fixed Sliding Window | Standard naive RAG baseline |
-
----
-
-### 9.3 Domain-Specific Champion Identification & Dynamic Routing
-
-Evaluating solely on global aggregate metrics (overall Hit@1 / MRR) obscures critical domain variances. The benchmark suite evaluates each configuration across **domain-segmented query clusters**:
-
-```
-                                  ┌───────────────────────────┐
-                                  │ Incoming User Legal Query │
-                                  └─────────────┬─────────────┘
-                                                │
-                                  ┌─────────────▼─────────────┐
-                                  │ Legal Domain Classifier / │
-                                  │ Intent Router (Fast LLM)  │
-                                  └─────────────┬─────────────┘
-                                                │
-         ┌──────────────────────┬───────────────┴───────────────┬──────────────────────┐
-         ▼                      ▼                               ▼                      ▼
-┌──────────────────┐  ┌──────────────────┐            ┌──────────────────┐  ┌──────────────────┐
-│  Property Law /  │  │Criminal / POCSO /│            │  Constitutional  │  │ Civil Procedure  │
-│  Land Title      │  │ Witness Protocol │            │  & Writ Doctrine │  │ & Execution Stay │
-└────────┬─────────┘  └────────┬─────────┘            └────────┬─────────┘  └────────┬─────────┘
-         │                     │                               │                     │
-         ▼                     ▼                               ▼                     ▼
-┌──────────────────┐  ┌──────────────────┐            ┌──────────────────┐  ┌──────────────────┐
-│  Optimal Store:  │  │  Optimal Store:  │            │  Optimal Store:  │  │  Optimal Store:  │
-│ col_zembed_      │  │ col_inlegalbert_ │            │ col_gemini_      │  │ col_zembed_      │
-│ structural       │  │ hierarchical     │            │ hierarchical     │  │ hierarchical     │
-└──────────────────┘  └──────────────────┘            └──────────────────┘  └──────────────────┘
-```
-
----
-
-## 10. Citation & Attribution
-
-If you use this codebase or benchmarking methodology in your research, please cite:
-```bibtex
-@misc{kayasth2026indianlegalrag,
-  author = {Aditya Kayasth},
-  title = {Indian Legal Precedents RAG: A Hardware-Guardrailed Multi-Index Retrieval Architecture},
-  year = {2026},
-  publisher = {GitHub},
-  howpublished = {\url{https://github.com/Aditya-Kayasth/Major-Project}}
+```text
+id        : 3f9a1c0d2e7b6a45-p00031-c002
+document  : [Obiter Dicta | Mohd Tahir Hussain vs State Of Nct Of Delhi 1]: 10.2. Imposing any bail condition
+            which enables the Police/ Investigation Agency to track every movement of the accused ...
+embedding : 2,560 numbers produced by zeroentropy/zembed-1 (cosine space)
+metadata  : {
+  "parent_id":   "3f9a1c0d2e7b6a45-p00031",   <- link to the parent section in SQLite
+  "case_title":  "Mohd Tahir Hussain vs State Of Nct Of Delhi 1",   <- trailing " 1" = Kaggle duplicate-file suffix, hidden in the UI
+  "court":       "Supreme Court of India",
+  "year":        2025,
+  "role":        "Obiter Dicta",               <- heuristic tag ("Unclassified" in the UI when no cue matched)
+  "source_path": ".../sc_2025/Mohd_Tahir_Hussain_vs_State_Of_Nct_Of_Delhi_on_..._2025.pdf",
+  "parent_index": 31,
+  "raw_text":    "10.2. Imposing any bail condition ...",   <- clean snippet for the UI
+  "char_length": 452, "raw_char_length": 400
 }
 ```
+
+| Store | One entry per | Holds | Used for |
+|---|---|---|---|
+| ChromaDB (`chromadb_store/`) | child chunk (45,000) | vector, embedded text, metadata above | dense search, metadata filters, citations |
+| BM25 (`chromadb_store/*_bm25.pkl`) | child chunk | tokenised text | keyword search |
+| SQLite (`data/parent_store.db`) | parent section (4,807) | full section text, case title, court, year, bench, coram, disposition | context for the LLM, judge profiles |
+
+**How a chunk knows its document:** every chunk's metadata carries `source_path` and `case_title`, and its `parent_id` points to the section it was cut from. Evaluation matches on the source file name, so "correct" means *exactly the right judgment*.
+
+### 4.3 Answering a question
+
+| Stage | What happens | Detail |
+|---|---|---|
+| 0. Concordance | Old and new statute numbers are appended | "Section 311 CrPC" → "… (statutory concordance: Section 348 BNSS)" |
+| 1. Filters (optional) | Restrict by court / year / role | ChromaDB `where` filters |
+| 2a. Dense search | Question embedded with zembed-1's **query** prompt; 60 nearest chunks by cosine similarity | Chunks were embedded with the **document** prompt (asymmetric retrieval) |
+| 2b. BM25 search | Question tokenised; 60 best chunks by BM25 term statistics | Rewards rare exact terms |
+| 3. Rank fusion | `score = Σ 1/(60 + rank)` over both lists, times the authority factor; top 30 kept | Uses ranks only, so the two incompatible score scales never need calibrating |
+| 4. Rerank | `BAAI/bge-reranker-v2-m3` scores each (question, chunk) pair jointly; `sigmoid(score) × authority factor` | Authority factor = `1 + clamp(0.1·ln w, ±0.05)`, where `w` = court weight (SC 1.25, HC 1.10) × role weight (holding 1.15 … unclassified 0.80) |
+| 5. Parent expansion | Each top chunk's `parent_id` → full ~1,500-char section from SQLite, de-duplicated | Small chunks for matching, big sections for reading |
+| 6. Synthesis | LLM receives the question + numbered sections, each headed by case title, court, year, bench and role | System prompt: answer only from context, separate ratio from obiter, give IPC↔BNS concordance, say "insufficient precedent" otherwise |
+
+### 4.4 How citations work
+
+The LLM never searches by itself. It receives each retrieved section under a header built from stored metadata, for example `### [Precedent 2] Mohd Tahir Hussain vs State Of Nct Of Delhi (Supreme Court of India, 2025)`, and is instructed to cite only those. The web UI shows the ranked judgments and their matched passages next to the answer, so every citation can be checked against its source. Automatic verification of each citation is listed under future work.
+
+### 4.5 Which models do what
+
+| Job | Model | Where it runs |
+|---|---|---|
+| Embeddings | `zeroentropy/zembed-1` (4B, 2,560-dim, BF16) | Local GPU |
+| Reranking | `BAAI/bge-reranker-v2-m3` (FP16) | Local GPU |
+| Answers, judging, benchmark questions | `openai/gpt-oss-120b` via Groq (OpenAI-compatible API) | API, with automatic fallback to `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`, then Gemini |
+
+Retrieval (stages 0–5) is entirely local and needs no API key.
+
+---
+
+## 5. Evaluation methodology
+
+### 5.1 The benchmark
+
+`scripts/generate_synthetic_queries.py` builds a **known-item** benchmark (the InPars / Promptagator approach):
+
+1. Sample 40 judgments with a fixed seed (42).
+2. From each, take the section that most resembles the court's holding (cue phrases such as "we hold", "held that").
+3. Ask the LLM for one question a lawyer would type that this section answers, **without** party names, judge names, citations or dates.
+4. Reject any question that still contains a party-name word (5 rejected in this run).
+5. Store the exact `target_doc_stem` (file name) as ground truth.
+
+### 5.2 Metrics
+
+| Metric | Meaning |
+|---|---|
+| **Hit@k** | Share of questions whose correct judgment appears in the top *k* results |
+| **MRR** (Mean Reciprocal Rank) | Average of 1/rank of the correct judgment (1.0 if always first, 0.5 if always second, 0 if not in top 5) |
+| **Latency mean / p50 / p95** | Average, median and 95th-percentile retrieval time, measured after model warm-up |
+| **Groundedness** | Does the answer stick to the retrieved judgments, without invented cases or sections? |
+| **Ratio decidendi** | Does it separate the binding holding from passing remarks? |
+| **Statutory concordance** | Are sections cited correctly, with IPC↔BNS mapping where relevant? |
+| **Reasoning quality** | Is the legal reasoning from facts to holding sound? |
+
+Judge scores are reported as **N/A** when not computed; placeholder values are never averaged in.
+
+### 5.3 The four configurations
+
+Each configuration adds one component, so differences can be attributed to that component:
+
+1. **Naive Dense**: ChromaDB cosine search only.
+2. **BM25 Lexical**: keyword search only.
+3. **Hybrid RRF**: dense + BM25 fused by rank.
+4. **Full Legal Funnel**: hybrid + statutory concordance + cross-encoder + bounded authority prior + parent expansion.
+
+### 5.4 Limitations (stated up front)
+
+- **Synthetic questions share vocabulary with their source passage**, which favours BM25. Human-written questions are the next step; the generated questions carry a `verified` flag for manual review.
+- **40 questions** give roughly ±13 percentage points of uncertainty on Hit@1 at 95% confidence.
+- **The judge is from the same model family as the answer generator** (gpt-oss), which can bias scores upward; scores cover 10 questions.
+- **One year of judgments** (2025, 400 documents).
+- **Role and bench tags are regex heuristics.** When no cue matches, a chunk is stored as "Obiter Dicta" and shown as "Unclassified" in the UI. Bench type defaults to "Single Bench" when the coram cannot be parsed.
+
+---
+
+## 6. Engineering under real constraints
+
+- **Shared GPU slice (B200 MIG 1g.45gb), ~30 GB usable RAM, NFS storage, no sudo.** A resource guard enforces RAM, VRAM and storage ceilings and halts indexing safely if exceeded. Peak use: about 7.6 GB VRAM and under 3 GB RAM.
+- **Resumable, idempotent indexing.** Checkpointed micro-batches of 8 PDFs and deterministic chunk IDs. The BM25 index is built once per run instead of after every batch.
+- **cuDNN fails to initialise on the MIG slice.** Attention is routed to PyTorch's flash/memory-efficient kernels instead (`CUDNN_ENABLED=false`), with identical outputs.
+- **Free-tier LLM APIs.** `src/llm_budget.py` routes every LLM call through a provider chain (Groq models → Gemini → optional local model). It honours `retry-after`, shrinks oversized requests, switches models when one is rate-limited, and caches every response on disk, so re-running a benchmark costs nothing.
+
+---
+
+## 7. Repository layout
+
+```
+├── index_corpus.py                  # Stream indexing with checkpoints and resource guard
+├── evaluate_pipeline.py             # 4-configuration ablation + optional LLM judge
+├── server.py                        # FastAPI backend for the web demo
+├── web/                             # index.html, style.css, app.js (no build step)
+├── src/
+│   ├── config.py                    # All settings (.env)
+│   ├── document_loader.py           # PDF text, legal metadata, parent/child chunking
+│   ├── local_embeddings.py          # zembed-1 / BGE embeddings (query vs document prompts)
+│   ├── vector_store.py              # ChromaDB + BM25 registry
+│   ├── rag_pipeline.py              # Retrieval funnel, authority prior, grounded synthesis
+│   ├── concordance.py               # IPC/CrPC/IEA <-> BNS/BNSS/BSA mapping
+│   ├── llm_budget.py                # LLM provider chain, rate limits, cache
+│   ├── local_llm.py                 # Optional local open-weights LLM
+│   ├── sqlite_store.py              # Parent section store
+│   └── resource_guard.py            # RAM / VRAM / storage guardrails, cuDNN switch
+├── scripts/
+│   ├── setup_server.sh              # venv on top of the server's preinstalled libraries
+│   ├── download_kaggle_corpus.py    # Download dataset, keep only selected year folders
+│   ├── smoke_test.py                # Pre-flight check of every component
+│   ├── generate_synthetic_queries.py
+│   └── explain_query.py             # Print a stored record / trace a query through the funnel
+├── tests/                           # Unit tests (unittest)
+└── data/                            # raw_judgments/, processed/, benchmarks/ (corpus is gitignored)
+```
+
+---
+
+## 8. Running it on the server
+
+```bash
+# 1. Code and environment (reuses the server's PyTorch/Transformers; installs only what is missing, into ./venv)
+git clone https://github.com/Aditya-Kayasth/Major-Project.git ~/adkmajorproject && cd ~/adkmajorproject
+bash scripts/setup_server.sh && source venv/bin/activate
+nano .env          # set LLM_API_KEY (Groq) and optionally GEMINI_API_KEY
+
+# 2. Data: downloads the Kaggle dataset once (no per-folder download exists), keeps only 2025
+python scripts/download_kaggle_corpus.py --years 2025 --cleanup
+
+# 3. Check every component, then index (~17 min for 400 judgments)
+python scripts/smoke_test.py --llm
+nohup python index_corpus.py --data-dir data/raw_judgments --reset > index.log 2>&1 &
+
+# 4. Benchmark: 40 questions, then the ablation (retrieval metrics make no API calls)
+python scripts/generate_synthetic_queries.py --num-docs 40
+python evaluate_pipeline.py --skip-llm-judge
+python evaluate_pipeline.py --judge-limit 10        # optional: adds LLM-judge scores
+
+# 5. Web demo
+nohup python server.py --port 8000 > server.log 2>&1 &
+~/cloudflared tunnel --url http://localhost:8000    # public https link, or forward port 8000 via a VS Code tunnel
+```
+
+Inspect the internals at any time:
+
+```bash
+python scripts/explain_query.py --show-record                      # one stored chunk + its parent section
+python scripts/explain_query.py "Can bail require sharing live GPS location?"   # stage-by-stage trace
+```
+
+### Key settings (`.env`)
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `LOCAL_EMBEDDING_MODEL` | `zeroentropy/zembed-1` | Embedding model |
+| `RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` | Cross-encoder |
+| `PARENT_CHUNK_SIZE` / `CHILD_CHUNK_SIZE` / `CHUNK_OVERLAP` | 1500 / 400 / 80 | Chunking (characters) |
+| `SYNTHESIS_PROVIDER` | `openai` | `openai` (any OpenAI-compatible API), `gemini` or `local` |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Groq, –, `openai/gpt-oss-120b` | Primary LLM |
+| `LLM_FALLBACK_MODELS` | – | Models tried when the primary is rate-limited |
+| `AUTHORITY_STRENGTH` / `AUTHORITY_MAX_BONUS` | 0.1 / 0.05 | Stare Decisis prior; `0` disables it |
+| `MAX_RAM_GB` / `VRAM_SAFETY_FRACTION` | 24 / 0.85 | Resource guard |
+| `CUDNN_ENABLED` | `false` | Bypass cuDNN on the MIG slice |
+
+---
+
+## 9. Future work
+
+- **Human-written benchmark questions** and lawyer-validated relevance judgments.
+- **Embedding × chunking grid**: zembed-1, BGE and InLegalBERT crossed with hierarchical, fixed-window and section-aware chunking, to find the best combination per legal domain.
+- **Citation verification**: check every case and section the LLM cites against the retrieved metadata.
+- **Learned role classifier** to replace the keyword heuristic for ratio / obiter / submissions.
+- **Multi-year corpus** (the Kaggle dataset covers 1950–2025) with a disk-backed vector index.

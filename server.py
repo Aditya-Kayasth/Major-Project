@@ -59,6 +59,13 @@ def _clean_title(title: Any) -> str:
     return re.sub(r"\s+\d{1,2}$", "", str(title or "")).strip()
 
 
+def _display_role(role: Any) -> str:
+    """The heuristic role tagger never positively detects obiter: 'Obiter Dicta' is its fallback
+    when no cue matched, so it is shown honestly as unclassified."""
+    role = str(role or "")
+    return "Unclassified role" if role == "Obiter Dicta" else role
+
+
 def _doc_key(candidate: Dict[str, Any]) -> str:
     meta = candidate.get("metadata") or {}
     source = str(candidate.get("source_path") or meta.get("source_path") or "")
@@ -75,7 +82,7 @@ def _format_candidate(rank: int, c: Dict[str, Any]) -> Dict[str, Any]:
         "case_title": _clean_title(c.get("case_title") or meta.get("case_title", "Unknown case")),
         "court": c.get("court") or meta.get("court", ""),
         "year": c.get("year") or meta.get("year", ""),
-        "role": c.get("role") or meta.get("role", ""),
+        "role": _display_role(c.get("role") or meta.get("role", "")),
         "rerank_score": round(float(c.get("rerank_score", 0.0)), 4),
         "cross_encoder_raw": round(float(c.get("raw_cross_encoder_score", 0.0)), 3),
         "authority_multiplier": round(authority, 3),
@@ -147,7 +154,7 @@ def search(req: SearchRequest) -> Dict[str, Any]:
         "expanded_query": funnel.get("expanded_query", query),
         "results": [_format_candidate(i, c) for i, c in enumerate(candidates, start=1)],
         "timings": {**funnel["timings"], **{k: v for k, v in llm_timings.items() if v is not None}},
-        "funnel_counts": funnel.get("funnel_counts", {}),
+        "funnel_counts": {**funnel.get("funnel_counts", {}), "returned": len(candidates)},
         "answer": answer,
         "gemini_requests_left_today": get_budget(settings).remaining_today(),
     }

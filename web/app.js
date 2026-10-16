@@ -18,26 +18,40 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-/* Minimal, safe markdown: escapes first, then headings, bold/italic, lists, paragraphs. */
+/* Minimal, safe markdown: escapes first, then headings, rules, tables, bold/italic, lists, paragraphs. */
 function renderMarkdown(md) {
   const inline = (s) => s
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, "$1<em>$2</em>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>");
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br>");
   const lines = escapeHtml(md).split(/\r?\n/);
-  let html = "", inList = false, para = [];
+  let html = "", inList = false, para = [], table = [];
   const flushPara = () => { if (para.length) { html += `<p>${inline(para.join(" "))}</p>`; para = []; } };
   const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
+  const cells = (row) => row.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => inline(c.trim()));
+  const isSeparator = (row) => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(row);
+  const flushTable = () => {
+    if (!table.length) return;
+    const rows = table.filter((r) => !isSeparator(r));
+    const [head, ...body] = rows;
+    html += `<div class="table-wrap"><table class="md-table"><thead><tr>${cells(head).map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>` +
+      body.map((r) => `<tr>${cells(r).map((c) => `<td>${c}</td>`).join("")}</tr>`).join("") + "</tbody></table></div>";
+    table = [];
+  };
   for (const raw of lines) {
     const line = raw.trim();
     const h = line.match(/^(#{1,4})\s+(.*)$/);
     const li = line.match(/^(?:[-*]|\d+\.)\s+(.*)$/);
+    if (/^\|.*\|$/.test(line)) { flushPara(); closeList(); table.push(line); continue; }
+    flushTable();
     if (!line) { flushPara(); closeList(); }
+    else if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) { flushPara(); closeList(); html += "<hr>"; }
     else if (h) { flushPara(); closeList(); html += `<h4>${inline(h[2])}</h4>`; }
     else if (li) { flushPara(); if (!inList) { html += "<ul>"; inList = true; } html += `<li>${inline(li[1])}</li>`; }
     else { closeList(); para.push(line); }
   }
-  flushPara(); closeList();
+  flushTable(); flushPara(); closeList();
   return html;
 }
 

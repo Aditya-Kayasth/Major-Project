@@ -127,6 +127,9 @@ button.primary:disabled { opacity: 0.6; cursor: progress; }
 .answer { font-family: var(--serif); font-size: 15.5px; line-height: 1.65; }
 .answer h1, .answer h2, .answer h3, .answer h4 { font-size: 16px; margin: 14px 0 6px; }
 .answer ul { padding-left: 20px; }
+.answer hr { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
+.answer .md-table { font-family: var(--sans); font-size: 13.5px; margin: 8px 0 14px; }
+.answer .md-table th, .answer .md-table td { border: 1px solid var(--line); }
 
 /* Results */
 .result { border-top: 1px solid var(--line); padding: 14px 0; display: grid; grid-template-columns: 42px 1fr; gap: 12px; }
