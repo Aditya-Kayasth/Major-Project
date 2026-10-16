@@ -14,7 +14,9 @@ import sys
 import zipfile
 from pathlib import Path
 
-from src.config import get_settings
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.config import get_settings  # noqa: E402
 
 
 def parse_arguments() -> argparse.Namespace:
