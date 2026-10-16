@@ -205,45 +205,59 @@ class GeminiBudget:
             payload["reasoning_effort"] = self.settings.llm_reasoning_effort
         headers = {"Authorization": f"Bearer {self.settings.llm_api_key}", "Content-Type": "application/json"}
 
-        for attempt in range(max_retries + 1):
-            self._wait_for_slot("openai", self.settings.llm_rpm)
-            try:
-                resp = httpx.post(url, headers=headers, json=payload, timeout=180.0)
-            except Exception as err:
-                logger.warning(f"LLM API request failed ({err}); retrying...")
-                time.sleep(3 * (attempt + 1))
-                continue
+        # Providers such as Groq rate-limit each model separately, so a rate-limited primary
+        # model hands over to LLM_FALLBACK_MODELS instead of stalling (important for a live demo).
+        models = [self.settings.llm_model] + [
+            m for m in self.settings.llm_fallback_models if m and m != self.settings.llm_model
+        ]
+        for m_idx, model_name in enumerate(models):
+            has_next_model = m_idx + 1 < len(models)
+            model_payload = dict(payload, model=model_name)
+            if m_idx > 0:
+                logger.info(f"Switching to fallback model '{model_name}'.")
 
-            if resp.status_code == 200:
+            for attempt in range(max_retries + 1):
+                self._wait_for_slot(f"openai:{model_name}", self.settings.llm_rpm)
                 try:
-                    text = resp.json()["choices"][0]["message"]["content"] or ""
+                    resp = httpx.post(url, headers=headers, json=model_payload, timeout=180.0)
                 except Exception as err:
-                    logger.warning(f"Unexpected LLM API response shape: {err} :: {resp.text[:200]}")
-                    return None
-                # Reasoning models may emit their scratchpad inline; keep only the final answer
-                text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-                if not text:
-                    return None
-                return LocalLLM._extract_json(text) if json_mode else text
+                    logger.warning(f"LLM API request failed ({err}); retrying...")
+                    time.sleep(3 * (attempt + 1))
+                    continue
 
-            body = resp.text[:300]
-            if resp.status_code == 400 and "reasoning_effort" in payload and "reasoning" in body.lower():
-                payload.pop("reasoning_effort")  # model does not support reasoning_effort
-                continue
-            if resp.status_code == 400 and json_mode and "response_format" in payload:
-                payload.pop("response_format")  # provider/model without JSON mode: rely on the prompt
-                continue
-            if resp.status_code in (429, 500, 502, 503, 504):
-                retry_after = resp.headers.get("retry-after")
-                wait = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else 5.0 * (attempt + 1)
-                if wait > 120:
-                    logger.error(f"LLM API asked to wait {wait:.0f}s (quota likely exhausted): {body}")
-                    return None
-                logger.warning(f"LLM API {resp.status_code}; retrying in {wait:.0f}s ... {body[:120]}")
-                time.sleep(wait)
-                continue
-            logger.error(f"LLM API error {resp.status_code}: {body}")
-            return None
+                if resp.status_code == 200:
+                    try:
+                        text = resp.json()["choices"][0]["message"]["content"] or ""
+                    except Exception as err:
+                        logger.warning(f"Unexpected LLM API response shape: {err} :: {resp.text[:200]}")
+                        break
+                    # Reasoning models may emit their scratchpad inline; keep only the final answer
+                    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+                    if not text:
+                        break
+                    return LocalLLM._extract_json(text) if json_mode else text
+
+                body = resp.text[:300]
+                if resp.status_code == 400 and "reasoning_effort" in model_payload and "reasoning" in body.lower():
+                    model_payload.pop("reasoning_effort")  # model does not support reasoning_effort
+                    continue
+                if resp.status_code == 400 and json_mode and "response_format" in model_payload:
+                    model_payload.pop("response_format")  # model without JSON mode: rely on the prompt
+                    continue
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    retry_after = resp.headers.get("retry-after")
+                    wait = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else 5.0 * (attempt + 1)
+                    if has_next_model and (wait > 10 or attempt >= 1):
+                        logger.warning(f"'{model_name}' rate-limited ({resp.status_code}); trying the next model.")
+                        break
+                    if wait > 120:
+                        logger.error(f"LLM API asked to wait {wait:.0f}s (quota likely exhausted): {body}")
+                        break
+                    logger.warning(f"LLM API {resp.status_code}; retrying in {wait:.0f}s ... {body[:120]}")
+                    time.sleep(wait)
+                    continue
+                logger.error(f"LLM API error {resp.status_code} on '{model_name}': {body}")
+                break
         return None
 
     def _generate_local(

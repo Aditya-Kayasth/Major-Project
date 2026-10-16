@@ -7,7 +7,7 @@ production defaults, and automatic filesystem initialization.
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -75,6 +75,10 @@ class Settings(BaseModel):
     llm_api_key: str = Field(default_factory=lambda: os.getenv("LLM_API_KEY", "").strip())
     llm_model: str = Field(
         default_factory=lambda: os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+    )
+    # Comma-separated backup models on the same API, tried when the primary is rate-limited
+    llm_fallback_models: List[str] = Field(
+        default_factory=lambda: [m.strip() for m in os.getenv("LLM_FALLBACK_MODELS", "").split(",") if m.strip()]
     )
     llm_rpm: float = Field(default_factory=lambda: float(os.getenv("LLM_RPM", "20")))
     llm_max_tokens: int = Field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "1500")))
