@@ -496,6 +496,9 @@ class IndianLegalRAGPipeline:
             p_role = p_meta.get("role") or p_meta.get("legal_role", "Ratio Decidendi")
             p_bench = p_meta.get("bench_type", "Bench")
             p_author = p_meta.get("author_judge", "Judge")
+            if str(p_meta.get("coram", "")).strip() in ("", "Not Recorded"):
+                # Bench type is only a fallback guess when the coram could not be parsed
+                p_bench, p_author = "bench not recorded", "not recorded"
             p_disp = p_meta.get("disposition", "Not Stated")
             p_text = parent.get("text", "")
             context_blocks.append(
