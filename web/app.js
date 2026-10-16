@@ -9,7 +9,7 @@ const STAGE_LABELS = {
   rrf_fusion_sec: "Rank fusion (RRF)",
   reranking_sec: "Cross-encoder rerank",
   parent_expansion_sec: "Parent expansion",
-  llm_generation_sec: "Gemini synthesis",
+  llm_generation_sec: "LLM synthesis",
 };
 
 function escapeHtml(text) {
@@ -69,7 +69,7 @@ async function loadStatus() {
       `<span class="chip"><b>${s.parents_indexed.toLocaleString()}</b> sections</span>`,
       `<span class="chip">embed: <b>${escapeHtml(s.embedding_model)}</b></span>`,
       `<span class="chip">rerank: <b>${escapeHtml(s.reranker_model.split("/").pop())}</b></span>`,
-      `<span class="chip ${s.llm_available ? "ok" : "warn"}" id="budget-chip">Gemini: <b>${s.llm_available ? s.gemini_requests_left_today + " req left today" : "no API key"}</b></span>`,
+      `<span class="chip ${s.llm_available ? "ok" : "warn"}" title="${escapeHtml(s.llm_route)}">LLM: <b>${s.llm_available ? escapeHtml(s.llm_route.split(" -> ")[0]) : "not configured"}</b></span>`,
     ].join("");
     $("#p-embed").textContent = s.embedding_model;
     $("#p-rerank").textContent = s.reranker_model;
@@ -166,8 +166,6 @@ $("#search-form").addEventListener("submit", async (e) => {
       $("#answer").innerHTML = renderMarkdown(data.answer);
       $("#answer-card").classList.remove("hidden");
     } else { $("#answer-card").classList.add("hidden"); }
-    const chip = $("#budget-chip b");
-    if (chip && typeof data.gemini_requests_left_today === "number") chip.textContent = `${data.gemini_requests_left_today} req left today`;
     $("#results-area").classList.remove("hidden");
   } catch (err) {
     $("#search-error").textContent = `Search failed: ${err.message}`;

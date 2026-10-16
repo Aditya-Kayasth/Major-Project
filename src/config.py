@@ -67,6 +67,26 @@ class Settings(BaseModel):
     gemini_model: str = Field(
         default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
     )
+    # Any OpenAI-compatible chat API (Groq, Cerebras, OpenRouter, Mistral, OpenAI, ...).
+    # Used when SYNTHESIS_PROVIDER=openai, and as a fallback for the other providers if a key is set.
+    llm_base_url: str = Field(
+        default_factory=lambda: os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
+    )
+    llm_api_key: str = Field(default_factory=lambda: os.getenv("LLM_API_KEY", "").strip())
+    llm_model: str = Field(
+        default_factory=lambda: os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+    )
+    llm_rpm: float = Field(default_factory=lambda: float(os.getenv("LLM_RPM", "20")))
+    llm_max_tokens: int = Field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "1500")))
+
+    # Local open-weights LLM (src/local_llm.py): SYNTHESIS_PROVIDER=local, or the last fallback
+    # in the provider chain when LOCAL_LLM_FALLBACK=true.
+    local_llm_model: str = Field(
+        default_factory=lambda: os.getenv("LOCAL_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+    )
+    local_llm_fallback: bool = Field(
+        default_factory=lambda: os.getenv("LOCAL_LLM_FALLBACK", "false").lower() in ("1", "true", "yes")
+    )
     # Gemini free-tier guard (see src/llm_budget.py). Check your limits in Google AI Studio.
     gemini_rpm: float = Field(
         default_factory=lambda: float(os.getenv("GEMINI_RPM", "5"))

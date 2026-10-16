@@ -515,21 +515,18 @@ Retrieved Judicial Context:
 
 Analyze the legal query based exclusively on the provided judicial context. Provide authoritative findings, distinguishing Ratio Decidendi from Obiter Dicta, with statutory concordance:"""
 
-        if not self.gemini_client:
-            answer = "GEMINI_API_KEY is not configured in environment. Retrieval completed successfully."
-        else:
-            answer = get_budget(self.settings).generate(
-                client=self.gemini_client,
-                models=[self.settings.gemini_model, "gemini-flash-latest"],
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION,
-                    temperature=0.1,
-                ),
-            ) or (
-                "Answer synthesis unavailable (Gemini free-tier rate limit or daily budget reached). "
-                "The ranked precedents below were retrieved successfully."
-            )
+        answer = get_budget(self.settings).generate(
+            client=self.gemini_client,
+            models=[self.settings.gemini_model, "gemini-flash-latest"],
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION,
+                temperature=0.1,
+            ),
+        ) or (
+            "Answer synthesis unavailable (no LLM provider reachable: check LLM_API_KEY / GEMINI_API_KEY "
+            "quota). The ranked precedents below were retrieved successfully."
+        )
 
         timings["llm_generation_sec"] = round(time.perf_counter() - llm_start_t, 4)
         timings["total_latency_sec"] = round(time.perf_counter() - total_start_t, 4)

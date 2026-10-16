@@ -254,7 +254,7 @@ class BenchmarkEvaluator:
         Returns None scores when the judge is skipped or fails, so that placeholder values
         are never averaged into reported metrics.
         """
-        if self.skip_llm_judge or not self.client:
+        if self.skip_llm_judge:
             return dict(JUDGE_UNAVAILABLE, feedback="LLM Judge evaluation skipped.")
 
         prompt = f"""Legal Query:
@@ -604,8 +604,6 @@ Evaluate strictly according to the system rubric and return JSON:"""
         """Contextual answer synthesis for judge evaluation (None if the LLM is unavailable)."""
         if not context.strip():
             return "Insufficient authoritative precedent found in the indexed corpus."
-        if not self.client:
-            return None
 
         prompt = f"Legal Query:\n{query}\n\nContext:\n{context[:3500]}\n\nProvide authoritative legal answer citing precedents and statutes:"
         return self.budget.generate(
@@ -718,8 +716,8 @@ def main():
     if not args.skip_llm_judge:
         planned = len(args.judge_configs) * args.judge_limit * 2
         logger.info(
-            f"LLM budget: up to {planned} Gemini calls planned; {evaluator.budget.remaining_today()} "
-            f"of {evaluator.settings.gemini_daily_budget} remaining today (cached answers are free)."
+            f"LLM judge: up to {planned} calls planned via {evaluator.budget.llm_label(evaluator.client)} "
+            f"(cached answers are free)."
         )
     evaluator.run_benchmark(
         queries_path=Path(args.queries) if args.queries else None,

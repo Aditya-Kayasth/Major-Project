@@ -35,7 +35,7 @@
             <select id="topk"><option>3</option><option selected>5</option><option>8</option><option>10</option></select>
           </label>
           <label class="ctl"><input type="checkbox" id="one-per-case" checked> One result per case</label>
-          <label class="ctl"><input type="checkbox" id="gen-answer"> Generate grounded answer (uses 1 Gemini request)</label>
+          <label class="ctl"><input type="checkbox" id="gen-answer"> Generate grounded answer (LLM)</label>
           <button type="submit" id="search-btn" class="primary">Search precedents</button>
         </div>
         <div id="examples" class="examples"></div>
@@ -77,7 +77,7 @@
           <li><b>Dual candidate generation.</b> Dense semantic search (local <code id="p-embed">embedding model</code>, cosine, ChromaDB) and BM25 lexical search each return their top 60 child chunks. BM25 catches exact statutory tokens ("Section 138", "Article 21") that embeddings blur.</li>
           <li><b>Reciprocal Rank Fusion.</b> RRF (k = 60) merges the two rankings using ranks only, so incompatible score scales never need calibration. The top 30 fused candidates move on.</li>
           <li><b>Cross-encoder reranking.</b> <code id="p-rerank">bge-reranker-v2-m3</code> reads query and passage jointly. A bounded Stare Decisis prior (court tier, bench strength, ratio vs. obiter; at most ±5%) breaks ties between equally relevant passages without overriding relevance.</li>
-          <li><b>Parent expansion &amp; grounded synthesis.</b> Each ~400-character child chunk maps to its ~1,500-character parent section in SQLite; parents are passed to Gemini with a zero-hallucination instruction to cite only retrieved precedent.</li>
+          <li><b>Parent expansion &amp; grounded synthesis.</b> Each ~400-character child chunk maps to its ~1,500-character parent section in SQLite; parents are passed to a large LLM (Llama 3.3 70B via an OpenAI-compatible API, with Gemini as fallback) with a zero-hallucination instruction to cite only retrieved precedent.</li>
         </ol>
       </div>
       <div class="grid-2">
@@ -87,7 +87,7 @@
         </div>
         <div class="card">
           <h3>Engineering under constraints</h3>
-          <p>Shared GPU slice with RAM/VRAM/disk guardrails, resumable checkpointed indexing with deterministic chunk IDs, embedded SQLite (no daemons), and a Gemini free-tier guard (rate limit, daily budget, response cache).</p>
+          <p>Shared GPU slice with RAM/VRAM/disk guardrails, resumable checkpointed indexing with deterministic chunk IDs, embedded SQLite (no daemons), and an LLM router with provider fallback, rate limiting and a response cache.</p>
         </div>
       </div>
     </section>
@@ -110,7 +110,7 @@
     </section>
   </main>
 
-  <footer class="footer">Retrieval runs locally on the GPU server; only answer synthesis and judging call Gemini.</footer>
+  <footer class="footer">Retrieval runs locally on the GPU server; only answer synthesis and judging call the LLM API.</footer>
   <script src="static/app.js"></script>
 </body>
 </html>

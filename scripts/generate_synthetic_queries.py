@@ -114,7 +114,7 @@ def load_documents(db_path: Path, path_filter: str) -> Dict[str, Dict[str, Any]]
     return docs
 
 
-def generate_query(client: genai.Client, model: str, passage: str) -> Optional[Dict[str, Any]]:
+def generate_query(client: Optional[genai.Client], model: str, passage: str) -> Optional[Dict[str, Any]]:
     raw = get_budget().generate(
         client=client,
         models=[model],
@@ -135,8 +135,12 @@ def generate_query(client: genai.Client, model: str, passage: str) -> Optional[D
 def main() -> None:
     args = parse_args()
     settings = get_settings()
-    if not settings.gemini_api_key or settings.gemini_api_key == "your_gemini_api_key_here":
-        sys.exit("[ERROR] GEMINI_API_KEY is required to generate synthetic queries.")
+    has_gemini = bool(settings.gemini_api_key) and settings.gemini_api_key != "your_gemini_api_key_here"
+    client = genai.Client(api_key=settings.gemini_api_key) if has_gemini else None
+    llm_route = get_budget().llm_label(client)
+    if llm_route == "none configured":
+        sys.exit("[ERROR] No LLM configured: set LLM_API_KEY (e.g. Groq) or GEMINI_API_KEY in .env.")
+    print(f"[INFO] LLM route: {llm_route}")
 
     docs = load_documents(settings.sqlite_db_path, args.path_filter)
     print(f"[INFO] {len(docs)} indexed judgments match path filter '{args.path_filter}'.")
@@ -147,9 +151,9 @@ def main() -> None:
     stems = sorted(docs)
     rng.shuffle(stems)
 
-    client = genai.Client(api_key=settings.gemini_api_key)
     synthetic: List[Dict[str, Any]] = []
     rejected = 0
+    consecutive_failures = 0
 
     for stem in stems:
         if len(synthetic) >= args.num_docs:
@@ -160,13 +164,16 @@ def main() -> None:
             continue
         passage = max(candidates, key=holding_score)
 
-        if get_budget().remaining_today() <= 0:
-            print("[WARN] Gemini daily budget exhausted; stopping early.")
-            break
         data = generate_query(client, settings.gemini_model, passage)
         if not data:
             rejected += 1
+            consecutive_failures += 1
+            print(f"  [fail] no usable LLM response for {doc['case_title'][:50]}")
+            if consecutive_failures >= 5:
+                print("[ERROR] 5 consecutive LLM failures (quota / key / model name?). Stopping early; see logs above.")
+                break
             continue
+        consecutive_failures = 0
 
         query = str(data["query"]).strip()
         leaked = [t for t in party_tokens(doc["case_title"]) if re.search(rf"\b{re.escape(t)}\b", query.lower())]
@@ -202,7 +209,7 @@ def main() -> None:
 
     print("=" * 70)
     print(f"Benchmark queries : {len(synthetic)} (rejected: {rejected})  -> {output_path}")
-    print(f"Gemini requests left today: {get_budget().remaining_today()}")
+    print(f"LLM route used: {llm_route}")
     print("Next: python evaluate_pipeline.py --skip-llm-judge   (retrieval metrics, zero API calls)")
 
 

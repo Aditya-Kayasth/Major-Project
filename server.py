@@ -93,10 +93,9 @@ def status() -> Dict[str, Any]:
         if settings.embedding_provider == "local"
         else settings.gemini_embedding_model,
         "reranker_model": settings.reranker_model,
-        "llm_model": settings.gemini_model,
-        "llm_available": pipeline.gemini_client is not None,
+        "llm_route": budget.llm_label(pipeline.gemini_client),
+        "llm_available": budget.llm_label(pipeline.gemini_client) != "none configured",
         "gemini_requests_left_today": budget.remaining_today(),
-        "gemini_daily_budget": settings.gemini_daily_budget,
     }
 
 

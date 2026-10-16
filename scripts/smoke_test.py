@@ -8,11 +8,11 @@ Checks (each prints PASS/FAIL):
   3. Cross-encoder reranker loads and ranks a relevant passage above an irrelevant one
   4. ChromaDB create / upsert / get-by-ids / query / delete in a temporary directory
   5. BM25 registry scoring
-  6. (optional, --gemini) one Gemini call through the free-tier budget guard
+  6. (optional, --llm) two LLM calls through the provider chain (plain + JSON mode)
 
 Usage:
     python scripts/smoke_test.py            # no API calls
-    python scripts/smoke_test.py --gemini   # + 1 Gemini request
+    python scripts/smoke_test.py --llm      # + 2 LLM requests
 """
 
 import argparse
@@ -158,22 +158,38 @@ def check_bm25():
     return "ok"
 
 
-@check("Gemini call via free-tier guard")
-def check_gemini(settings):
+@check("LLM provider chain (answer + JSON mode)")
+def check_llm(settings):
+    import json
+
     from google import genai
+    from google.genai import types
 
     from src.llm_budget import get_budget
 
-    assert settings.gemini_api_key and settings.gemini_api_key != "your_gemini_api_key_here", "GEMINI_API_KEY not set in .env"
-    client = genai.Client(api_key=settings.gemini_api_key)
-    text = get_budget(settings).generate(client=client, models=[settings.gemini_model], contents="Reply with the single word: ready")
-    assert text, "no response (rate limit, budget or invalid model/key)"
-    return f"model={settings.gemini_model} reply={text.strip()[:40]!r} requests_left_today={get_budget(settings).remaining_today()}"
+    has_gemini = bool(settings.gemini_api_key) and settings.gemini_api_key != "your_gemini_api_key_here"
+    client = genai.Client(api_key=settings.gemini_api_key) if has_gemini else None
+    budget = get_budget(settings)
+    route = budget.llm_label(client)
+    assert route != "none configured", "no LLM configured (set LLM_API_KEY or GEMINI_API_KEY)"
+    text = budget.generate(
+        client=client, models=[settings.gemini_model],
+        contents="In one sentence: what does Section 438 CrPC provide?", use_cache=False,
+    )
+    assert text, f"no response from any provider in route: {route}"
+    raw = budget.generate(
+        client=client, models=[settings.gemini_model], use_cache=False,
+        contents='Return JSON {"query": "<a legal research question about bail>", "answer": "<one sentence>"}',
+        config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.2),
+    )
+    data = json.loads(raw)
+    assert data.get("query") and data.get("answer"), f"JSON mode returned unexpected keys: {list(data)}"
+    return f"route={route} | answer={text.strip()[:70]!r}"
 
 
 def main():
     parser = argparse.ArgumentParser(description="Pre-flight smoke test")
-    parser.add_argument("--gemini", action="store_true", help="Also make 1 Gemini request")
+    parser.add_argument("--llm", "--gemini", dest="llm", action="store_true", help="Also make 2 LLM requests through the provider chain")
     args = parser.parse_args()
 
     from src.config import get_settings
@@ -187,8 +203,8 @@ def main():
     check_reranker(settings)
     check_chroma()
     check_bm25()
-    if args.gemini:
-        check_gemini(settings)
+    if args.llm:
+        check_llm(settings)
 
     try:
         import psutil
