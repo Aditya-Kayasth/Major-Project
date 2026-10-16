@@ -101,6 +101,10 @@ class IndianLegalRAGPipeline:
         """Lazy loader for sentence_transformers.CrossEncoder with hardware-throttled profile."""
         if self._reranker is None:
             import torch
+
+            from src.resource_guard import configure_torch_backends
+
+            configure_torch_backends()
             torch.set_num_threads(self.settings.num_threads)
 
             device = "cuda" if torch.cuda.is_available() else "cpu"

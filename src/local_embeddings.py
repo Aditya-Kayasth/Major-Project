@@ -69,6 +69,10 @@ class LocalEmbeddingEngine:
         if not HAS_TORCH:
             raise RuntimeError("PyTorch is required for local neural embeddings.")
 
+        from src.resource_guard import configure_torch_backends
+
+        configure_torch_backends()
+
         # Check VRAM capacity before loading 4B models on GPU
         if self.device == "cuda":
             try:

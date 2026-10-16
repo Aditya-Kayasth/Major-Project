@@ -58,6 +58,25 @@ def check_versions():
     )
 
 
+@check("GPU attention kernel (scaled_dot_product_attention)")
+def check_sdpa():
+    import torch
+    import torch.nn.functional as F
+
+    from src.resource_guard import configure_torch_backends
+
+    configure_torch_backends()
+    try:
+        cudnn_version = torch.backends.cudnn.version()
+    except Exception as err:
+        cudnn_version = f"unavailable ({err})"
+    q = torch.randn(2, 8, 128, 64, device="cuda", dtype=torch.bfloat16)
+    out = F.scaled_dot_product_attention(q, q, q)
+    torch.cuda.synchronize()
+    assert out.shape == q.shape
+    return f"cudnn_enabled={torch.backends.cudnn.enabled} cudnn_version={cudnn_version}"
+
+
 @check("Embedding model (query vs document prompts)")
 def check_embeddings(settings):
     import numpy as np
@@ -163,6 +182,7 @@ def main():
     print(f"Embedding provider: {settings.embedding_provider} ({settings.local_embedding_model}) | reranker: {settings.reranker_model}\n")
 
     check_versions()
+    check_sdpa()
     check_embeddings(settings)
     check_reranker(settings)
     check_chroma()

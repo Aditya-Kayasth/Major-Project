@@ -27,6 +27,25 @@ except ImportError:
 logger = logging.getLogger("IndianLegalRAG.ResourceGuard")
 
 
+def configure_torch_backends() -> None:
+    """Route GPU attention away from cuDNN unless CUDNN_ENABLED=true.
+
+    On the shared B200 MIG slice, cuDNN fails to initialise (CUDNN_STATUS_NOT_INITIALIZED)
+    inside scaled_dot_product_attention because the system torch build and the cuDNN found
+    on PYTHONPATH do not match. Text transformers do not need cuDNN: with it disabled, SDPA
+    uses the flash / memory-efficient / math kernels instead, with identical outputs.
+    """
+    if not HAS_TORCH:
+        return
+    if os.getenv("CUDNN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+        return
+    torch.backends.cudnn.enabled = False
+    try:
+        torch.backends.cuda.enable_cudnn_sdp(False)
+    except AttributeError:
+        pass
+
+
 class ResourceGuardrailException(Exception):
     """Raised when memory or disk usage crosses absolute safety thresholds."""
     pass
@@ -62,6 +81,7 @@ class ResourceGuard:
         }
 
         if HAS_TORCH:
+            configure_torch_backends()
             # Pin CPU threads to avoid CPU starvation
             torch.set_num_threads(self.num_cpu_threads)
             telemetry["threads_set"] = self.num_cpu_threads
