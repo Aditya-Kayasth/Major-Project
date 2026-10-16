@@ -11,7 +11,20 @@ data/parent_store/
 data/*.db
 data/*.db-wal
 data/*.db-shm
-data/processed/indexing_checkpoint*.json
+
+# Corpus data never goes to GitHub: judgments are downloaded from Kaggle on the server
+Major Project Data/
+data/raw_judgments/*
+!data/raw_judgments/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/indexed_cases_metadata.json
+*.zip
+
+# Gemini free-tier guard state (per machine) and the cached LLM responses
+data/benchmarks/llm_cache.json
+data/benchmarks/llm_cache.tmp
+data/benchmarks/gemini_usage.json
 
 # Python Bytecode & Cache
 __pycache__/

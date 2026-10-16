@@ -148,8 +148,15 @@ class LocalEmbeddingEngine:
                 f"Could not load embedding model '{self.model_name}'. Check internet connectivity or cache: {hf_err}"
             )
 
-    def embed_texts(self, texts: List[str], show_progress: bool = False) -> List[List[float]]:
-        """Compute normalized vector embeddings for a list of text strings in memory-safe batches."""
+    def embed_texts(
+        self, texts: List[str], show_progress: bool = False, is_query: bool = False
+    ) -> List[List[float]]:
+        """Compute normalized vector embeddings for a list of text strings in memory-safe batches.
+
+        Asymmetric retrieval models (zembed-1, e5, bge-m3 style) ship separate 'query' and
+        'document' prompts. Queries MUST be encoded with the query prompt, otherwise the
+        model's default ('document') prompt is applied and dense recall degrades.
+        """
         if not texts:
             return []
 
@@ -157,12 +164,19 @@ class LocalEmbeddingEngine:
 
         # If loaded via SentenceTransformer
         if self._st_model is not None:
+            prompts = getattr(self._st_model, "prompts", None) or {}
+            prompt_name = None
+            if is_query and "query" in prompts:
+                prompt_name = "query"
+            elif not is_query and "document" in prompts:
+                prompt_name = "document"
             embeddings = self._st_model.encode(
                 texts,
                 batch_size=self.batch_size,
                 show_progress_bar=show_progress,
                 normalize_embeddings=True,
                 convert_to_numpy=True,
+                prompt_name=prompt_name,
             )
             return embeddings.tolist()
 
@@ -194,6 +208,6 @@ class LocalEmbeddingEngine:
 
     def embed_query(self, query: str) -> List[float]:
         """Generate embedding vector for a single legal query."""
-        results = self.embed_texts([query], show_progress=False)
+        results = self.embed_texts([query], show_progress=False, is_query=True)
         return results[0] if results else []
 

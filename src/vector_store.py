@@ -280,21 +280,37 @@ class VectorStoreManager:
             )
             self._active_collections[name] = collection
 
+        collection = self._active_collections[name]
         if name not in self._bm25_registries:
             registry = BM25Registry.load(bm25_path)
             if not registry.corpus_ids and collection.count() > 0:
                 logger.info(f"Synchronizing BM25 index from {collection.count()} persisted ChromaDB records...")
-                all_records = collection.get(include=["documents", "metadatas"])
-                if all_records and all_records.get("ids"):
-                    registry.add_documents(
-                        ids=all_records["ids"],
-                        texts=all_records["documents"],
-                        metadatas=all_records["metadatas"],
-                    )
+                ids, texts, metas = self._fetch_all_records(collection)
+                if ids:
+                    registry.add_documents(ids=ids, texts=texts, metadatas=metas)
                     registry.save(bm25_path)
             self._bm25_registries[name] = registry
 
-        return self._active_collections[name]
+        return collection
+
+    @staticmethod
+    def _fetch_all_records(
+        collection: Collection, page_size: int = 5000
+    ) -> Tuple[List[str], List[str], List[Dict[str, Any]]]:
+        """Page through a collection's documents and metadatas (avoids SQLite variable limits)."""
+        all_ids: List[str] = []
+        all_texts: List[str] = []
+        all_metas: List[Dict[str, Any]] = []
+        total_count = collection.count()
+        for offset in range(0, total_count, page_size):
+            batch = collection.get(
+                include=["documents", "metadatas"], limit=page_size, offset=offset
+            )
+            if batch and batch.get("ids"):
+                all_ids.extend(batch.get("ids", []))
+                all_texts.extend(batch.get("documents", []))
+                all_metas.extend(batch.get("metadatas", []))
+        return all_ids, all_texts, all_metas
 
     def _embed_texts_batch(
         self, texts: List[str], task_type: str = "RETRIEVAL_DOCUMENT"
@@ -305,7 +321,9 @@ class VectorStoreManager:
 
         # Route to Local Embedding Engine if configured
         if getattr(self.settings, "embedding_provider", "local") == "local" and self.local_embedding_engine:
-            return self.local_embedding_engine.embed_texts(texts, show_progress=False)
+            return self.local_embedding_engine.embed_texts(
+                texts, show_progress=False, is_query=(task_type == "RETRIEVAL_QUERY")
+            )
 
         if not self.client:
             raise ValueError(
@@ -385,26 +403,7 @@ class VectorStoreManager:
         collection = self.get_or_create_collection(target_name)
         bm25_path = self._get_bm25_path(target_name)
 
-        # --- PAGINATED FETCHING TO PREVENT SQLITE CRASH ---
-        total_count = collection.count()
-        batch_size = 5000
-        
-        all_ids = []
-        all_texts = []
-        all_metas = []
-
-        if total_count > 0:
-            for offset in range(0, total_count, batch_size):
-                batch = collection.get(
-                    include=["documents", "metadatas"],
-                    limit=batch_size,
-                    offset=offset
-                )
-                if batch and batch.get("ids"):
-                    all_ids.extend(batch.get("ids", []))
-                    all_texts.extend(batch.get("documents", []))
-                    all_metas.extend(batch.get("metadatas", []))
-        # ----------------------------------------------------
+        all_ids, all_texts, all_metas = self._fetch_all_records(collection)
 
         registry = BM25Registry()
         if all_ids:
@@ -419,6 +418,7 @@ class VectorStoreManager:
         chunks: List[Dict[str, Any]],
         collection_name: Optional[str] = None,
         batch_size: int = 50,
+        rebuild_bm25: bool = True,
     ) -> Dict[str, Any]:
         """Ingest child chunks into ChromaDB and synchronized BM25 index with throughput telemetry.
 
@@ -426,6 +426,9 @@ class VectorStoreManager:
             chunks: List of child chunk dictionaries (from LegalDocumentLoader).
             collection_name: Target collection name (defaults to active collection).
             batch_size: Embedding and ingestion batch size (default: 50).
+            rebuild_bm25: Rebuild the global BM25 index after ingestion. Streaming callers
+                (index_corpus.py) pass False and rebuild once at the end, since a rebuild
+                re-tokenizes the entire collection.
 
         Returns:
             Dictionary containing indexing summary metrics.
@@ -438,12 +441,14 @@ class VectorStoreManager:
         collection = self.get_or_create_collection(target_name)
         bm25_path = self._get_bm25_path(target_name)
 
-        # 1. Resumable indexing: query collection to find already indexed IDs
+        # 1. Resumable indexing: look up only this call's (deterministic) chunk IDs
         existing_ids: Set[str] = set()
         if collection.count() > 0:
-            existing_data = collection.get(include=[])
-            if existing_data and existing_data.get("ids"):
-                existing_ids = set(existing_data["ids"])
+            candidate_ids = [c.get("chunk_id") for c in chunks if c.get("chunk_id")]
+            for i in range(0, len(candidate_ids), 1000):
+                existing_data = collection.get(ids=candidate_ids[i : i + 1000], include=[])
+                if existing_data and existing_data.get("ids"):
+                    existing_ids.update(existing_data["ids"])
 
         chunks_to_index = [c for c in chunks if c.get("chunk_id") not in existing_ids]
 
@@ -457,7 +462,8 @@ class VectorStoreManager:
             logger.info(
                 f"All {len(chunks)} chunks already exist in collection '{target_name}'. Skipping embedding."
             )
-            self.build_and_save_bm25_from_collection(target_name)
+            if rebuild_bm25:
+                self.build_and_save_bm25_from_collection(target_name)
             return {
                 "collection_name": target_name,
                 "indexed_count": collection.count(),
@@ -524,7 +530,8 @@ class VectorStoreManager:
         finally:
             pbar.close()
             # Ensure the BM25 model is built across ALL chunks (existing + new) and saved to disk
-            self.build_and_save_bm25_from_collection(target_name)
+            if rebuild_bm25:
+                self.build_and_save_bm25_from_collection(target_name)
 
         total_duration = time.perf_counter() - start_time
         avg_throughput = total_chunks / total_duration if total_duration > 0 else 0.0

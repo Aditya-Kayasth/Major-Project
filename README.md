@@ -8,7 +8,7 @@
 [![Reranker](https://img.shields.io/badge/Reranker-BGE--Reranker--v2--m3%20%28FP16%29-green.svg)](https://huggingface.co/BAAI/bge-reranker-v2-m3)
 [![Hardware Profile](https://img.shields.io/badge/Hardware-NVIDIA%20B200%20%2845GB%29%20%2F%20RTX%202050-purple.svg)](#2-system-architecture)
 [![Concordance](https://img.shields.io/badge/Concordance-IPC%2FCrPC%20%E2%86%94%20BNS%2FBNSS%2FBSA-red.svg)](#2-system-architecture)
-[![Retrieval SOTA](https://img.shields.io/badge/Hit%401-70.0%25%20%7C%20MRR-0.750-brightgreen.svg)](#5-empirical-ablation-benchmark-results)
+[![Corpus](https://img.shields.io/badge/Corpus-Kaggle%20SC%20Judgments%202025-blue.svg)](#6-corpus)
 
 ---
 
@@ -21,7 +21,7 @@ Legal research across Indian Supreme Court and High Court jurisprudence presents
 
 This repository implements a **production-grade, hardware-guardrailed Legal RAG architecture** designed specifically for Indian judicial precedents. It combines **3-tier section-bounded recursive chunking with hard rhetorical boundary anchoring**, **statutory concordance query expansion**, **dual dense-sparse candidate generation**, **Stare Decisis weighted Reciprocal Rank Fusion (RRF)**, **neural cross-encoder reranking**, and **O(1) SQLite parent context expansion**.
 
-The system achieves **70.0% Hit@1, 80.0% Hit@5, and 0.750 MRR** under strict resource guardrails (**max 20 GB RAM, max 30 GB storage**), operating seamlessly on enterprise nodes (**NVIDIA DGX B200 with 45 GB VRAM**) as well as memory-constrained environments with automatic fallbacks.
+The system is evaluated with a 4-configuration ablation (dense, BM25, hybrid RRF, full funnel) over Supreme Court of India judgments, under strict resource guardrails (**~30 GB RAM, shared 45 GB GPU slice on an NVIDIA DGX B200**) and the Gemini free tier (rate-limited, budgeted and cached LLM calls).
 
 ---
 
@@ -33,7 +33,7 @@ The Indian Legal Precedents RAG Engine operates across 5 decoupled layers integr
 flowchart TD
     %% INGESTION PIPELINE
     subgraph Ingestion ["1. Document Ingestion & Chunking Pipeline (src/document_loader.py)"]
-        PDFs["Raw Legal PDFs<br>(CIVIL, CRIMINAL, PROPERTY, SPACE)"] --> DocLoader["Document Loader & Extractor<br>(pypdf + Fast OCR Fallback)"]
+        PDFs["Raw Legal PDFs<br>(Kaggle SC Judgments)"] --> DocLoader["Document Loader & Extractor<br>(pypdf + Fast OCR Fallback)"]
         DocLoader --> MetaExtract["Metadata Heuristic Parser<br>(Court, Year, Title, Domain)"]
         MetaExtract --> Chunker3Tier["3-Tier Recursive Chunker<br>• Level 1: Document Boundary<br>• Level 2: Macro Sections (Facts, Analysis, Order)<br>• Level 3: Parent Paragraphs (~1,500 chars)"]
         Chunker3Tier --> RhetoricalFlush{"Rhetorical Anchor Check?<br>Learned Counsel argued vs We hold that"}
@@ -139,7 +139,7 @@ Every architectural component in this engine was selected to solve a documented 
 | **Parent Store Persistence** | **Embedded SQLite (WAL Mode)** | PostgreSQL + pgvector / Redis | **Zero-daemon, in-process O(1) lookups.** Our server audit revealed a restricted Docker container without passwordless sudo. Running PostgreSQL requires dedicated daemon management, open ports (triggering firewall/ban risks), and network socket latency. SQLite with WAL mode delivers microsecond in-memory pointer retrieval with zero setup and zero cost. |
 | **Local Neural Embeddings** | **`zeroentropy/zembed-1` (BF16)** | Pure OpenAI / Gemini API Embeddings | **High-capacity domain reasoning with zero API rate limits.** 4B parameter model running natively on the NVIDIA DGX B200 (45 GB VRAM). Embeds 400 judgments in micro-batches without API cost, rate limiting, or network timeouts. Includes automated fallback to `BAAI/bge-small-en-v1.5` for developer environments (< 7 GB VRAM). |
 | **Legal Document Chunking** | **3-Tier Recursive Chunking + Rhetorical Flush** | Fixed-size sliding windows (512 tokens) | **Eliminates argument vs. ratio bleeding.** Fixed windows split paragraphs arbitrarily. Counsel arguments and the judge's binding ratio share 95% vocabulary. Our hard rhetorical anchor scanner detects transition markers (*"Learned Counsel argued"* vs. *"We hold that"*) and forces an immediate chunk flush, preventing partisan arguments from being retrieved as binding law. |
-| **Precedent Ranking** | **Multi-Tier Weighted RRF** | Score-level linear combination (`α * Dense + (1-α) * BM25`) | **Distribution-independent rank fusion + Article 141 hierarchy.** Cosine similarity and BM25 scores have incompatible score distributions. RRF operates purely on ordinal ranks. Multiplying by Stare Decisis (1.10x to 1.56x) and Binding Role (1.15x vs. 0.85x) ensures Apex Constitution Bench holdings mathematically dominate single-judge orders or lawyer arguments. |
+| **Precedent Ranking** | **Multi-Tier Weighted RRF** | Score-level linear combination (`α * Dense + (1-α) * BM25`) | **Distribution-independent rank fusion + Article 141 hierarchy.** Cosine similarity and BM25 scores have incompatible score distributions. RRF operates purely on ordinal ranks. Stare Decisis (court tier, bench strength) and binding role enter as a **bounded log-scale prior** (`1 + clamp(0.1·ln(w), ±5%)`): it breaks ties in favour of binding, higher-authority holdings without letting a weakly relevant Constitution Bench chunk outrank the relevant one. Set `AUTHORITY_STRENGTH=0` for a pure-relevance ablation. |
 | **Statutory Bridge** | **2024 Bidirectional Concordance** | Raw query pass-through | **Overcomes the 2024 transition gap.** Indian criminal law transitioned on July 1, 2024 (CrPC -> BNSS, IPC -> BNS, IEA -> BSA). A query citing "Section 528 BNSS" returns zero results on 70 years of precedent unless expanded to "Section 482 CrPC". |
 | **Judicial Profiling** | **Dual-Route Intent Profiler + SQLite Registry** | Naive top-K vector search | **Solves the catalog search failure mode.** Standard vector RAG fails on *"list all cases by Justice XYZ"*, returning only 5 arbitrary snippets. Our router intercepts catalog queries, queries SQLite for distinct cases, calculates empirical allowance/disposition rates, and renders a complete case registry table. |
 
@@ -148,200 +148,92 @@ Every architectural component in this engine was selected to solve a documented 
 ## 4. Project Status: Completed vs. In-Progress
 
 ### What Is Completed & Verified:
-- [x] **Resource Guardrail Watchdog** (`src/resource_guard.py`): Hard 20 GB RAM and 30 GB storage monitoring with adaptive memory purge.
-- [x] **Embedded SQLite Parent Store** (`src/sqlite_store.py`): O(1) WAL database; 5,900+ parent records migrated and verified.
-- [x] **2024 Statutory Concordance Layer** (`src/concordance.py`): Automatic query expansion across IPC/CrPC $\leftrightarrow$ BNS/BNSS.
-- [x] **Local Embedding Engine** (`src/local_embeddings.py`): `zeroentropy/zembed-1` BF16 inference on Blackwell/CUDA with BGE fallback.
-- [x] **3-Tier Recursive Chunker & Rhetorical Anchors** (`src/document_loader.py`): Flush-on-transition and context prepending.
-- [x] **Judicial Behavioral Profiling & Case Registry** (`src/rag_pipeline.py`, `src/sqlite_store.py`): Extracts coram, author judge, bench strength, and disposition; models real-time allowance rates.
-- [x] **Multi-Tier Authority & Stare Decisis Weighted RRF** (`src/rag_pipeline.py`): Stare Decisis + Binding Role + Judge Affinity scoring.
-- [x] **Metadata Slicing & Dicing** (`src/vector_store.py`): Pre-retrieval candidate space partitioning for both Dense and BM25.
-- [x] **Streaming Resumable Ingestion Engine** (`index_corpus.py`): Micro-batching, progress bars (`tqdm`), and checkpoint resumption.
-- [x] **Kaggle Automated Downloader** (`scripts/download_kaggle_corpus.py`): Automated pipeline pulling 400+ legal PDFs.
-- [x] **Automated Evaluation Harness** (`evaluate_pipeline.py`): 4-configuration ablation suite and `--champion-only` benchmark mode.
-- [x] **Curated Golden Benchmark** (`data/benchmarks/golden_queries.json`): 10 vetted queries targeting indexed Indian legal precedents.
-- [x] **Master Case Catalog** (`data/indexed_cases_metadata.json`, `data/benchmarks/case_catalog.json`): Comprehensive metadata catalog.
-- [x] **Automated Unit Test Suite** (`tests/`): All 22 tests passing with 100% success (`Ran 22 tests in 26.900s: OK`).
+- [x] **Resource Guardrail Watchdog** (`src/resource_guard.py`): RAM / VRAM / storage monitoring with adaptive memory purge.
+- [x] **Embedded SQLite Parent Store** (`src/sqlite_store.py`): O(1) WAL database for parent sections.
+- [x] **2024 Statutory Concordance Layer** (`src/concordance.py`): Query expansion across IPC/CrPC/IEA $\leftrightarrow$ BNS/BNSS/BSA.
+- [x] **Local Embedding Engine** (`src/local_embeddings.py`): `zeroentropy/zembed-1` BF16 with asymmetric query/document prompts.
+- [x] **3-Tier Chunker & Rhetorical Anchors** (`src/document_loader.py`): Flush-on-transition, role tagging, deterministic chunk IDs.
+- [x] **Bounded Stare Decisis Prior** (`src/rag_pipeline.py`): Court tier, bench strength and binding role as a ±5% tie-breaker on RRF and cross-encoder scores.
+- [x] **Streaming Resumable Ingestion** (`index_corpus.py`): Micro-batching, checkpoints, idempotent re-runs, single BM25 build.
+- [x] **Gemini Free-Tier Guard** (`src/llm_budget.py`): RPM limiter, daily request budget, on-disk response cache.
+- [x] **Synthetic Known-Item Benchmark** (`scripts/generate_synthetic_queries.py`): Leakage-controlled questions with exact target documents.
+- [x] **Evaluation Harness** (`evaluate_pipeline.py`): 4-configuration ablation, exact document matching, warm-up excluded from latency.
+- [x] **Web Demo** (`server.py`, `web/`): FastAPI backend with an HTML/CSS/JS research interface.
 
 ### In-Progress & Upcoming Phases:
-- [ ] **Large-Scale Corpus Ingestion**: Ingesting the full ~400 judgment Kaggle corpus on the NVIDIA B200 server.
-- [ ] **Multi-Store Combinatorial Grid Run**: Executing the M x C benchmark matrix across all 10 isolated stores.
-- [ ] **Offline Batch GPU OCR**: Batch converting the 25 queued scanned property PDFs (`P1`–`P25`) via Docling/Surya.
+- [ ] **Multi-Store Combinatorial Grid Run**: Embedding model x chunking strategy matrix (Section 9).
+- [ ] **Human validation** of synthetic benchmark queries and a larger multi-year corpus.
 
 ---
 
-## 5. Empirical Ablation Benchmark Results
+## 5. Evaluation Methodology
 
-We benchmarked 4 retrieval configurations across the **10 Golden Legal Benchmark Queries** on the active corpus:
+- **Corpus**: Supreme Court of India judgments (2025) from the Kaggle dataset `adarshsingh0903/legal-dataset-sc-judgments-india-19502024`.
+- **Benchmark**: synthetic known-item queries (InPars / Promptagator style). For each sampled judgment, the passage most resembling the court's holding is selected and Gemini writes a lawyer-style question it answers. Questions naming parties, judges, citations or dates are rejected. Each query stores the exact `target_doc_stem`.
+- **Retrieval metrics**: Hit@1, Hit@3, Hit@5 and MRR@5, matched on exact document identity; latency mean / p50 / p95 after a model warm-up.
+- **Generation metrics (optional)**: LLM-as-a-judge (groundedness, ratio decidendi isolation, statutory concordance, reasoning) on a budgeted subset; reported as N/A when not run, never imputed.
+- **Ablation**: (1) dense only, (2) BM25 only, (3) hybrid RRF, (4) full funnel = hybrid + concordance + cross-encoder + bounded authority prior + parent expansion.
 
-### 5.1 Comparative Ablation Matrix
-| Metric | Config 1: Naive Dense | Config 2: BM25 Lexical | Config 3: Hybrid RRF | Config 4: Full Legal Funnel |
-|---|:---:|:---:|:---:|:---:|
-| **Hit@1** | 20.00% (0.2000) | 60.00% (0.6000) | 20.00% (0.2000) | **70.00% (0.7000)** |
-| **Hit@3** | 20.00% (0.2000) | 70.00% (0.7000) | 60.00% (0.6000) | **80.00% (0.8000)** |
-| **Hit@5** | 20.00% (0.2000) | 80.00% (0.8000) | 70.00% (0.7000) | **80.00% (0.8000)** |
-| **MRR (Mean Reciprocal Rank)** | 0.2000 | 0.6750 | 0.4250 | **0.7500** |
-| **Median Latency (p50)** | 603.45 ms | **33.56 ms** | 47.57 ms | 448.44 ms |
-| **Mean Latency** | 694.40 ms | 33.40 ms | 48.50 ms | 3,583.29 ms* |
-| **Overall Judicial Grade** | 7.50 `[PASS]` | 7.50 `[PASS]` | 7.50 `[PASS]` | **7.50 `[PASS]`** |
-
-*\*Note: Mean latency for Config 4 includes the one-time cold initialization of `bge-reranker-v2-m3` on Query 1. Warm inference settled at **~448 ms** on GPU.*
-
-### 5.2 Per-Query Retrieval Breakdown (Full Legal Funnel)
-| Query ID | Legal Domain | Target Precedent Case | Hit@1 | Hit@5 | Top-1 Retrieved Authority | Rank |
-|:---:|---|---|:---:|:---:|---|:---:|
-| **GQ-001** | Stay Orders & Asian Resurfacing | Chandrapal Singh | **[HIT]** | **[HIT]** | *Chandrapal Singh* (AHC Full Bench) | **Rank 1** |
-| **GQ-002** | Inherent Powers (§ 482 CrPC) | Chandrapal Singh | **[HIT]** | **[HIT]** | *Chandrapal Singh* (AHC Full Bench) | **Rank 1** |
-| **GQ-003** | Vulnerable Witnesses (§ 33/36 POCSO) | Minor Child K | **[HIT]** | **[HIT]** | *Minor Child K* (2025:DHC:1142) | **Rank 1** |
-| **GQ-004** | Coercive Process on Child Victims | Minor Child K | **[HIT]** | **[HIT]** | *Minor Child K* (2025:DHC:1142) | **Rank 1** |
-| **GQ-005** | Delayed Reserved Judgments (Art 21) | Pila Pahan | **[HIT]** | **[HIT]** | *Pila Pahan* (2026 INSC 604) | **Rank 1** |
-| **GQ-006** | Order XX Rule 1 CPC Mandates | Pila Pahan | [MISS] | [MISS] | *Chandrapal Singh* | Not in Top-5 |
-| **GQ-007** | Composite Appeals (Order 41 CPC) | Basudev | **[HIT]** | **[HIT]** | *Basudev* (2026 INSC 831) | **Rank 1** |
-| **GQ-008** | Presidential Satisfaction (Art 311) | Dr. V.R. Sanal Kumar | **[HIT]** | **[HIT]** | *Dr. V.R. Sanal Kumar* (2023 INSC 524) | **Rank 1** |
-| **GQ-009** | Discretionary Witness Recall (§ 311) | Ram Swaroop Gupta | [MISS] | **[HIT]** | *Chandrapal Singh* | **Rank 2** |
-| **GQ-010** | Cryptographic Hashes (§ 65B Evidence) | Cyber Forensics | [MISS] | [MISS] | *Chandrapal Singh* | Not in Top-5 |
+Results are written to `data/benchmarks/benchmark_results_<timestamp>.json` and shown in the web demo's **Evaluation** tab.
 
 ---
 
-## 6. Active Corpus Catalog (Indexed Precedents)
+## 6. Corpus
 
-| # | Case Title & Neutral Citation | Court & Year | Chunks | Parents | PDF Size | Domain & Statutory Core |
-|---|---|---|:---:|:---:|:---:|---|
-| **1** | **Chandrapal Singh vs. State of U.P.**<br>`2023:AHC:212021-FB` | Allahabad High Court (Full Bench), 2023 | **883** | **124** | 970 KB | **Interim Stay Orders & Asian Resurfacing Doctrine**<br>Art. 226, 141, 142; CrPC § 482; CPC Order 39 |
-| **2** | **Minor Child K vs. State (NCT of Delhi)**<br>`2025:DHC:1142` | High Court of Delhi, 2025 | **768** | **182** | 165 KB | **POCSO Child-Friendly Deposition Protocols**<br>POCSO Act §§ 6, 33, 35, 36; IPC § 376; CrPC § 161, 439 |
-| **3** | **Pila Pahan vs. State of Jharkhand**<br>`2026 INSC 604` | Supreme Court of India, 2026 | **694** | **183** | 168 KB | **Speedy Justice & Delay in Reserved Judgments**<br>Art. 21, 14; CPC Order XX Rule 1 |
-| **4** | **Basudev vs. Sanjay Kumar**<br>`2026 INSC 831` | Supreme Court of India, 2026 | **180** | **46** | 67 KB | **Composite Decrees & Counter-Claims Appeals**<br>CPC §§ 96, 100, 11; Order VIII Rule 6A; Order XLI Rule 1 |
-| **5** | **Dr. V.R. Sanal Kumar vs. Union of India**<br>`2023 INSC 524` | Supreme Court of India, 2023 | **178** | **19** | 120 KB | **State Security & Presidential Satisfaction**<br>Art. 311(2)(c), 310; ISRO Service Rules |
-| **6** | **Ram Swaroop Gupta vs. State (NCT of Delhi)**<br>`2026:DHC:987` | High Court of Delhi, 2026 | **80** | **20** | 12 KB | **Recall of Material Witnesses & Fair Trial**<br>CrPC § 311; BNSS § 348; Evidence Act § 138 |
-| **7** | **In Re: Cyber Crime Portal & Electronic Evidence**<br>`2024:CIC:634921` | Central Information Commission, 2024 | **17** | **5** | 16 KB | **Cyber Forensics, Electronic Records & Transparency**<br>IT Act § 65B; Evidence Act § 65B; BSA § 63; RTI § 8(1)(a) |
+Judgment PDFs are **not stored in this repository**. They are downloaded on the server by `scripts/download_kaggle_corpus.py` (default: the 2025 folder, ~400 judgments) into `data/raw_judgments/`. Case titles are taken from the Indian Kanoon file names (`<Party A>_vs_<Party B>_on_<date>.pdf`).
 
 ---
 
-## 7. Repository Layout & Artifacts
+## 7. Repository Layout
 
 ```
 Project/
-├── .env.example                               # Production environment configuration template
-├── .gitignore                                 # Ignores virtualenv, parent_store.db, checkpoints, logs
-├── requirements.txt                           # PyTorch, Chroma, Transformers, Kaggle, Psutil
-├── index_corpus.py                            # Resumable, stream-based indexing engine with guardrails
-├── test_query.py                              # Interactive query & judicial profiling runner on GPU
-├── evaluate_pipeline.py                       # Automated 4-config ablation & champion-only benchmarking suite
-│
-├── src/                                       # Core Engine Modules
-│   ├── __init__.py
-│   ├── config.py                              # Centralized Pydantic configuration & settings
-│   ├── resource_guard.py                      # Hardware, RAM (<20GB), Storage (<30GB) watchdog
-│   ├── sqlite_store.py                        # Embedded SQLite parent document store (WAL mode)
-│   ├── concordance.py                         # 2024 Statutory Concordance (IPC/CrPC <-> BNS/BNSS)
-│   ├── local_embeddings.py                    # Neural embedding engine (zembed-1 BF16 / BGE fallback)
-│   ├── document_loader.py                     # 3-Tier chunker, rhetorical flush, context prepending
-│   ├── vector_store.py                        # ChromaDB manager, local/Gemini embeddings, BM25 registry
-│   └── rag_pipeline.py                        # 5-Stage hybrid funnel, Stare Decisis RRF, GPU reranker
-│
-├── scripts/                                   # Operational & Analysis Scripts
-│   ├── download_kaggle_corpus.py              # Automated Kaggle PDF downloader with integrity check
-│   ├── generate_case_catalog.py               # Generates active precedent inventory
-│   ├── export_indexed_cases_metadata.py       # Exports master metadata JSON specification
-│   ├── inspect_corpus_cases.py                # Inspects parent records and collection entries
-│   └── verify_queries.py                      # Verifies case matching for golden queries
-│
-├── data/                                      # Datasets & Benchmarks
-│   ├── parent_store.db                        # Embedded SQLite parent store (gitignored)
-│   ├── indexed_cases_metadata.json            # Master JSON metadata for all indexed cases
-│   ├── benchmarks/
-│   │   ├── golden_queries.json                # Active 10 golden legal benchmark queries
-│   │   ├── case_catalog.json                  # Complete case catalog with holdings and statutes
-│   │   └── benchmark_results_*.json           # Raw telemetry outputs from evaluation runs
-│   └── processed/
-│       ├── indexing_checkpoint.json           # Resumption state for index_corpus.py (gitignored)
-│       ├── scanned_for_gpu_ocr.json           # Queue of scanned PDFs waiting for GPU OCR
-│       └── failed_files.json                  # Fault tolerance failure log
-│
-└── tests/                                     # Automated Unit Test Suite (22/22 Passing)
-    ├── test_loader.py                         # PDF extraction and chunking validation
-    ├── test_vector_store.py                   # Embedding generation and BM25 tests
-    ├── test_retrieval.py                      # Retrieval funnel, parent expansion, and roles
-    └── test_evaluation.py                     # Benchmark schema and metric computation
+├── index_corpus.py                 # Resumable, guardrailed stream indexing
+├── evaluate_pipeline.py            # 4-config ablation benchmark
+├── server.py                       # FastAPI backend for the web demo
+├── web/                            # index.html, style.css, app.js (no build step)
+├── src/
+│   ├── config.py                   # Settings (.env)
+│   ├── document_loader.py          # PDF extraction, legal metadata, 3-tier chunking
+│   ├── local_embeddings.py         # zembed-1 / BGE embeddings (query vs document prompts)
+│   ├── vector_store.py             # ChromaDB + BM25 registry
+│   ├── rag_pipeline.py             # 5-stage funnel, bounded authority prior, synthesis
+│   ├── concordance.py              # IPC/CrPC/IEA <-> BNS/BNSS/BSA
+│   ├── llm_budget.py               # Gemini free-tier guard
+│   ├── sqlite_store.py             # Parent section store
+│   └── resource_guard.py           # RAM / VRAM / storage guardrails
+├── scripts/
+│   ├── setup_server.sh             # venv on top of the server's preinstalled libraries
+│   ├── download_kaggle_corpus.py   # Kaggle download, extracts selected year folders only
+│   ├── generate_synthetic_queries.py
+│   └── inspect_corpus_cases.py
+├── data/                           # raw_judgments/, processed/, benchmarks/ (corpus is gitignored)
+└── tests/
 ```
 
 ---
 
-## 8. Installation & Server Run Guide (NVIDIA B200 / Linux)
+## 8. Server Run Guide (NVIDIA DGX B200 / Linux)
 
-### 8.1 Clone & Setup Environment
 ```bash
-git clone https://github.com/Aditya-Kayasth/Major-Project.git
-cd Major-Project
+# 1. Code + environment (reuses the server's PyTorch/Transformers; installs only what is missing, into ./venv)
+git clone https://github.com/Aditya-Kayasth/Major-Project.git && cd Major-Project
+bash scripts/setup_server.sh && source venv/bin/activate
+nano .env                                   # set GEMINI_API_KEY; adjust GEMINI_RPM / GEMINI_DAILY_BUDGET
 
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\Activate.ps1
+# 2. Corpus (Kaggle API token in ~/.kaggle/kaggle.json)
+python scripts/download_kaggle_corpus.py --years 2025
 
-# Install dependencies
-pip install -r requirements.txt
-```
+# 3. Index (zembed-1 on GPU; no API calls)
+python index_corpus.py --data-dir data/raw_judgments --reset
 
-### 8.2 Configure Environment (`.env`)
-```bash
-cp .env.example .env
-```
-Key production variables in `.env`:
-```ini
-# Resource Guardrails
-MAX_RAM_GB=20.0
-WARN_RAM_GB=16.0
-MAX_STORAGE_GB=30.0
-VRAM_SAFETY_FRACTION=0.85
-NUM_THREADS=8
+# 4. Benchmark: generate questions (~40 Gemini calls), then retrieval metrics (0 calls)
+python scripts/generate_synthetic_queries.py --num-docs 40
+python evaluate_pipeline.py --skip-llm-judge
+python evaluate_pipeline.py --judge-limit 15          # optional: LLM-judged answers (~30 calls)
 
-# Pure Local Embeddings (Zero API keys needed, runs on B200 in BF16)
-EMBEDDING_PROVIDER=local
-LOCAL_EMBEDDING_MODEL=zeroentropy/zembed-1
-RERANKER_MODEL=BAAI/bge-reranker-v2-m3
-
-# Storage (persisted on 14TB NFS share)
-SQLITE_DB_PATH=data/parent_store.db
-CHECKPOINT_PATH=data/processed/indexing_checkpoint.json
-CHROMA_DB_DIR=chromadb_store
-COLLECTION_NAME=indian_legal_precedents
-```
-
-### 8.3 Download Kaggle Legal Corpus (~400 PDFs)
-Place your `kaggle.json` at `~/.kaggle/kaggle.json` (`chmod 600 ~/.kaggle/kaggle.json`) or set `KAGGLE_USERNAME` and `KAGGLE_KEY` in `.env`, then run:
-```bash
-python scripts/download_kaggle_corpus.py --dataset "<username/dataset-slug>"
-```
-
-### 8.4 Run the Guardrailed Stream Ingestion
-```bash
-python index_corpus.py --data-dir "data/raw_judgments" --doc-batch-size 8 --embedding-batch-size 32
-```
-- **Memory-Safe**: Streams in micro-batches of 8 documents, capping RAM under **20 GB**.
-- **Resilient**: If stopped (`Ctrl+C`), re-running resumes from the exact last unindexed PDF.
-- **SQLite Persistence**: Automatically inserts parent contexts into `data/parent_store.db`.
-
-### 8.5 Run Interactive Queries & Judicial Profiling
-Run substantive legal queries or query judicial profiles directly from the CLI:
-```bash
-# 1. Standard substantive legal query (default POCSO vulnerable witness test)
-python test_query.py
-
-# 2. Custom substantive query via CLI argument
-python test_query.py "What is the procedure for recording child victim testimony under POCSO?"
-
-# 3. Judicial catalog & behavioral profiling query (automatic intent routing to Case Registry)
-python test_query.py "tell me about the cases of justice Girish, how to list all"
-```
-
-### 8.6 Execute the Benchmark Suite (Ablation or Champion-Only)
-Run either the fast champion-only validation or the full 4-configuration comparative ablation:
-```bash
-# Option A: Fast Champion-Only Evaluation (Config 4: Full Legal Funnel with Reranker & Stare Decisis)
-python evaluate_pipeline.py --champion-only --skip-llm-judge
-
-# Option B: Complete 4-Configuration Comparative Ablation Matrix (Dense vs BM25 vs Hybrid vs Funnel)
-python evaluate_pipeline.py --collection indian_legal_precedents --skip-llm-judge
+# 5. Web demo
+python server.py --port 8000                          # then open http://localhost:8000 (SSH tunnel)
 ```
 
 ---

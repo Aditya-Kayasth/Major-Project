@@ -19,6 +19,7 @@ from google.genai.errors import APIError
 
 from src.config import Settings, get_settings
 from src.concordance import StatutoryConcordance
+from src.llm_budget import get_budget
 from src.resource_guard import ResourceGuard
 from src.sqlite_store import SQLiteParentStore
 from src.vector_store import VectorStoreManager
@@ -129,6 +130,25 @@ class IndianLegalRAGPipeline:
 
         return self._reranker
 
+    def _authority_factor(self, authority_mult: float) -> float:
+        """Convert a raw authority multiplier (~0.8x to ~2.25x) into a bounded tie-breaking factor.
+
+        factor = 1 + clamp(strength * ln(mult), -max_bonus, +max_bonus)
+
+        Raw multipliers of that size swamp both RRF scores (rank 1 vs rank 30 differ by
+        only ~1.5x) and cross-encoder relevance, letting a weakly relevant Constitution
+        Bench chunk outrank the actually relevant one. The bounded form keeps the legal
+        hierarchy as a prior that only decides between near-equally relevant candidates.
+        """
+        import math
+
+        strength = self.settings.authority_strength
+        if strength <= 0 or authority_mult <= 0:
+            return 1.0
+        max_bonus = self.settings.authority_max_bonus
+        bonus = max(-max_bonus, min(max_bonus, strength * math.log(authority_mult)))
+        return 1.0 + bonus
+
     def retrieve_parent_context(self, parent_id: str) -> Optional[Dict[str, Any]]:
         """Fetch original parent chunk context from SQLite key-value store, falling back to JSON."""
         # 1. First attempt: Fast O(1) SQLite query
@@ -227,7 +247,7 @@ class IndianLegalRAGPipeline:
             candidate["court_tier_weight"] = stare_weight
             candidate["role_weight"] = role_weight
             candidate["judge_affinity"] = judge_affinity
-            candidate["rrf_score"] = float(score) * final_authority_weight
+            candidate["rrf_score"] = float(score) * self._authority_factor(final_authority_weight)
             fused_candidates.append(candidate)
 
         fused_candidates.sort(key=lambda x: x["rrf_score"], reverse=True)
@@ -333,8 +353,8 @@ class IndianLegalRAGPipeline:
                 judge_affinity = float(c.get("judge_affinity", 1.0))
                 final_authority_mult = stare_weight * role_weight * judge_affinity
 
-                # Composite score: Cross-Encoder semantic match weighted by legal authority
-                composite_score = round(norm_score * final_authority_mult, 5)
+                # Composite score: Cross-Encoder semantic match with bounded legal-authority prior
+                composite_score = round(norm_score * self._authority_factor(final_authority_mult), 5)
 
                 c_copy["raw_cross_encoder_score"] = raw_s
                 c_copy["rerank_score"] = composite_score
@@ -390,6 +410,15 @@ class IndianLegalRAGPipeline:
             "child_citations": child_citations,
             "reranked_candidates": reranked_candidates,
             "timings": timings,
+            "expanded_query": search_query,
+            "funnel_counts": {
+                "dense": len(dense_candidates),
+                "bm25": len(bm25_candidates),
+                "fused": len(fused_candidates),
+                "reranked": len(top_fused),
+                "returned": len(reranked_candidates),
+                "parents": len(retrieved_parents),
+            },
         }
 
     def generate_answer(
@@ -485,50 +514,18 @@ Analyze the legal query based exclusively on the provided judicial context. Prov
         if not self.gemini_client:
             answer = "GEMINI_API_KEY is not configured in environment. Retrieval completed successfully."
         else:
-            model_candidates = [
-                self.settings.gemini_model,
-                "gemini-3.8-flash",
-                "gemini-3.5-flash",
-                "gemini-flash-latest",
-            ]
-            models_to_try = list(dict.fromkeys([m for m in model_candidates if m]))
-            answer = ""
-            last_err = None
-
-            for model_name in models_to_try:
-                for attempt in range(3):
-                    try:
-                        response = self.gemini_client.models.generate_content(
-                            model=model_name,
-                            contents=prompt,
-                            config=types.GenerateContentConfig(
-                                system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION,
-                                temperature=0.1,
-                            ),
-                        )
-                        if response and response.text:
-                            answer = response.text
-                            break
-                    except APIError as api_err:
-                        last_err = api_err
-                        if "503" in str(api_err) or "429" in str(api_err):
-                            backoff = 2 ** (attempt + 1)
-                            time.sleep(backoff)
-                            continue
-                        elif "404" in str(api_err):
-                            break
-                        raise
-                    except Exception as err:
-                        last_err = err
-                        break
-                if answer:
-                    break
-
-            if not answer:
-                answer = (
-                    f"Synthesis failed due to upstream API connectivity: {last_err}. "
-                    "Precedent contexts were successfully retrieved."
-                )
+            answer = get_budget(self.settings).generate(
+                client=self.gemini_client,
+                models=[self.settings.gemini_model, "gemini-flash-latest"],
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION,
+                    temperature=0.1,
+                ),
+            ) or (
+                "Answer synthesis unavailable (Gemini free-tier rate limit or daily budget reached). "
+                "The ranked precedents below were retrieved successfully."
+            )
 
         timings["llm_generation_sec"] = round(time.perf_counter() - llm_start_t, 4)
         timings["total_latency_sec"] = round(time.perf_counter() - total_start_t, 4)
@@ -537,6 +534,7 @@ Analyze the legal query based exclusively on the provided judicial context. Prov
             "answer": answer,
             "retrieved_parents": retrieved_parents,
             "child_citations": child_citations,
+            "reranked_candidates": funnel_output["reranked_candidates"],
             "timings": timings,
             "query": query,
         }

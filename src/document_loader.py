@@ -5,6 +5,7 @@ and District Court legal judgments, orders, and case records.
 """
 
 import datetime
+import hashlib
 import json
 import logging
 import os
@@ -299,6 +300,9 @@ class LegalDocumentLoader:
         case_title = stem.replace("_", " ").strip()
         # Clean common Indian Kanoon / archive patterns like "... on 12 May 2023"
         clean_title = re.sub(r"\s+on\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}", "", case_title, flags=re.IGNORECASE)
+        # Indian Kanoon / Kaggle exports name files "<Party_A>_vs_<Party_B>_on_<date>"; that
+        # filename is a far more reliable title than heuristics over the PDF's first page.
+        filename_has_parties = bool(re.search(r"(?:^|_|\s)vs?\.?(?:_|\s)", stem, flags=re.IGNORECASE))
         # Check text for standard versus pattern: [Party A] v. [Party B]
         first_chunk = text[:3000]
         lines = [line.strip() for line in first_chunk.splitlines() if line.strip()]
@@ -312,7 +316,7 @@ class LegalDocumentLoader:
 
         # Look for explicit VERSUS / vs / v on a dedicated line or standard case caption
         extracted_from_lines = ""
-        for i, line in enumerate(lines[:35]):
+        for i, line in enumerate([] if filename_has_parties else lines[:35]):
             line_clean = line.strip()
             if re.fullmatch(r"(?:versus|vs\.?|v\.?)", line_clean, flags=re.IGNORECASE):
                 if i > 0 and i + 1 < len(lines):
@@ -326,7 +330,9 @@ class LegalDocumentLoader:
                             extracted_from_lines = f"{p1_cand} vs. {p2_cand}"
                             break
 
-        if extracted_from_lines:
+        if filename_has_parties:
+            pass
+        elif extracted_from_lines:
             clean_title = extracted_from_lines
         else:
             title_matches = re.finditer(
@@ -567,8 +573,13 @@ class LegalDocumentLoader:
 
         active_heading: Optional[str] = None
 
+        # Deterministic IDs (file name + position) make re-runs idempotent: re-indexing the
+        # same judgment overwrites its chunks instead of duplicating them.
+        doc_key = hashlib.sha1(path.name.lower().encode("utf-8")).hexdigest()[:16]
+
         for p_idx, p_text in enumerate(parent_blocks):
-            parent_id = str(uuid.uuid4())
+            parent_id = f"{doc_key}-p{p_idx:05d}"
+            child_idx = 0
 
             # Detect structural heading if parent starts with #
             heading_match = re.match(r"^(#+\s+[^\n]+)", p_text)
@@ -599,7 +610,8 @@ class LegalDocumentLoader:
 
                 if c_text:
                     role = self._detect_legal_role(c_text, active_heading)
-                    child_id = str(uuid.uuid4())
+                    child_id = f"{parent_id}-c{child_idx:03d}"
+                    child_idx += 1
 
                     # Context Prepending: Inject structural breadcrumbs into vector representation
                     prepended_vector_text = f"[{role} | {case_title}]: {c_text}"
@@ -630,7 +642,9 @@ class LegalDocumentLoader:
         except Exception as sql_err:
             logger.warning(f"Could not persist parents to SQLite: {sql_err}")
 
-        # Also maintain JSON backup in parent_store_dir for backward compatibility
+        # Optional legacy JSON backup (one file per parent; slow on NFS, so off by default)
+        if not self.settings.write_parent_json:
+            return parent_chunks, child_chunks
         parent_store_dir = self.settings.parent_store_dir
         parent_store_dir.mkdir(parents=True, exist_ok=True)
         for pc in parent_chunks:

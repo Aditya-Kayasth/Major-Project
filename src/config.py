@@ -67,6 +67,13 @@ class Settings(BaseModel):
     gemini_model: str = Field(
         default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
     )
+    # Gemini free-tier guard (see src/llm_budget.py). Check your limits in Google AI Studio.
+    gemini_rpm: float = Field(
+        default_factory=lambda: float(os.getenv("GEMINI_RPM", "5"))
+    )
+    gemini_daily_budget: int = Field(
+        default_factory=lambda: int(os.getenv("GEMINI_DAILY_BUDGET", "200"))
+    )
     ollama_base_url: str = Field(
         default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     )
@@ -107,6 +114,18 @@ class Settings(BaseModel):
     )
     parent_store_dir: Path = Field(
         default_factory=lambda: _resolve_path(os.getenv("PARENT_STORE_DIR"), "data/parent_store")
+    )
+    write_parent_json: bool = Field(
+        default_factory=lambda: os.getenv("WRITE_PARENT_JSON", "false").lower() in ("1", "true", "yes")
+    )
+    # Strength of the Stare Decisis / role / judge authority prior. It is applied as a bounded
+    # log-scale bonus (at most +/- AUTHORITY_MAX_BONUS) so it breaks ties between equally
+    # relevant chunks without overriding semantic relevance. 0 disables it (pure relevance).
+    authority_strength: float = Field(
+        default_factory=lambda: float(os.getenv("AUTHORITY_STRENGTH", "0.1"))
+    )
+    authority_max_bonus: float = Field(
+        default_factory=lambda: float(os.getenv("AUTHORITY_MAX_BONUS", "0.05"))
     )
     raw_data_dir: Path = Field(
         default_factory=lambda: _resolve_path(

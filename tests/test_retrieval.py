@@ -46,12 +46,15 @@ class TestLegalRAGComponents(unittest.TestCase):
             self.assertIn("case_title", parent)
             self.assertIn("text", parent)
             self.assertIn("metadata", parent)
-            # Verify JSON persistence in parent store
-            parent_file = loader.settings.parent_store_dir / f"{parent['parent_id']}.json"
-            self.assertTrue(parent_file.exists())
-            with open(parent_file, "r", encoding="utf-8") as f:
-                saved_data = json.load(f)
-                self.assertEqual(saved_data["parent_id"], parent["parent_id"])
+            # Verify persistence in the SQLite parent store
+            saved_data = loader.sqlite_store.get_parent(parent["parent_id"])
+            self.assertIsNotNone(saved_data)
+            self.assertEqual(saved_data["parent_id"], parent["parent_id"])
+
+        # Deterministic IDs: re-chunking the same file must reproduce identical IDs
+        parents_again, children_again = loader.create_parent_child_chunks(sample_judgment, fake_path)
+        self.assertEqual([p["parent_id"] for p in parents], [p["parent_id"] for p in parents_again])
+        self.assertEqual([c["chunk_id"] for c in children], [c["chunk_id"] for c in children_again])
 
         # Assertions on children
         self.assertGreater(len(children), 0)

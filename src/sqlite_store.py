@@ -177,6 +177,12 @@ class SQLiteParentStore:
                 }
         return results
 
+    def clear(self) -> None:
+        """Delete all parent chunks (used by a full re-index)."""
+        with self._get_connection() as conn:
+            conn.execute("DELETE FROM parent_chunks;")
+            conn.commit()
+
     def count_parents(self) -> int:
         """Count total parent records in the SQLite database."""
         with self._get_connection() as conn:

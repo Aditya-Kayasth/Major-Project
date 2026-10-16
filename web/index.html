@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Indian Legal Precedents RAG</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">§</span>
+      <div>
+        <h1>Indian Legal Precedents RAG</h1>
+        <p class="subtitle">Hybrid retrieval funnel over Supreme Court of India judgments</p>
+      </div>
+    </div>
+    <div id="status" class="status-chips"><span class="chip muted">Connecting…</span></div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="research" role="tab">Legal Research</button>
+    <button class="tab" data-tab="pipeline" role="tab">How it works</button>
+    <button class="tab" data-tab="benchmark" role="tab">Evaluation</button>
+  </nav>
+
+  <main>
+    <!-- ============================ RESEARCH ============================ -->
+    <section id="tab-research" class="panel active">
+      <form id="search-form" class="search-card">
+        <label for="query" class="label">Legal question</label>
+        <textarea id="query" rows="3" placeholder="e.g. Can a High Court quash criminal proceedings under Section 482 CrPC after a settlement in a matrimonial dispute?"></textarea>
+        <div class="controls">
+          <label class="ctl">Top-K
+            <select id="topk"><option>3</option><option selected>5</option><option>8</option><option>10</option></select>
+          </label>
+          <label class="ctl"><input type="checkbox" id="one-per-case" checked> One result per case</label>
+          <label class="ctl"><input type="checkbox" id="gen-answer"> Generate grounded answer (uses 1 Gemini request)</label>
+          <button type="submit" id="search-btn" class="primary">Search precedents</button>
+        </div>
+        <div id="examples" class="examples"></div>
+      </form>
+
+      <div id="search-error" class="error hidden"></div>
+
+      <div id="results-area" class="hidden">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Retrieval funnel</h3>
+            <div id="funnel" class="funnel"></div>
+            <p id="expansion" class="note hidden"></p>
+          </div>
+          <div class="card">
+            <h3>Stage latency</h3>
+            <div id="timings" class="bars"></div>
+          </div>
+        </div>
+
+        <div id="answer-card" class="card hidden">
+          <h3>Grounded answer</h3>
+          <div id="answer" class="answer"></div>
+        </div>
+
+        <div class="card">
+          <h3>Ranked precedents</h3>
+          <div id="results"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ PIPELINE ============================ -->
+    <section id="tab-pipeline" class="panel">
+      <div class="card">
+        <h3>Five-stage legal retrieval funnel</h3>
+        <ol class="stages">
+          <li><b>Statutory concordance expansion.</b> Queries citing CrPC / IPC / Evidence Act sections are expanded with their BNSS / BNS / BSA equivalents (and vice versa), bridging the July 2024 criminal-law transition.</li>
+          <li><b>Dual candidate generation.</b> Dense semantic search (local <code id="p-embed">embedding model</code>, cosine, ChromaDB) and BM25 lexical search each return their top 60 child chunks. BM25 catches exact statutory tokens ("Section 138", "Article 21") that embeddings blur.</li>
+          <li><b>Reciprocal Rank Fusion.</b> RRF (k = 60) merges the two rankings using ranks only, so incompatible score scales never need calibration. The top 30 fused candidates move on.</li>
+          <li><b>Cross-encoder reranking.</b> <code id="p-rerank">bge-reranker-v2-m3</code> reads query and passage jointly. A bounded Stare Decisis prior (court tier, bench strength, ratio vs. obiter; at most ±5%) breaks ties between equally relevant passages without overriding relevance.</li>
+          <li><b>Parent expansion &amp; grounded synthesis.</b> Each ~400-character child chunk maps to its ~1,500-character parent section in SQLite; parents are passed to Gemini with a zero-hallucination instruction to cite only retrieved precedent.</li>
+        </ol>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Legal-aware chunking</h3>
+          <p>Parent sections are flushed at rhetorical transitions ("Learned counsel submitted…" vs. "We hold that…") so counsel's arguments and the court's ratio never share a chunk. Each child chunk is tagged with its rhetorical role and case title.</p>
+        </div>
+        <div class="card">
+          <h3>Engineering under constraints</h3>
+          <p>Shared GPU slice with RAM/VRAM/disk guardrails, resumable checkpointed indexing with deterministic chunk IDs, embedded SQLite (no daemons), and a Gemini free-tier guard (rate limit, daily budget, response cache).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ BENCHMARK ============================ -->
+    <section id="tab-benchmark" class="panel">
+      <div id="bench-error" class="error hidden"></div>
+      <div id="bench-area" class="hidden">
+        <p id="bench-meta" class="note"></p>
+        <div class="card">
+          <h3>Ablation: retrieval configurations</h3>
+          <p class="note">Each configuration adds one component. Best value per row is highlighted. Retrieval metrics use exact document identity as ground truth.</p>
+          <div class="table-wrap"><table id="bench-table"></table></div>
+        </div>
+        <div class="card">
+          <h3>Per-query results (Full Legal Funnel)</h3>
+          <div class="table-wrap"><table id="perquery-table"></table></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">Retrieval runs locally on the GPU server; only answer synthesis and judging call Gemini.</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

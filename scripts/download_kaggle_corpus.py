@@ -22,8 +22,15 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str,
-        default="deepcontractor/supreme-court-judgment-dataset",
+        default="adarshsingh0903/legal-dataset-sc-judgments-india-19502024",
         help="Kaggle dataset identifier in format 'username/dataset-name'",
+    )
+    parser.add_argument(
+        "--years",
+        type=str,
+        nargs="+",
+        default=["2025"],
+        help="Only extract PDFs whose path inside the archive contains one of these year folders",
     )
     parser.add_argument(
         "--dest-dir",
@@ -75,26 +82,31 @@ def main():
     api.authenticate()
     print("[OK] Authenticated successfully with Kaggle API.")
 
-    # 3. Download Dataset
-    zip_dest = dest_dir / "dataset.zip"
-    print(f"\n[Downloading] Fetching '{args.dataset}' from Kaggle...")
+    # 3. Download Dataset archive (kept outside dest_dir so it is not counted or indexed)
+    zip_dir = Path.home() / "kaggle_tmp"
+    zip_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\n[Downloading] Fetching '{args.dataset}' from Kaggle into {zip_dir} ...")
 
     try:
-        api.dataset_download_files(args.dataset, path=str(dest_dir), unzip=True, quiet=False)
-        print("[OK] Download and extraction completed successfully!")
+        api.dataset_download_files(args.dataset, path=str(zip_dir), unzip=False, quiet=False)
     except Exception as err:
         print(f"[ERROR] Failed to download dataset: {err}")
         sys.exit(1)
 
-    # Clean up residual zip if any
-    for zf in dest_dir.glob("*.zip"):
-        try:
-            zf.unlink()
-        except Exception:
-            pass
+    # 4. Extract only the requested year folders
+    year_markers = [f"/{y}/" for y in args.years]
+    extracted = 0
+    for zip_path in zip_dir.glob("*.zip"):
+        with zipfile.ZipFile(zip_path) as zf:
+            for member in zf.namelist():
+                normalized = "/" + member.replace("\\", "/")
+                if member.lower().endswith(".pdf") and any(m in normalized for m in year_markers):
+                    zf.extract(member, path=str(dest_dir))
+                    extracted += 1
+    print(f"[OK] Extracted {extracted} PDFs for years {args.years} into {dest_dir}")
 
-    # 4. Inventory Extracted Files
-    pdf_files = list(dest_dir.rglob("*.pdf"))
+    # 5. Inventory Extracted Files
+    pdf_files = [p for p in dest_dir.rglob("*") if p.suffix.lower() == ".pdf"]
     total_bytes = sum(f.stat().st_size for f in dest_dir.rglob("*") if f.is_file())
     total_mb = total_bytes / (1024 * 1024)
 

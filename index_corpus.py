@@ -22,7 +22,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from tqdm import tqdm
 
@@ -127,8 +127,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--data-dir",
         type=str,
+        nargs="+",
         default=None,
-        help="Path to directory containing legal judgment PDFs (defaults to Major Project Data or data/raw_judgments)",
+        help="One or more directories (scanned recursively) or individual PDF files (defaults to data/raw_judgments)",
     )
     parser.add_argument(
         "--collection",
@@ -151,7 +152,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--reset",
         action="store_true",
-        help="Wipe existing checkpoint and re-index corpus from scratch",
+        help="Wipe the checkpoint, the ChromaDB collection, its BM25 index and the SQLite parent store, then re-index from scratch",
     )
     return parser.parse_args()
 
@@ -199,25 +200,26 @@ def main():
         checkpoint_mgr.data = {"indexed_files": [], "failed_files": [], "total_chunks_indexed": 0, "total_parents_indexed": 0}
         checkpoint_mgr.save()
 
-    # 3. Locate Data Directory
-    possible_dirs = [
-        args.data_dir,
-        str(settings.raw_data_dir),
-        r"E:\GIT_HUB\MAJOR PROJECT\Major Project Data",
-        str(settings.PROJECT_ROOT if hasattr(settings, 'PROJECT_ROOT') else Path.cwd() / "Major Project Data"),
-    ]
-    data_dir = None
-    for d in possible_dirs:
-        if d and Path(d).exists():
-            data_dir = Path(d).resolve()
-            break
-
-    if not data_dir:
-        logger.error("Could not find judgment data directory. Specify with --data-dir.")
+    # 3. Locate Data Directories
+    requested_dirs = args.data_dir or [str(settings.raw_data_dir)]
+    data_dirs = [Path(d).resolve() for d in requested_dirs if Path(d).exists()]
+    missing_dirs = [d for d in requested_dirs if not Path(d).exists()]
+    if missing_dirs:
+        logger.error(f"Data directories not found: {missing_dirs}")
         sys.exit(1)
 
-    logger.info(f"Scanning for PDF judgments in: {data_dir}")
-    all_pdf_files = sorted(list(data_dir.rglob("*.pdf")))
+    # Case-insensitive suffix match: Linux globbing treats '*.pdf' and '*.PDF' as different
+    seen_files: Set[Path] = set()
+    for data_dir in data_dirs:
+        if data_dir.is_file():
+            if data_dir.suffix.lower() == ".pdf":
+                seen_files.add(data_dir)
+            continue
+        logger.info(f"Scanning for PDF judgments in: {data_dir}")
+        seen_files.update(
+            p for p in data_dir.rglob("*") if p.is_file() and p.suffix.lower() == ".pdf"
+        )
+    all_pdf_files = sorted(seen_files)
     total_found = len(all_pdf_files)
     logger.info(f"Discovered {total_found} PDF judgments across directory tree.")
 
@@ -238,6 +240,10 @@ def main():
     # 4. Initialize Core Pipeline Components
     loader = LegalDocumentLoader(settings=settings, enable_ocr=False)
     vstore = VectorStoreManager(settings=settings, collection_name=target_collection)
+    if args.reset:
+        logger.warning(f"[RESET] Dropping collection '{target_collection}', its BM25 index and all SQLite parents.")
+        vstore.get_or_create_collection(target_collection, overwrite=True)
+        loader.sqlite_store.clear()
 
     # 5. Streaming Execution Loop (Micro-Batches of Files)
     overall_pbar = tqdm(
@@ -301,6 +307,7 @@ def main():
                     chunks=batch_children,
                     collection_name=target_collection,
                     batch_size=embed_batch_size,
+                    rebuild_bm25=False,  # rebuilt once over the full collection in the finally block
                 )
 
                 session_chunks_indexed += len(batch_children)

@@ -30,7 +30,8 @@ from google.genai.errors import APIError
 from tqdm import tqdm
 
 from src.config import Settings, get_settings
-from src.rag_pipeline import IndianLegalRAGPipeline
+from src.llm_budget import get_budget
+from src.rag_pipeline import GROUNDED_LEGAL_SYSTEM_INSTRUCTION, IndianLegalRAGPipeline
 from src.vector_store import VectorStoreManager
 
 from src.resource_guard import ResourceGuard
@@ -75,6 +76,15 @@ Output MUST be strictly valid JSON in this exact structure:
   "feedback": "Concise judicial rationale"
 }"""
 
+JUDGE_DIMENSIONS = [
+    "factual_groundedness",
+    "ratio_decidendi_isolation",
+    "statutory_concordance",
+    "legal_reasoning_quality",
+    "overall_score",
+]
+JUDGE_UNAVAILABLE: Dict[str, Any] = {dim: None for dim in JUDGE_DIMENSIONS}
+
 # Corpus case aliases to resolve numeric stems and abbreviations to canonical benchmark targets
 CORPUS_CASE_ALIASES = {
     "654b1c982df7e33902d05c9e": ["chandrapal", "chandrapal singh", "2023:ahc:212021-fb"],
@@ -87,12 +97,30 @@ CORPUS_CASE_ALIASES = {
 }
 
 
+def chunk_doc_stem(chunk: Dict[str, Any]) -> str:
+    """Return the source file stem of a retrieved chunk (document identity for evaluation)."""
+    meta = chunk.get("metadata") or {}
+    source_path = str(chunk.get("source_path") or meta.get("source_path") or "")
+    # Normalise Windows paths so stems resolve identically on Linux
+    return Path(source_path.replace("\\", "/")).stem if source_path else ""
+
+
 def is_case_match(
     retrieved_chunk: Dict[str, Any],
     target_case_title: str,
     target_citations: Optional[List[str]] = None,
+    target_doc_stem: Optional[str] = None,
 ) -> bool:
-    """Determine if a retrieved candidate matches the target gold benchmark case."""
+    """Determine if a retrieved candidate matches the target gold benchmark case.
+
+    When the golden query carries a ``target_doc_stem`` the match is exact on document
+    identity (the source file stem). This is the only mode used for reported metrics:
+    the fuzzy title heuristics below are a legacy fallback and produce false positives
+    on common surnames (e.g. any "... Singh" case matching "Chandrapal Singh").
+    """
+    if target_doc_stem:
+        return chunk_doc_stem(retrieved_chunk).lower() == target_doc_stem.lower()
+
     if not target_case_title:
         return False
 
@@ -193,10 +221,18 @@ class BenchmarkEvaluator:
         settings: Optional[Settings] = None,
         collection_name: Optional[str] = None,
         skip_llm_judge: bool = False,
+        judge_configs: Optional[List[int]] = None,
+        judge_limit: int = 15,
     ):
         self.settings = settings or get_settings()
         self.collection_name = collection_name or self.settings.collection_name
         self.skip_llm_judge = skip_llm_judge
+        # Free-tier budget: synthesis + judging costs 2 Gemini calls per (query, config), so
+        # only the selected configs are judged, and only on the first `judge_limit` queries.
+        # Retrieval metrics (Hit@k, MRR, latency) never call the LLM and cover every query.
+        self.judge_configs = set(judge_configs or [4])
+        self.judge_limit = judge_limit
+        self.budget = get_budget(self.settings)
 
         self.vector_store = VectorStoreManager(
             settings=self.settings, collection_name=self.collection_name
@@ -213,16 +249,13 @@ class BenchmarkEvaluator:
         retrieved_context: str,
         generated_answer: str,
     ) -> Dict[str, Any]:
-        """Grade a generated legal answer using Gemini 3.5 Flash as an automated judicial judge."""
+        """Grade a generated legal answer using Gemini 3.5 Flash as an automated judicial judge.
+
+        Returns None scores when the judge is skipped or fails, so that placeholder values
+        are never averaged into reported metrics.
+        """
         if self.skip_llm_judge or not self.client:
-            return {
-                "factual_groundedness": 7.5,
-                "ratio_decidendi_isolation": 7.5,
-                "statutory_concordance": 7.5,
-                "legal_reasoning_quality": 7.5,
-                "overall_score": 7.5,
-                "feedback": "LLM Judge evaluation skipped.",
-            }
+            return dict(JUDGE_UNAVAILABLE, feedback="LLM Judge evaluation skipped.")
 
         prompt = f"""Legal Query:
 {query}
@@ -238,46 +271,40 @@ Generated Legal Answer to Grade:
 
 Evaluate strictly according to the system rubric and return JSON:"""
 
-        for attempt in range(3):
-            try:
-                response = self.client.models.generate_content(
-                    model=self.settings.gemini_model,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=LLM_JUDGE_SYSTEM_INSTRUCTION,
-                        response_mime_type="application/json",
-                        temperature=0.1,
-                    ),
-                )
-                if response and response.text:
-                    parsed = json.loads(response.text.strip())
-                    # Ensure overall score is populated
-                    if "overall_score" not in parsed:
-                        scores = [
-                            parsed.get("factual_groundedness", 7.0),
-                            parsed.get("ratio_decidendi_isolation", 7.0),
-                            parsed.get("statutory_concordance", 7.0),
-                            parsed.get("legal_reasoning_quality", 7.0),
-                        ]
-                        parsed["overall_score"] = round(float(np.mean(scores)), 2)
-                    return parsed
-            except APIError as api_err:
-                if "503" in str(api_err) or "429" in str(api_err):
-                    time.sleep(2 ** (attempt + 1))
-                    continue
-                break
-            except Exception as err:
-                logger.warning(f"Judge parsing error: {err}")
-                break
+        raw = self.budget.generate(
+            client=self.client,
+            models=[self.settings.gemini_model],
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=LLM_JUDGE_SYSTEM_INSTRUCTION,
+                response_mime_type="application/json",
+                temperature=0.1,
+            ),
+        )
+        try:
+            parsed = json.loads(raw.strip()) if raw else None
+            if isinstance(parsed, list):
+                parsed = parsed[0] if parsed else None
+            if isinstance(parsed, dict):
+                dims = [parsed.get(d) for d in JUDGE_DIMENSIONS[:-1]]
+                if "overall_score" not in parsed and all(isinstance(v, (int, float)) for v in dims):
+                    parsed["overall_score"] = round(float(np.mean(dims)), 2)
+                return parsed
+        except Exception as err:
+            logger.warning(f"Judge parsing error: {err}")
 
-        return {
-            "factual_groundedness": 7.0,
-            "ratio_decidendi_isolation": 7.0,
-            "statutory_concordance": 7.0,
-            "legal_reasoning_quality": 7.0,
-            "overall_score": 7.0,
-            "feedback": "Fallback evaluation score.",
-        }
+        return dict(JUDGE_UNAVAILABLE, feedback="LLM Judge call failed; excluded from averages.")
+
+    def _judged_eval(
+        self, config_num: int, q_index: int, query: str, ground_truth: str, context: str
+    ) -> Dict[str, Any]:
+        """Synthesize + judge only when this (config, query) is inside the LLM budget scope."""
+        if self.skip_llm_judge or config_num not in self.judge_configs or q_index >= self.judge_limit:
+            return dict(JUDGE_UNAVAILABLE, feedback="Not judged (outside LLM budget scope).")
+        answer = self._synthesize_answer(query, context)
+        if answer is None:
+            return dict(JUDGE_UNAVAILABLE, feedback="Synthesis unavailable (Gemini budget/rate limit).")
+        return self.evaluate_llm_judge(query, ground_truth, context, answer)
 
     def run_benchmark(
         self,
@@ -322,17 +349,28 @@ Evaluate strictly according to the system rubric and return JSON:"""
             for cfg in configs
         }
 
+        # Warm-up: load the embedding model and cross-encoder BEFORE any timed query, so that
+        # one-time model initialisation is not reported as retrieval latency.
+        logger.info("Warming up embedding model and cross-encoder (excluded from latency metrics)...")
+        try:
+            self.pipeline.retrieve_hybrid(
+                query="warm-up query on Article 21", top_k=1, collection_name=self.collection_name
+            )
+        except Exception as warm_err:
+            logger.warning(f"Warm-up query failed ({warm_err}); first-query latency may include model loading.")
+
         print("\n" + "=" * 80)
         mode_str = "CHAMPION COMBINATION (CONFIG 4 ONLY)" if champion_only else "AUTOMATED BENCHMARKING & ABLATION TEST SUITE"
         print(f" PHASE 4: {mode_str} ".center(80))
         print("=" * 80 + "\n")
 
         with tqdm(total=len(queries), desc="Evaluating Golden Queries", unit="query") as pbar:
-            for item in queries:
+            for q_index, item in enumerate(queries):
                 q_id = item["query_id"]
                 q_text = item.get("query_text") or item.get("query")
                 target_case = item["target_case_title"]
                 target_cits = item.get("target_citations") or []
+                target_stem = item.get("target_doc_stem")
                 gt_answer = item.get("ground_truth_answer") or item.get("expected_ratio") or ""
 
                 if not champion_only:
@@ -351,13 +389,12 @@ Evaluate strictly according to the system rubric and return JSON:"""
 
                     rank_c1 = None
                     for idx, hit in enumerate(dense_hits, start=1):
-                        if is_case_match(hit, target_case, target_cits):
+                        if is_case_match(hit, target_case, target_cits, target_stem):
                             rank_c1 = idx
                             break
 
                     c1_context = "\n\n".join(h.get("text", "") for h in dense_hits[:top_k])
-                    c1_answer = self._synthesize_answer(q_text, c1_context)
-                    c1_judge = self.evaluate_llm_judge(q_text, gt_answer, c1_context, c1_answer)
+                    c1_judge = self._judged_eval(1, q_index, q_text, gt_answer, c1_context)
 
                     results_by_config["Config 1 (Naive Dense)"]["rankings"].append(rank_c1)
                     results_by_config["Config 1 (Naive Dense)"]["latencies_ms"].append(t_dense)
@@ -377,13 +414,12 @@ Evaluate strictly according to the system rubric and return JSON:"""
 
                     rank_c2 = None
                     for idx, hit in enumerate(bm25_hits, start=1):
-                        if is_case_match(hit, target_case, target_cits):
+                        if is_case_match(hit, target_case, target_cits, target_stem):
                             rank_c2 = idx
                             break
 
                     c2_context = "\n\n".join(h.get("text", "") for h in bm25_hits[:top_k])
-                    c2_answer = self._synthesize_answer(q_text, c2_context)
-                    c2_judge = self.evaluate_llm_judge(q_text, gt_answer, c2_context, c2_answer)
+                    c2_judge = self._judged_eval(2, q_index, q_text, gt_answer, c2_context)
 
                     results_by_config["Config 2 (BM25 Lexical)"]["rankings"].append(rank_c2)
                     results_by_config["Config 2 (BM25 Lexical)"]["latencies_ms"].append(t_bm25)
@@ -410,7 +446,7 @@ Evaluate strictly according to the system rubric and return JSON:"""
 
                     rank_c3 = None
                     for idx, hit in enumerate(rrf_hits, start=1):
-                        if is_case_match(hit, target_case, target_cits):
+                        if is_case_match(hit, target_case, target_cits, target_stem):
                             rank_c3 = idx
                             break
 
@@ -424,8 +460,7 @@ Evaluate strictly according to the system rubric and return JSON:"""
                                 c3_parents.append(pdoc.get("text", ""))
 
                     c3_context = "\n\n".join(c3_parents) if c3_parents else "\n\n".join(h.get("text", "") for h in rrf_hits)
-                    c3_answer = self._synthesize_answer(q_text, c3_context)
-                    c3_judge = self.evaluate_llm_judge(q_text, gt_answer, c3_context, c3_answer)
+                    c3_judge = self._judged_eval(3, q_index, q_text, gt_answer, c3_context)
 
                     results_by_config["Config 3 (Hybrid RRF)"]["rankings"].append(rank_c3)
                     results_by_config["Config 3 (Hybrid RRF)"]["latencies_ms"].append(t_rrf)
@@ -446,25 +481,20 @@ Evaluate strictly according to the system rubric and return JSON:"""
                 c4_reranked = full_output.get("reranked_candidates", [])
                 rank_c4 = None
                 for idx, hit in enumerate(c4_reranked, start=1):
-                    if is_case_match(hit, target_case, target_cits):
+                    if is_case_match(hit, target_case, target_cits, target_stem):
                         rank_c4 = idx
                         break
 
                 c4_parents = [p.get("text", "") for p in full_output.get("retrieved_parents", [])]
                 c4_context = "\n\n".join(c4_parents) if c4_parents else "\n\n".join(c.get("text", "") for c in c4_reranked)
-                c4_answer = self._synthesize_answer(q_text, c4_context)
-                c4_judge = self.evaluate_llm_judge(q_text, gt_answer, c4_context, c4_answer)
+                c4_judge = self._judged_eval(4, q_index, q_text, gt_answer, c4_context)
 
                 top_1_case = "None"
                 if c4_reranked:
                     h0 = c4_reranked[0]
                     h0_m = h0.get("metadata") or {}
-                    raw_case = str(h0.get("case_title") or h0_m.get("case_title") or Path(h0.get("source_path", "")).stem)
-                    top_1_case = raw_case
-                    for k, aliases in CORPUS_CASE_ALIASES.items():
-                        if k in raw_case.lower() or k in str(h0.get("source_path", "")).lower():
-                            top_1_case = aliases[1].title() if len(aliases) > 1 else aliases[0].title()
-                            break
+                    top_1_case = str(h0.get("case_title") or h0_m.get("case_title") or chunk_doc_stem(h0))
+                top_docs = [chunk_doc_stem(h) for h in c4_reranked]
 
                 results_by_config["Config 4 (Full Legal Funnel)"]["rankings"].append(rank_c4)
                 results_by_config["Config 4 (Full Legal Funnel)"]["latencies_ms"].append(t_full)
@@ -473,9 +503,12 @@ Evaluate strictly according to the system rubric and return JSON:"""
                     {
                         "query_id": q_id,
                         "query": q_text,
+                        "source": item.get("source", "curated"),
                         "target_case": target_case,
+                        "target_doc_stem": target_stem,
                         "rank": rank_c4,
                         "top_1_case": top_1_case,
+                        "top_docs": top_docs,
                         "hit_1": 1 if rank_c4 == 1 else 0,
                         "hit_5": 1 if (rank_c4 is not None and rank_c4 <= 5) else 0,
                         "latency_ms": t_full,
@@ -494,11 +527,15 @@ Evaluate strictly according to the system rubric and return JSON:"""
             lat_metrics = compute_latency_metrics(results_by_config[cfg]["latencies_ms"])
             js = results_by_config[cfg]["judge_scores"]
 
-            avg_groundedness = round(float(np.mean(js["factual_groundedness"])), 2)
-            avg_ratio = round(float(np.mean(js["ratio_decidendi_isolation"])), 2)
-            avg_statutory = round(float(np.mean(js["statutory_concordance"])), 2)
-            avg_reasoning = round(float(np.mean(js["legal_reasoning_quality"])), 2)
-            avg_overall = round(float(np.mean(js["overall_score"])), 2)
+            def _judge_mean(dim: str) -> Optional[float]:
+                vals = [v for v in js[dim] if isinstance(v, (int, float))]
+                return round(float(np.mean(vals)), 2) if vals else None
+
+            avg_groundedness = _judge_mean("factual_groundedness")
+            avg_ratio = _judge_mean("ratio_decidendi_isolation")
+            avg_statutory = _judge_mean("statutory_concordance")
+            avg_reasoning = _judge_mean("legal_reasoning_quality")
+            avg_overall = _judge_mean("overall_score")
 
             summary_table[cfg] = {
                 "Hit@1": ret_metrics["hit@1"],
@@ -521,6 +558,30 @@ Evaluate strictly according to the system rubric and return JSON:"""
         # Print per-query breakdown for Full Legal Funnel
         self._print_query_breakdown(results_by_config["Config 4 (Full Legal Funnel)"]["query_details"])
 
+        # Retrieval metrics per query subset (e.g. curated vs. synthetic) for every configuration
+        subset_metrics: Dict[str, Dict[str, Dict[str, float]]] = {}
+        subsets = sorted({q.get("source", "curated") for q in queries})
+        for subset in subsets:
+            idxs = [i for i, q in enumerate(queries) if q.get("source", "curated") == subset]
+            subset_metrics[subset] = {
+                cfg: dict(
+                    compute_retrieval_metrics([results_by_config[cfg]["rankings"][i] for i in idxs]),
+                    n=len(idxs),
+                )
+                for cfg in configs
+            }
+        if len(subsets) > 1:
+            print("=" * 80)
+            print(" RETRIEVAL METRICS BY QUERY SUBSET ".center(80))
+            print("=" * 80)
+            for subset, per_cfg in subset_metrics.items():
+                for cfg, m in per_cfg.items():
+                    print(
+                        f"  {subset:<10} (n={m['n']:>3}) | {cfg:<30} | Hit@1 {m['hit@1']:.3f} | "
+                        f"Hit@5 {m['hit@5']:.3f} | MRR {m['mrr']:.3f}"
+                    )
+            print()
+
         # Persist results to JSON
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         output_file = self.settings.benchmarks_dir / f"benchmark_results_{timestamp}.json"
@@ -529,6 +590,7 @@ Evaluate strictly according to the system rubric and return JSON:"""
             "queries_count": len(queries),
             "collection_name": self.collection_name,
             "summary_table": summary_table,
+            "subset_metrics": subset_metrics,
             "raw_results": results_by_config,
         }
 
@@ -538,32 +600,28 @@ Evaluate strictly according to the system rubric and return JSON:"""
         print(f"\n[+] Full benchmark report saved to: {output_file}\n")
         return report_data
 
-    def _synthesize_answer(self, query: str, context: str) -> str:
-        """Fast contextual answer synthesis for judge evaluation."""
+    def _synthesize_answer(self, query: str, context: str) -> Optional[str]:
+        """Contextual answer synthesis for judge evaluation (None if the LLM is unavailable)."""
         if not context.strip():
             return "Insufficient authoritative precedent found in the indexed corpus."
         if not self.client:
-            return f"Answer grounded on {len(context)} characters of retrieved legal precedent."
+            return None
 
         prompt = f"Legal Query:\n{query}\n\nContext:\n{context[:3500]}\n\nProvide authoritative legal answer citing precedents and statutes:"
-        try:
-            resp = self.client.models.generate_content(
-                model=self.settings.gemini_model,
-                contents=prompt,
-                config=types.GenerateContentConfig(temperature=0.1),
-            )
-            return resp.text or ""
-        except Exception:
-            return "Answer synthesis completed."
+        return self.budget.generate(
+            client=self.client,
+            models=[self.settings.gemini_model],
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION, temperature=0.1
+            ),
+        )
 
     def _record_judge_scores(self, config_dict: Dict[str, Any], judge_eval: Dict[str, Any]):
         """Accumulate judicial evaluation scores."""
         js = config_dict["judge_scores"]
-        js["factual_groundedness"].append(judge_eval.get("factual_groundedness", 7.0))
-        js["ratio_decidendi_isolation"].append(judge_eval.get("ratio_decidendi_isolation", 7.0))
-        js["statutory_concordance"].append(judge_eval.get("statutory_concordance", 7.0))
-        js["legal_reasoning_quality"].append(judge_eval.get("legal_reasoning_quality", 7.0))
-        js["overall_score"].append(judge_eval.get("overall_score", 7.0))
+        for dim in JUDGE_DIMENSIONS:
+            js[dim].append(judge_eval.get(dim))
 
     def _print_comparison_table(self, summary_table: Dict[str, Dict[str, Any]]) -> None:
         """Print comparative Markdown / ASCII table across the 4 configurations."""
@@ -589,7 +647,9 @@ Evaluate strictly according to the system rubric and return JSON:"""
             row = f"| {m.ljust(col_w_metric)} "
             for cfg in configs:
                 val = summary_table[cfg][m]
-                if m == "Overall Judicial Score":
+                if val is None:
+                    val_str = "N/A (no judge)"
+                elif m == "Overall Judicial Score":
                     status = "[PASS]" if val >= 7.0 else "[FAIL]"
                     val_str = f"{val:.2f} {status}"
                 elif isinstance(val, float):
@@ -634,12 +694,33 @@ def main():
         action="store_true",
         help="Evaluate ONLY the single champion combination (Config 4: Full Legal Funnel), skipping baseline ablations.",
     )
+    parser.add_argument(
+        "--judge-configs",
+        type=int,
+        nargs="+",
+        default=[4],
+        help="Configs (1-4) whose answers are synthesized and LLM-judged (2 Gemini calls per query each). Default: 4",
+    )
+    parser.add_argument(
+        "--judge-limit",
+        type=int,
+        default=15,
+        help="Only the first N queries are LLM-judged (free-tier budget). Retrieval metrics always use all queries.",
+    )
     args = parser.parse_args()
 
     evaluator = BenchmarkEvaluator(
         collection_name=args.collection,
         skip_llm_judge=args.skip_llm_judge,
+        judge_configs=args.judge_configs,
+        judge_limit=args.judge_limit,
     )
+    if not args.skip_llm_judge:
+        planned = len(args.judge_configs) * args.judge_limit * 2
+        logger.info(
+            f"LLM budget: up to {planned} Gemini calls planned; {evaluator.budget.remaining_today()} "
+            f"of {evaluator.settings.gemini_daily_budget} remaining today (cached answers are free)."
+        )
     evaluator.run_benchmark(
         queries_path=Path(args.queries) if args.queries else None,
         top_k=args.top_k,
