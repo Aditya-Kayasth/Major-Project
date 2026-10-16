@@ -398,12 +398,12 @@ Evaluate strictly according to the system rubric and return JSON:"""
                     t0 = time.perf_counter()
                     try:
                         d_cands = self.vector_store.query_dense(
-                            query=q_text, top_k=25, collection_name=self.collection_name
+                            query=q_text, top_k=60, collection_name=self.collection_name
                         )
                     except Exception:
                         d_cands = []
                     b_cands = self.vector_store.query_bm25(
-                        query=q_text, top_k=25, collection_name=self.collection_name
+                        query=q_text, top_k=60, collection_name=self.collection_name
                     )
                     rrf_hits = self.pipeline.compute_rrf(d_cands, b_cands, k=60)[:top_k]
                     t_rrf = (time.perf_counter() - t0) * 1000.0
@@ -439,7 +439,7 @@ Evaluate strictly according to the system rubric and return JSON:"""
                 # =========================================================
                 t0 = time.perf_counter()
                 full_output = self.pipeline.retrieve_hybrid(
-                    query=q_text, top_k=top_k, candidate_pool_size=25, collection_name=self.collection_name
+                    query=q_text, top_k=top_k, candidate_pool_size=60, collection_name=self.collection_name
                 )
                 t_full = (time.perf_counter() - t0) * 1000.0
 

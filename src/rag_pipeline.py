@@ -237,7 +237,7 @@ class IndianLegalRAGPipeline:
         self,
         query: str,
         top_k: int = 5,
-        candidate_pool_size: int = 25,
+        candidate_pool_size: int = 60,
         filters: Optional[Dict[str, Any]] = None,
         collection_name: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -245,9 +245,9 @@ class IndianLegalRAGPipeline:
 
         Stages:
             1. Metadata Slicing (allowed IDs via ChromaDB)
-            2. Candidate Generation (Dense vector + BM25Okapi)
-            3. Reciprocal Rank Fusion (RRF k=60, top 15 candidates)
-            4. Cross-Encoder Reranking (BGE reranker)
+            2. Candidate Generation (Dense vector + BM25Okapi, top 60 each)
+            3. Reciprocal Rank Fusion (RRF k=60, top 30 candidates)
+            4. Cross-Encoder Reranking with Stare Decisis Weighting (BGE reranker)
             5. Parent Document Expansion (local disk parent store)
         """
         timings: Dict[str, float] = {}
@@ -302,12 +302,12 @@ class IndianLegalRAGPipeline:
         # ---------------------------------------------------------
         s3_start = time.perf_counter()
         fused_candidates = self.compute_rrf(dense_candidates, bm25_candidates, k=60, query=query)
-        # Select top 15 fused candidates for cross-encoder reranking
-        top_fused = fused_candidates[:15]
+        # Select top 30 fused candidates for cross-encoder reranking
+        top_fused = fused_candidates[:30]
         timings["rrf_fusion_sec"] = round(time.perf_counter() - s3_start, 4)
 
         # ---------------------------------------------------------
-        # Stage 4: Cross-Encoder Reranking
+        # Stage 4: Cross-Encoder Reranking (Authority & Stare Decisis Weighted)
         # ---------------------------------------------------------
         s4_start = time.perf_counter()
         reranked_candidates: List[Dict[str, Any]] = []
@@ -315,11 +315,29 @@ class IndianLegalRAGPipeline:
         if top_fused:
             reranker = self._get_reranker()
             pairs = [[query, c["text"]] for c in top_fused]
-            scores = reranker.predict(pairs)
+            raw_scores = reranker.predict(pairs)
 
-            for c, score in zip(top_fused, scores):
+            for c, raw_score in zip(top_fused, raw_scores):
                 c_copy = dict(c)
-                c_copy["rerank_score"] = float(score)
+                raw_s = float(raw_score)
+                # Apply numerically stable sigmoid
+                try:
+                    import math
+                    norm_score = 1.0 / (1.0 + math.exp(-max(min(raw_s, 20.0), -20.0)))
+                except Exception:
+                    norm_score = 1.0 if raw_s > 0 else 0.0
+
+                # Factor in Stare Decisis precedent multiplier, binding role boost, and judge affinity
+                stare_weight = float(c.get("court_tier_weight", 1.0))
+                role_weight = float(c.get("role_weight", 1.0))
+                judge_affinity = float(c.get("judge_affinity", 1.0))
+                final_authority_mult = stare_weight * role_weight * judge_affinity
+
+                # Composite score: Cross-Encoder semantic match weighted by legal authority
+                composite_score = round(norm_score * final_authority_mult, 5)
+
+                c_copy["raw_cross_encoder_score"] = raw_s
+                c_copy["rerank_score"] = composite_score
                 reranked_candidates.append(c_copy)
 
             reranked_candidates.sort(key=lambda x: x["rerank_score"], reverse=True)

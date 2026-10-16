@@ -300,17 +300,57 @@ class LegalDocumentLoader:
         # Clean common Indian Kanoon / archive patterns like "... on 12 May 2023"
         clean_title = re.sub(r"\s+on\s+\d{1,2}\s+[A-Za-z]+\s+\d{4}", "", case_title, flags=re.IGNORECASE)
         # Check text for standard versus pattern: [Party A] v. [Party B]
-        first_chunk = text[:2000]
-        title_match = re.search(
-            r"([A-Z][A-Za-z\s\.\,\&]{3,80})\s+(?:v\.|vs\.|VERSUS)\s+([A-Z][A-Za-z\s\.\,\&]{3,80})",
-            first_chunk,
-        )
-        if title_match:
-            p1 = " ".join(title_match.group(1).split())
-            p2 = " ".join(title_match.group(2).split())
-            extracted_title = f"{p1} vs. {p2}"
-            if len(extracted_title) > 10 and not clean_title.startswith("20"):
-                clean_title = extracted_title
+        first_chunk = text[:3000]
+        lines = [line.strip() for line in first_chunk.splitlines() if line.strip()]
+
+        invalid_prefixes = {
+            "hence", "therefore", "where", "whereas", "wherein", "learned", "counsel",
+            "observed", "held", "court", "order", "decision", "paragraph", "section",
+            "article", "dated", "in", "the", "that", "this", "it", "moreover", "further",
+            "whether", "having", "taking", "perusal", "matter", "case"
+        }
+
+        # Look for explicit VERSUS / vs / v on a dedicated line or standard case caption
+        extracted_from_lines = ""
+        for i, line in enumerate(lines[:35]):
+            line_clean = line.strip()
+            if re.fullmatch(r"(?:versus|vs\.?|v\.?)", line_clean, flags=re.IGNORECASE):
+                if i > 0 and i + 1 < len(lines):
+                    p1_cand = lines[i - 1]
+                    p2_cand = lines[i + 1]
+                    p1_cand = re.sub(r"\b(appellant|petitioner|applicant|plaintiff)s?\b.*", "", p1_cand, flags=re.IGNORECASE).strip(" .:,")
+                    p2_cand = re.sub(r"\b(respondent|opposite\s+party|defendant)s?\b.*", "", p2_cand, flags=re.IGNORECASE).strip(" .:,")
+                    if len(p1_cand) >= 3 and len(p2_cand) >= 3:
+                        p1_first = p1_cand.split()[0].lower()
+                        if p1_first not in invalid_prefixes:
+                            extracted_from_lines = f"{p1_cand} vs. {p2_cand}"
+                            break
+
+        if extracted_from_lines:
+            clean_title = extracted_from_lines
+        else:
+            title_matches = re.finditer(
+                r"([A-Z][A-Za-z0-9\s\.\,\&]{2,60})\s+(?:v\.|vs\.|VERSUS)\s+([A-Z][A-Za-z0-9\s\.\,\&]{2,60})",
+                first_chunk,
+            )
+            for tm in title_matches:
+                p1 = " ".join(tm.group(1).split()).strip(" .:,")
+                p2 = " ".join(tm.group(2).split()).strip(" .:,")
+                p1_words = p1.split()
+                if not p1_words:
+                    continue
+                first_w = p1_words[0].lower()
+                if first_w in invalid_prefixes:
+                    continue
+                p1 = re.sub(r"\.{2,}.*", "", p1).strip(" .:,")
+                p2 = re.sub(r"\.{2,}.*", "", p2).strip(" .:,")
+                p1 = re.sub(r"\b(appellant|petitioner|applicant)s?\b.*", "", p1, flags=re.IGNORECASE).strip(" .:,")
+                p2 = re.sub(r"\b(respondent|opposite\s+party)s?\b.*", "", p2, flags=re.IGNORECASE).strip(" .:,")
+                if len(p1) >= 3 and len(p2) >= 3:
+                    cand_title = f"{p1} vs. {p2}"
+                    if len(cand_title) > 8 and not clean_title.startswith("20"):
+                        clean_title = cand_title
+                        break
 
         # 3. Court Detection
         court = "High Court"
