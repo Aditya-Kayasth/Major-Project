@@ -10,6 +10,6 @@ pydantic>=2.10.0
 tqdm>=4.67.0
 numpy>=1.26.0
 psutil>=5.9.0
-kaggle>=1.6.0
+kagglehub
 fastapi
 uvicorn

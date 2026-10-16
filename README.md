@@ -217,11 +217,12 @@ Project/
 
 ```bash
 # 1. Code + environment (reuses the server's PyTorch/Transformers; installs only what is missing, into ./venv)
-git clone https://github.com/Aditya-Kayasth/Major-Project.git && cd Major-Project
+git clone https://github.com/Aditya-Kayasth/Major-Project.git ~/adkmajorproject && cd ~/adkmajorproject
 bash scripts/setup_server.sh && source venv/bin/activate
 nano .env                                   # set GEMINI_API_KEY; adjust GEMINI_RPM / GEMINI_DAILY_BUDGET
 
-# 2. Corpus (Kaggle API token in ~/.kaggle/kaggle.json)
+# 2. Corpus: kagglehub downloads the whole dataset once (Kaggle has no per-folder download),
+#    then only the 2025 PDFs are copied to data/raw_judgments/sc_2025/
 python scripts/download_kaggle_corpus.py --years 2025
 
 # 3. Index (zembed-1 on GPU; no API calls)

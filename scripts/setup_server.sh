@@ -12,9 +12,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=${PYTHON:-python3}
 
-if [ ! -d venv ]; then
+if [ ! -f venv/bin/activate ]; then
   echo "[setup] Creating venv (reusing system site-packages)..."
-  "$PY" -m venv --system-site-packages venv
+  rm -rf venv
+  if ! "$PY" -m venv --system-site-packages venv 2>/dev/null; then
+    # Some containers lack python3-venv/ensurepip and we have no sudo: use virtualenv from --user
+    echo "[setup] 'python3 -m venv' unavailable; falling back to virtualenv (installed with --user)"
+    rm -rf venv
+    "$PY" -m pip install --user --quiet virtualenv
+    "$PY" -m virtualenv --system-site-packages venv
+  fi
 fi
 # shellcheck disable=SC1091
 source venv/bin/activate
@@ -40,7 +47,7 @@ declare -A NEEDED=(
   [dotenv]="python-dotenv>=1.0.0"
   [tqdm]="tqdm"
   [psutil]="psutil"
-  [kaggle]="kaggle"
+  [kagglehub]="kagglehub"
   [uvicorn]="uvicorn"
 )
 
