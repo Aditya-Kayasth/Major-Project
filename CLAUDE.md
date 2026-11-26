@@ -44,7 +44,7 @@
   - bge-small-en-v1.5: 384-dim, **170 chunks/sec** (~800-char chunks, batch 64)
   - bge-reranker-base: **0.42 s per 20 pairs**
   - process RAM: 2.0 GB with both models loaded
-- **Verified venv:** torch 2.11.0+cu128 (system, CPU) | transformers 5.17.0 | pandas 3.0.5 | numpy 2.4.4 | sentence-transformers 6.3.0 | chromadb 1.5.9 | bm25s 0.3.16 | pypdf 7.1.1 | duckdb 2.0.1 | boto3 1.44.12 | onnxruntime 1.32.0.
+- **Verified venv:** torch 2.11.0+cu128 (system, CPU) | transformers 5.17.0 | pandas 3.0.5 | numpy 2.4.4 | sentence-transformers 6.3.0 | chromadb 1.5.9 | bm25s 0.3.16 | rank-bm25 0.2.2 | google-genai 3.6.1 | psutil 7.2.2 | python-dotenv 1.2.3 | tqdm 4.70.1 | pypdf 7.1.1 | duckdb 2.0.1 | boto3 1.44.12 | onnxruntime 1.32.0. httpx: to verify (first Phase 1 server command).
   - Write code against THESE APIs: chromadb 1.x, sentence-transformers 6.x, transformers 5.x, pypdf 7.x. Fix any removed or renamed APIs and say what changed.
   - Update `requirements.txt` with matching minimum versions.
 - `.env` already exists on the server with absolute workspace paths and the CPU models (created 26 Nov). Add new keys only by giving me a `printf ... >> .env` command.
