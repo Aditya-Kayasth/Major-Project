@@ -297,7 +297,6 @@ def main() -> None:
     S.append("author_source: " + fmt(agg["author"]) + " | PDF author vs manifest agree: " + fmt(author_agree))
     S.append("bench_source: " + fmt(agg["bench"]))
     S.append(f"disposition from PDF found {disp_found}/{n_indexed} | agrees with disposal_nature: " + fmt(disp_agree))
-    S.append(f"reportable flag: " + fmt(agg["reportable"]))
     S.append(f"docs with >=1 statute {docs_with_statute}/{n_indexed} | top: " + fmt(agg["statutes"], 10))
     S.append("removed lines: " + fmt(agg["removed"]))
     S.append(f"failures: {len(failures)}" + ("" if not failures else " (first 5)"))

@@ -89,6 +89,11 @@ CPU-only Supreme Court criminal build described in `CLAUDE.md`. Tick each box wh
 - [ ] Kaggle leftovers: `scripts/download_kaggle_corpus.py`, `kagglehub` in requirements, the README clone URL and `~/adkmajorproject`, `server._clean_title` (Kaggle " 1" suffix), the README `MAX_RAM_GB` 24 setting.
 - [ ] `server._doc_key` uses the file stem → switch it to `doc_id`.
 
+## Known limitations (measured, not fixed tonight)
+
+- **Role tags:** about 47% of chunks are `Unclassified` in the 20-PDF test index (`sc_criminal_cpu_test`, 26 Nov). Roles come from keyword cues and headings, not from a trained classifier. Headnote chunks are always tagged `Headnote`, from the layout split.
+- **REPORTABLE flag:** never present in the SCR PDFs (they are all reported judgments), so `reportable` is unknown for the whole corpus and is left out of the index summary.
+
 ## No change needed (notes)
 
 - On CPU, the embedding engine and reranker already pick the device themselves and run in fp32. The CUDA branches can stay for the stretch GPU run.
