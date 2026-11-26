@@ -454,6 +454,7 @@ class IndianLegalRAGPipeline:
                            "citation": self.judgment_meta(g).get("citation"), "n_passages": len(g["passages"])}
                           for g in judgments],
             "citation_check": check_citations(answer, precedents),
+            "judgment_groups": judgments,  # full groups (best chunk + passages) for the UI
             "retrieved_parents": parents,
             "child_citations": funnel["child_citations"],
             "reranked_candidates": funnel["reranked_candidates"],

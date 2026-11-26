@@ -1,35 +1,34 @@
 #!/usr/bin/env python3
-"""FastAPI backend + static web UI for the Indian Legal Precedents RAG demo.
+"""FastAPI backend + static web UI (web/) for the SC criminal precedents RAG demo.
 
-Serves the HTML/CSS/JS front-end in web/ and a small JSON API:
-    GET  /api/status     corpus size, models, Gemini budget left today
-    GET  /api/examples   sample questions from the benchmark
-    POST /api/search     run the retrieval funnel (+ optional grounded answer)
-    GET  /api/benchmark  latest saved benchmark report
+    GET  /api/status     corpus size, models, LLM route
+    GET  /api/examples   demo queries (data/demo_queries.json)
+    POST /api/search     judgment-level retrieval (+ optional grounded answer and citation check)
+    GET  /api/results    benchmark v2 results.json (for the Evaluation page)
 
-Usage (on the server):
-    python server.py --port 8000
-Then open http://localhost:8000 (via SSH tunnel: ssh -L 8000:localhost:8000 <user>@<server>).
+Usage (server; never at the same time as indexing):
+    nohup python server.py --port 8000 > ~/Pratik/workspace/logs/server.log 2>&1 &
 """
 
 import argparse
 import json
-import re
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.config import get_settings
 from src.llm_budget import get_budget
-from src.rag_pipeline import IndianLegalRAGPipeline, bench_label
+from src.rag_pipeline import IndianLegalRAGPipeline, _field, bench_label
 from src.resource_guard import ResourceGuard
 
-WEB_DIR = Path(__file__).resolve().parent / "web"
+PROJECT_ROOT = Path(__file__).resolve().parent
+WEB_DIR = PROJECT_ROOT / "web"
+DEMO_QUERIES = PROJECT_ROOT / "data" / "demo_queries.json"
 
 settings = get_settings()
 ResourceGuard(
@@ -41,19 +40,18 @@ ResourceGuard(
 ).initialize_hardware()
 
 pipeline = IndianLegalRAGPipeline(settings=settings)
-# One GPU, one model instance: serialise requests so concurrent clicks cannot OOM the GPU
+# One model instance: serialise requests so concurrent clicks cannot exceed the RAM budget
 _pipeline_lock = threading.Lock()
 
-app = FastAPI(title="Indian Legal Precedents RAG")
+app = FastAPI(title="SC Criminal Precedents RAG (academic prototype)")
 
 
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=3)
     top_k: int = Field(5, ge=1, le=10)
     generate_answer: bool = False
-    one_per_case: bool = True
-    year_from: Optional[int] = None
-    year_to: Optional[int] = None
+    year_from: Optional[int] = Field(None, ge=1950, le=2100)
+    year_to: Optional[int] = Field(None, ge=1950, le=2100)
     min_bench: Optional[int] = Field(None, ge=1, le=7)
 
     def filters(self) -> Optional[Dict[str, Any]]:
@@ -62,77 +60,52 @@ class SearchRequest(BaseModel):
         return f or None
 
 
-def _clean_title(title: Any) -> str:
-    """Drop Kaggle's duplicate-file suffix ('..._on_8_January_2025_1.pdf' -> trailing ' 1')."""
-    return re.sub(r"\s+\d{1,2}$", "", str(title or "")).strip()
-
-
-def _display_role(role: Any) -> str:
-    """The heuristic role tagger never positively detects obiter: 'Obiter Dicta' is its fallback
-    when no cue matched, so it is shown honestly as unclassified."""
-    role = str(role or "")
-    return "Unclassified role" if role == "Obiter Dicta" else role
-
-
-def _doc_key(candidate: Dict[str, Any]) -> str:
-    meta = candidate.get("metadata") or {}
-    source = str(candidate.get("source_path") or meta.get("source_path") or "")
-    return Path(source.replace("\\", "/")).stem or str(candidate.get("case_title") or meta.get("case_title"))
-
-
-def _format_candidate(rank: int, c: Dict[str, Any]) -> Dict[str, Any]:
-    meta = c.get("metadata") or {}
-    authority = float(c.get("authority_multiplier", 1.0))
+def judgment_card(g: Dict[str, Any]) -> Dict[str, Any]:
+    """One card per judgment: metadata chips + up to 2 passages with role labels."""
+    meta = pipeline.judgment_meta(g)
     return {
-        "rank": rank,
-        "case_title": _clean_title(c.get("case_title") or meta.get("case_title", "Unknown case")),
-        "court": c.get("court") or meta.get("court", ""),
-        "year": c.get("year") or meta.get("year", ""),
-        "decision_date": meta.get("decision_date", ""),
-        "citation": meta.get("citation", ""),
-        "bench_type": bench_label(meta.get("bench_strength")),
+        "rank": g["rank"],
+        "doc_id": g["doc_id"],
+        "case_title": meta.get("case_title") or "Untitled",
+        "citation": meta.get("citation") or "",
+        "decision_date": meta.get("decision_date") or "",
+        "year": meta.get("year") or "",
+        "bench_label": bench_label(meta.get("bench_strength")),
         "bench_strength": meta.get("bench_strength"),
-        "judges": meta.get("judges", ""),
-        "author_judge": meta.get("author_judge", ""),
-        "disposal_nature": meta.get("disposal_nature", ""),
-        "statutes_cited": meta.get("statutes_cited", ""),
-        "section_kind": meta.get("section_kind", ""),
-        "role": _display_role(c.get("role") or meta.get("role", "")),
-        "rerank_score": round(float(c.get("rerank_score", 0.0)), 4),
-        "cross_encoder_raw": round(float(c.get("raw_cross_encoder_score", 0.0)), 3),
-        "authority_multiplier": round(authority, 3),
-        "authority_factor": round(float(c.get("authority_factor", pipeline._authority_factor(authority))), 4),
-        "dense_rank": c.get("dense_rank"),
-        "bm25_rank": c.get("bm25_rank"),
-        "document": _doc_key(c),
-        "snippet": str(meta.get("raw_text") or c.get("text", ""))[:600],
+        "judges": meta.get("judges") or "",
+        "author_judge": meta.get("author_judge") or "",
+        "author_source": meta.get("author_source") or "",
+        "disposal_nature": meta.get("disposal_nature") or "",
+        "statutes_cited": meta.get("statutes_cited") or "",
+        "score": round(float(g["score"]), 4),
+        "relevance": round(float(g["relevance"]), 4),
+        "authority_factor": round(float(g["authority_factor"]), 4),
+        "passages": [{"role": _field(p, "role", "Unclassified"), "section_kind": _field(p, "section_kind", ""),
+                      "text": str(_field(p, "raw_text") or p.get("text", ""))[:900]} for p in g["passages"]],
     }
 
 
 @app.get("/api/status")
 def status() -> Dict[str, Any]:
-    collection = pipeline.vector_store.get_or_create_collection()
     budget = get_budget(settings)
+    route = budget.llm_label(pipeline.gemini_client)
     return {
-        "collection": settings.collection_name,
-        "chunks_indexed": collection.count(),
+        "collection": pipeline.collection_name,
+        "chunks_indexed": pipeline.vector_store.get_or_create_collection().count(),
         "parents_indexed": pipeline.sqlite_store.count_parents(),
-        "embedding_model": settings.local_embedding_model
-        if settings.embedding_provider == "local"
-        else settings.gemini_embedding_model,
+        "judgments_indexed": pipeline.sqlite_store.count_documents(),
+        "embedding_model": settings.local_embedding_model,
         "reranker_model": settings.reranker_model,
-        "llm_route": budget.llm_label(pipeline.gemini_client),
-        "llm_available": budget.llm_label(pipeline.gemini_client) != "none configured",
-        "gemini_requests_left_today": budget.remaining_today(),
+        "min_relevance": settings.min_relevance,
+        "llm_route": route,
+        "llm_available": route != "none configured",
     }
 
 
 @app.get("/api/examples")
-def examples(limit: int = 8) -> List[str]:
-    path = settings.benchmarks_dir / "golden_queries.json"
+def examples() -> List[Dict[str, Any]]:
     try:
-        queries = json.loads(path.read_text(encoding="utf-8"))
-        return [q.get("query_text") or q.get("query") for q in queries[:limit]]
+        return json.loads(DEMO_QUERIES.read_text(encoding="utf-8"))
     except Exception:
         return []
 
@@ -141,61 +114,39 @@ def examples(limit: int = 8) -> List[str]:
 def search(req: SearchRequest) -> Dict[str, Any]:
     query = req.query.strip()
     with _pipeline_lock:
-        # The funnel already returns one result per JUDGMENT (best passage; up to 2 passages each)
-        funnel = pipeline.retrieve_hybrid(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
-        candidates = funnel["reranked_candidates"][: req.top_k]
-        passages = {g["doc_id"]: [str((p.get("metadata") or {}).get("raw_text") or p.get("text", ""))[:600]
-                                  for p in g["passages"]] for g in funnel["judgments"]}
-
-        answer, citation_check, precedents, low_confidence = None, None, None, None
-        llm_timings: Dict[str, Any] = {}
         if req.generate_answer:
-            result = pipeline.generate_answer(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
-            answer = result.get("answer")
-            citation_check = result.get("citation_check")
-            precedents = result.get("precedents")
-            low_confidence = result.get("low_confidence")
-            llm_timings = {"llm_generation_sec": result.get("timings", {}).get("llm_generation_sec")}
-
+            res = pipeline.generate_answer(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
+            groups, timings = res["judgment_groups"], res["timings"]
+            expanded, finfo = res["expanded_query"], res["filters"]
+            answer, citation_check, low_confidence = res["answer"], res["citation_check"], res["low_confidence"]
+            best_relevance = res["best_relevance"]
+        else:
+            funnel = pipeline.retrieve_hybrid(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
+            groups, timings = funnel["judgments"], funnel["timings"]
+            expanded, finfo = funnel["expanded_query"], funnel["filters"]
+            answer, citation_check = None, None
+            best_relevance = max((g["relevance"] for g in groups), default=None)
+            low_confidence = bool(groups) and best_relevance < settings.min_relevance
     return {
         "query": query,
-        "expanded_query": funnel.get("expanded_query", query),
-        "results": [{**_format_candidate(i, c), "passages": passages.get((c.get("metadata") or {}).get("doc_id"), [])}
-                    for i, c in enumerate(candidates, start=1)],
+        "expanded_query": expanded,
+        "filters": finfo,
+        "results": [judgment_card(g) for g in groups],
         "low_confidence": low_confidence,
-        "timings": {**funnel["timings"], **{k: v for k, v in llm_timings.items() if v is not None}},
-        "funnel_counts": {**funnel.get("funnel_counts", {}), "returned": len(candidates)},
+        "best_relevance": best_relevance,
+        "min_relevance": settings.min_relevance,
         "answer": answer,
         "citation_check": citation_check,
-        "precedents": precedents,
-        "filters": funnel.get("filters"),
-        "gemini_requests_left_today": get_budget(settings).remaining_today(),
+        "timings": timings,
     }
 
 
-@app.get("/api/benchmark")
-def benchmark() -> Dict[str, Any]:
-    files = sorted(settings.benchmarks_dir.glob("benchmark_results_*.json"))
-    if not files:
-        raise HTTPException(status_code=404, detail="No benchmark results yet. Run evaluate_pipeline.py.")
-    report = json.loads(files[-1].read_text(encoding="utf-8"))
-    details = report.get("raw_results", {}).get("Config 4 (Full Legal Funnel)", {}).get("query_details", [])
-    return {
-        "file": files[-1].name,
-        "timestamp": report.get("timestamp"),
-        "queries_count": report.get("queries_count"),
-        "collection_name": report.get("collection_name"),
-        "summary_table": report.get("summary_table", {}),
-        "subset_metrics": report.get("subset_metrics", {}),
-        "per_query": [
-            {
-                **{k: q.get(k) for k in ("query_id", "query", "rank", "latency_ms", "score")},
-                "target_case": _clean_title(q.get("target_case")),
-                "top_1_case": _clean_title(q.get("top_1_case")),
-            }
-            for q in details
-        ],
-    }
+@app.get("/api/results")
+def results() -> JSONResponse:
+    for path in (settings.benchmarks_dir / "v2" / "results.json", PROJECT_ROOT / "results" / "v2" / "results.json"):
+        if path.exists():
+            return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
+    raise HTTPException(status_code=404, detail="No results.json yet: run scripts/evaluate_v2.py.")
 
 
 @app.get("/")
@@ -209,14 +160,13 @@ app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 if __name__ == "__main__":
     import uvicorn
 
-    parser = argparse.ArgumentParser(description="Indian Legal RAG web demo")
+    parser = argparse.ArgumentParser(description="SC criminal precedents RAG web demo")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-
     print("[INFO] Warming up embedding model and cross-encoder...")
     try:
-        pipeline.retrieve_hybrid(query="warm-up query on Article 21", top_k=1)
+        pipeline.retrieve_hybrid(query="warm-up: bail under Section 439 CrPC", top_k=1)
     except Exception as err:
         print(f"[WARN] Warm-up failed: {err}")
     uvicorn.run(app, host=args.host, port=args.port)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Indian Legal Precedents RAG</title>
+  <title>SC Criminal Precedents RAG</title>
   <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
@@ -11,32 +11,41 @@
     <div class="brand">
       <span class="brand-mark">§</span>
       <div>
-        <h1>Indian Legal Precedents RAG</h1>
-        <p class="subtitle">Hybrid retrieval funnel over Supreme Court of India judgments</p>
+        <h1>Supreme Court Criminal Precedents</h1>
+        <p class="subtitle">Hybrid retrieval and grounded answers over Supreme Court of India criminal judgments, 2018–2025</p>
       </div>
     </div>
     <div id="status" class="status-chips"><span class="chip muted">Connecting…</span></div>
   </header>
 
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="research" role="tab">Legal Research</button>
+    <button class="tab active" data-tab="research" role="tab">Legal research</button>
     <button class="tab" data-tab="pipeline" role="tab">How it works</button>
-    <button class="tab" data-tab="benchmark" role="tab">Evaluation</button>
+    <button class="tab" data-tab="evaluation" role="tab">Evaluation</button>
   </nav>
 
   <main>
     <!-- ============================ RESEARCH ============================ -->
     <section id="tab-research" class="panel active">
       <form id="search-form" class="search-card">
-        <label for="query" class="label">Legal question</label>
-        <textarea id="query" rows="3" placeholder="e.g. Can a High Court quash criminal proceedings under Section 482 CrPC after a settlement in a matrimonial dispute?"></textarea>
+        <label for="query" class="label">Legal question or facts of a matter</label>
+        <textarea id="query" rows="3" placeholder="e.g. When can the High Court quash criminal proceedings under Section 482 CrPC?"></textarea>
         <div class="controls">
-          <label class="ctl">Top-K
-            <select id="topk"><option>3</option><option selected>5</option><option>8</option><option>10</option></select>
+          <label class="ctl">Judgments
+            <select id="topk"><option>3</option><option selected>5</option><option>10</option></select>
           </label>
-          <label class="ctl"><input type="checkbox" id="one-per-case" checked> One result per case</label>
-          <label class="ctl"><input type="checkbox" id="gen-answer"> Generate grounded answer (LLM)</label>
-          <button type="submit" id="search-btn" class="primary">Search precedents</button>
+          <label class="ctl">Year from <input type="number" id="year-from" min="2018" max="2025" placeholder="2018"></label>
+          <label class="ctl">to <input type="number" id="year-to" min="2018" max="2025" placeholder="2025"></label>
+          <label class="ctl">Bench
+            <select id="min-bench">
+              <option value="">any</option>
+              <option value="2">2+ judges</option>
+              <option value="3">3+ judges</option>
+              <option value="5">Constitution Bench (5+)</option>
+            </select>
+          </label>
+          <label class="ctl"><input type="checkbox" id="gen-answer"> Grounded answer (LLM)</label>
+          <button type="submit" id="search-btn" class="primary">Search</button>
         </div>
         <div id="examples" class="examples"></div>
       </form>
@@ -44,73 +53,68 @@
       <div id="search-error" class="error hidden"></div>
 
       <div id="results-area" class="hidden">
-        <div class="grid-2">
-          <div class="card">
-            <h3>Retrieval funnel</h3>
-            <div id="funnel" class="funnel"></div>
-            <p id="expansion" class="note hidden"></p>
-          </div>
-          <div class="card">
-            <h3>Stage latency</h3>
-            <div id="timings" class="bars"></div>
-          </div>
-        </div>
-
+        <div id="flags" class="flags"></div>
+        <p id="timing-line" class="timing-line"></p>
         <div id="answer-card" class="card hidden">
           <h3>Grounded answer</h3>
           <div id="answer" class="answer"></div>
         </div>
-
-        <div class="card">
-          <h3>Ranked precedents</h3>
-          <div id="results"></div>
-        </div>
+        <div id="results"></div>
       </div>
     </section>
 
     <!-- ============================ PIPELINE ============================ -->
     <section id="tab-pipeline" class="panel">
       <div class="card">
-        <h3>Five-stage legal retrieval funnel</h3>
+        <h3>How a question is answered</h3>
         <ol class="stages">
-          <li><b>Statutory concordance expansion.</b> Queries citing CrPC / IPC / Evidence Act sections are expanded with their BNSS / BNS / BSA equivalents (and vice versa), bridging the July 2024 criminal-law transition.</li>
-          <li><b>Dual candidate generation.</b> Dense semantic search (local <code id="p-embed">embedding model</code>, cosine, ChromaDB) and BM25 lexical search each return their top 60 child chunks. BM25 catches exact statutory tokens ("Section 138", "Article 21") that embeddings blur.</li>
-          <li><b>Reciprocal Rank Fusion.</b> RRF (k = 60) merges the two rankings using ranks only, so incompatible score scales never need calibration. The top 30 fused candidates move on.</li>
-          <li><b>Cross-encoder reranking.</b> <code id="p-rerank">bge-reranker-v2-m3</code> reads query and passage jointly. A bounded Stare Decisis prior (court tier, bench strength, ratio vs. obiter; at most ±5%) breaks ties between equally relevant passages without overriding relevance.</li>
-          <li><b>Parent expansion &amp; grounded synthesis.</b> Each ~400-character child chunk maps to its ~1,500-character parent section in SQLite; parents are passed to a large LLM (gpt-oss-120b via Groq's OpenAI-compatible API, with Gemini as fallback) with a zero-hallucination instruction to cite only retrieved precedent.</li>
+          <li><b>Statutory concordance.</b> A section cited with its Act (e.g. "Section 103 BNS") is expanded with its old/new-code equivalent ("Section 302 IPC"), so queries in BNS terms still reach IPC-era judgments.</li>
+          <li><b>Filters (optional).</b> Year range and minimum bench strength are resolved in SQLite to judgment IDs, which restrict both searches.</li>
+          <li><b>Two searches.</b> Dense search (<code id="p-embed">bge-small-en-v1.5</code>, cosine, ChromaDB) and BM25 keyword search each return their top 60 passages. BM25 catches exact statutory tokens that embeddings blur.</li>
+          <li><b>Reciprocal Rank Fusion</b> merges the two rankings by rank only.</li>
+          <li><b>Cross-encoder rerank.</b> <code id="p-rerank">bge-reranker-base</code> reads question and passage together. A bounded authority prior (at most ±5%) prefers larger benches only between near-equally relevant passages.</li>
+          <li><b>One result per judgment.</b> Passages are grouped by judgment; a judgment scores as its best passage and keeps up to two passages.</li>
+          <li><b>Grounded answer.</b> The LLM sees one [Precedent N] per judgment with its metadata and passages, must cite only those, and must refuse when they do not answer. If the best relevance is below the refusal threshold, no LLM call is made. A citation check (no LLM) flags any citation that was not provided.</li>
         </ol>
       </div>
       <div class="grid-2">
         <div class="card">
-          <h3>Legal-aware chunking</h3>
-          <p>Parent sections are flushed at rhetorical transitions ("Learned counsel submitted…" vs. "We hold that…") so counsel's arguments and the court's ratio never share a chunk. Each child chunk is tagged with its rhetorical role and case title.</p>
+          <h3>Data</h3>
+          <p>All criminal judgments (by case number) of the Supreme Court of India, 2018–2025, reported in the S.C.R., from the AWS Open Data registry "indian-supreme-court-judgments". Official metadata, PDF text cleaned of page furniture, headnotes separated from judgment text.</p>
         </div>
         <div class="card">
-          <h3>Engineering under constraints</h3>
-          <p>Shared GPU slice with RAM/VRAM/disk guardrails, resumable checkpointed indexing with deterministic chunk IDs, embedded SQLite (no daemons), and an LLM router with provider fallback, rate limiting and a response cache.</p>
+          <h3>Engineering</h3>
+          <p>CPU-only, small pretrained models (nothing is trained), a process-tree RAM guard, resumable per-collection indexing, deterministic chunk IDs, and an LLM provider chain with rate limiting and a response cache.</p>
         </div>
       </div>
     </section>
 
-    <!-- ============================ BENCHMARK ============================ -->
-    <section id="tab-benchmark" class="panel">
-      <div id="bench-error" class="error hidden"></div>
-      <div id="bench-area" class="hidden">
-        <p id="bench-meta" class="note"></p>
-        <div class="card">
-          <h3>Ablation: retrieval configurations</h3>
-          <p class="note">Each configuration adds one component. Best value per row is highlighted. Retrieval metrics use exact document identity as ground truth.</p>
-          <div class="table-wrap"><table id="bench-table"></table></div>
+    <!-- ============================ EVALUATION ============================ -->
+    <section id="tab-evaluation" class="panel">
+      <div id="eval-error" class="error hidden"></div>
+      <div id="eval-area" class="hidden viz-root">
+        <p id="eval-meta" class="note"></p>
+        <div id="eval-legend" class="legend"></div>
+        <div class="grid-2">
+          <div class="card"><h3>Hit@k by configuration</h3><div id="chart-hitk" class="chart"></div></div>
+          <div class="card"><h3>MRR@10 with 95% bootstrap CI</h3><div id="chart-mrr" class="chart"></div></div>
+          <div class="card"><h3>Latency per query (ms): p50 and p95</h3><div id="chart-latency" class="chart"></div></div>
+          <div class="card"><h3>Hit@5 by query type</h3><div id="chart-types" class="chart"></div></div>
         </div>
         <div class="card">
-          <h3>Per-query results (Full Legal Funnel)</h3>
-          <div class="table-wrap"><table id="perquery-table"></table></div>
+          <h3>All retrieval metrics (table view)</h3>
+          <div class="table-wrap"><table id="eval-table"></table></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><h3>Refusal threshold sweep</h3><div class="table-wrap"><table id="sweep-table"></table></div></div>
+          <div class="card"><h3>Answer generation</h3><div id="gen-summary" class="note"></div></div>
         </div>
       </div>
+      <div id="tooltip" class="tooltip hidden" role="status"></div>
     </section>
   </main>
 
-  <footer class="footer">Retrieval runs locally on the GPU server; only answer synthesis and judging call the LLM API.</footer>
+  <footer class="footer"><b>Academic research prototype, not legal advice.</b> Verify every judgment on the official source.</footer>
   <script src="static/app.js"></script>
 </body>
 </html>

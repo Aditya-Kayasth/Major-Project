@@ -2,16 +2,6 @@
 
 const $ = (sel) => document.querySelector(sel);
 
-const STAGE_LABELS = {
-  metadata_filtering_sec: "Metadata slicing",
-  dense_retrieval_sec: "Dense retrieval",
-  bm25_retrieval_sec: "BM25 retrieval",
-  rrf_fusion_sec: "Rank fusion (RRF)",
-  reranking_sec: "Cross-encoder rerank",
-  parent_expansion_sec: "Parent expansion",
-  llm_generation_sec: "LLM synthesis",
-};
-
 function escapeHtml(text) {
   return String(text ?? "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -24,7 +14,7 @@ function renderMarkdown(md) {
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, "$1<em>$2</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+    .replace(/\[Precedents? (\d+(?:\s*(?:,|and|-)\s*\d+)*)\]/g, '<span class="cite">[Precedent $1]</span>');
   const lines = escapeHtml(md).split(/\r?\n/);
   let html = "", inList = false, para = [], table = [];
   const flushPara = () => { if (para.length) { html += `<p>${inline(para.join(" "))}</p>`; para = []; } };
@@ -70,18 +60,18 @@ document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
     document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === `tab-${btn.dataset.tab}`));
-    if (btn.dataset.tab === "benchmark") loadBenchmark();
+    if (btn.dataset.tab === "evaluation") loadEvaluation();
   });
 });
 
-/* ---------------------------------------------------------------- status */
+/* ---------------------------------------------------------------- status + examples */
 async function loadStatus() {
   try {
     const s = await api("api/status");
     $("#status").innerHTML = [
-      `<span class="chip ok"><b>${s.chunks_indexed.toLocaleString()}</b> chunks</span>`,
-      `<span class="chip"><b>${s.parents_indexed.toLocaleString()}</b> sections</span>`,
-      `<span class="chip">embed: <b>${escapeHtml(s.embedding_model)}</b></span>`,
+      `<span class="chip ok"><b>${s.judgments_indexed.toLocaleString()}</b> judgments</span>`,
+      `<span class="chip"><b>${s.chunks_indexed.toLocaleString()}</b> passages</span>`,
+      `<span class="chip">embed: <b>${escapeHtml(s.embedding_model.split("/").pop())}</b></span>`,
       `<span class="chip">rerank: <b>${escapeHtml(s.reranker_model.split("/").pop())}</b></span>`,
       `<span class="chip ${s.llm_available ? "ok" : "warn"}" title="${escapeHtml(s.llm_route)}">LLM: <b>${s.llm_available ? escapeHtml(s.llm_route.split(" -> ")[0]) : "not configured"}</b></span>`,
     ].join("");
@@ -95,63 +85,87 @@ async function loadStatus() {
 
 async function loadExamples() {
   try {
-    const examples = await api("api/examples");
-    $("#examples").innerHTML = examples.map((q) => `<button type="button" class="example">${escapeHtml(q)}</button>`).join("");
-    document.querySelectorAll(".example").forEach((b) => b.addEventListener("click", () => { $("#query").value = b.textContent; $("#query").focus(); }));
+    const demos = await api("api/examples");
+    $("#examples").innerHTML = demos.map((d, i) =>
+      `<button type="button" class="example" data-i="${i}" title="${escapeHtml(d.query)}">${escapeHtml(d.label)}</button>`).join("");
+    document.querySelectorAll(".example").forEach((b) => b.addEventListener("click", () => {
+      const d = demos[Number(b.dataset.i)], f = d.filters || {};
+      $("#query").value = d.query;
+      $("#year-from").value = f.year_from ?? "";
+      $("#year-to").value = f.year_to ?? "";
+      $("#min-bench").value = f.min_bench ?? "";
+      $("#query").focus();
+    }));
   } catch (_) { /* examples are optional */ }
 }
 
 /* ---------------------------------------------------------------- search */
-function renderFunnel(counts, expanded, original) {
-  const rows = [
-    ["Dense candidates", counts.dense], ["BM25 candidates", counts.bm25], ["Fused (RRF)", counts.fused],
-    ["Cross-encoder scored", counts.reranked], ["Returned", counts.returned],
-  ];
-  const max = Math.max(...rows.map((r) => r[1] || 0), 1);
-  $("#funnel").innerHTML = rows.map(([label, n]) =>
-    `<div class="funnel-row"><span>${label}</span><div class="funnel-bar" style="width:${Math.max(2, (100 * (n || 0)) / max)}%"></div><span>${n ?? "–"}</span></div>`
-  ).join("");
-  const note = $("#expansion");
-  if (expanded && expanded.trim() !== original.trim()) {
-    note.innerHTML = `<b>Statutory concordance expansion:</b> ${escapeHtml(expanded)}`;
-    note.classList.remove("hidden");
-  } else { note.classList.add("hidden"); }
+const STAGES = [
+  ["metadata_filtering_sec", "Filters"], ["dense_retrieval_sec", "Dense"], ["bm25_retrieval_sec", "BM25"],
+  ["rrf_fusion_sec", "Fusion"], ["reranking_sec", "Rerank"], ["parent_expansion_sec", "Passages"],
+  ["llm_generation_sec", "LLM"],
+];
+const ms = (sec) => (sec >= 1 ? `${sec.toFixed(1)} s` : `${Math.round(sec * 1000)} ms`);
+
+function renderTimingLine(t) {
+  const parts = STAGES.filter(([k]) => typeof t[k] === "number").map(([k, label]) => `${label} ${ms(t[k])}`);
+  const total = t.total_latency_sec ?? t.funnel_latency_sec;
+  $("#timing-line").textContent = parts.join(" · ") + (typeof total === "number" ? ` · Total ${ms(total)}` : "");
 }
 
-function renderTimings(timings) {
-  const entries = Object.entries(STAGE_LABELS).filter(([k]) => typeof timings[k] === "number").map(([k, label]) => [label, timings[k] * 1000]);
-  const max = Math.max(...entries.map((e) => e[1]), 1);
-  const total = (timings.funnel_latency_sec || 0) * 1000 + (timings.llm_generation_sec || 0) * 1000;
-  $("#timings").innerHTML = entries.map(([label, ms]) =>
-    `<div class="bar-row"><span>${label}</span><div class="bar-track"><div class="bar-fill" style="width:${(100 * ms) / max}%"></div></div><span class="ms">${ms.toFixed(1)} ms</span></div>`
-  ).join("") + `<div class="bar-row total"><span>Total</span><span></span><span class="ms">${total.toFixed(0)} ms</span></div>`;
+function renderFlags(data, query) {
+  const flags = [];
+  if (data.low_confidence) {
+    flags.push(`<span class="flag critical" role="status">⚠ LOW CONFIDENCE: best relevance ${data.best_relevance?.toFixed(3)} &lt; ${data.min_relevance}. ${data.answer ? "No answer generated." : "An answer would be refused."}</span>`);
+  }
+  const cc = data.citation_check;
+  if (cc && !cc.refused) {
+    const unknown = cc.unknown_precedent_numbers.length + cc.unknown_external_citations.length;
+    const good = unknown === 0 && cc.citation_precision !== null;
+    flags.push(`<span class="flag ${good ? "good" : "warn"}" title="${escapeHtml(JSON.stringify(cc))}">${good ? "✓" : "!"} Citation check: precision ${cc.citation_precision ?? "n/a"} · ${unknown} unknown · cited ${cc.cited_precedents.length}/${cc.n_precedents}${cc.ends_with_verify ? "" : " · missing 'Verify on the official source'"}</span>`);
+  } else if (cc && cc.refused) {
+    flags.push(`<span class="flag neutral">Refused: insufficient precedent in the indexed corpus</span>`);
+  }
+  if (data.expanded_query && data.expanded_query.trim() !== query.trim()) {
+    flags.push(`<span class="flag neutral">Concordance: ${escapeHtml(data.expanded_query.slice(query.length).trim())}</span>`);
+  }
+  const f = data.filters || {};
+  if (f.applied && Object.keys(f.applied).length) {
+    flags.push(`<span class="flag neutral">Filters ${escapeHtml(JSON.stringify(f.applied))} → ${f.matching_docs ?? "?"} judgments</span>`);
+  }
+  $("#flags").innerHTML = flags.join("");
 }
 
-function scoreBar(label, value, max, color) {
-  const pct = Math.max(0, Math.min(100, (100 * value) / max));
-  return `<div class="score"><span>${label}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div><span>${value}</span></div>`;
+function chip(label, value, title) {
+  if (!value && value !== 0) return "";
+  return `<span class="mchip" ${title ? `title="${escapeHtml(title)}"` : ""}><span class="mchip-k">${label}</span> ${escapeHtml(value)}</span>`;
 }
 
 function renderResults(results) {
-  if (!results.length) { $("#results").innerHTML = `<p class="note">No precedents retrieved.</p>`; return; }
+  if (!results.length) { $("#results").innerHTML = `<div class="card"><p class="note">No judgments retrieved.</p></div>`; return; }
   $("#results").innerHTML = results.map((r) => {
-    const authority = r.authority_factor >= 1 ? `+${((r.authority_factor - 1) * 100).toFixed(1)}%` : `${((r.authority_factor - 1) * 100).toFixed(1)}%`;
+    const statutes = (r.statutes_cited || "").split("; ").filter(Boolean);
+    const shown = statutes.slice(0, 6).join("; ") + (statutes.length > 6 ? ` +${statutes.length - 6}` : "");
+    const prior = `${r.authority_factor >= 1 ? "+" : ""}${((r.authority_factor - 1) * 100).toFixed(1)}%`;
     return `
-    <div class="result">
+    <article class="card judgment">
       <div class="rank">${r.rank}</div>
       <div>
         <div class="result-title">${escapeHtml(r.case_title)}</div>
-        <div class="result-meta">${escapeHtml(r.court)}${r.year ? " · " + escapeHtml(r.year) : ""}</div>
-        <div class="badges">
-          ${r.role ? `<span class="badge role">${escapeHtml(r.role)}</span>` : ""}
-          <span class="badge">Dense rank: ${r.dense_rank ?? "–"}</span>
-          <span class="badge">BM25 rank: ${r.bm25_rank ?? "–"}</span>
-          <span class="badge">Authority prior: ${authority}</span>
+        <div class="mchips">
+          ${chip("Citation", r.citation)}${chip("Date", r.decision_date)}
+          ${chip("Bench", r.bench_label, r.judges)}${chip("Author", r.author_judge, r.author_source ? `source: ${r.author_source}` : "")}
+          ${chip("Disposal", r.disposal_nature)}${chip("Statutes", shown, statutes.join("; "))}
         </div>
-        ${scoreBar("Relevance score", r.rerank_score, 1.05, "var(--accent)")}
-        <details><summary class="note">Matched passage</summary><div class="snippet">${escapeHtml(r.snippet)}</div></details>
+        <div class="note">relevance ${r.relevance.toFixed(3)} · authority prior ${prior} · score ${r.score.toFixed(3)} · judges: ${escapeHtml(r.judges)}</div>
+        ${r.passages.map((p, i) => `
+          <div class="passage">
+            <span class="role ${p.section_kind === "headnote" ? "headnote" : ""}">${escapeHtml(p.role)}${p.section_kind === "headnote" ? " (editorial)" : ""}</span>
+            <span class="note">passage ${i + 1}</span>
+            <div class="snippet">${escapeHtml(p.text)}</div>
+          </div>`).join("")}
       </div>
-    </div>`;
+    </article>`;
   }).join("");
 }
 
@@ -163,18 +177,17 @@ $("#search-form").addEventListener("submit", async (e) => {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span>Searching…`;
   $("#search-error").classList.add("hidden");
+  const num = (id) => ($(id).value === "" ? null : Number($(id).value));
   try {
     const data = await api("api/search", {
       method: "POST",
       body: JSON.stringify({
-        query,
-        top_k: Number($("#topk").value),
-        one_per_case: $("#one-per-case").checked,
-        generate_answer: $("#gen-answer").checked,
+        query, top_k: Number($("#topk").value), generate_answer: $("#gen-answer").checked,
+        year_from: num("#year-from"), year_to: num("#year-to"), min_bench: num("#min-bench"),
       }),
     });
-    renderFunnel(data.funnel_counts || {}, data.expanded_query, query);
-    renderTimings(data.timings || {});
+    renderFlags(data, query);
+    renderTimingLine(data.timings || {});
     renderResults(data.results || []);
     if (data.answer) {
       $("#answer").innerHTML = renderMarkdown(data.answer);
@@ -186,53 +199,176 @@ $("#search-form").addEventListener("submit", async (e) => {
     $("#search-error").classList.remove("hidden");
   } finally {
     btn.disabled = false;
-    btn.textContent = "Search precedents";
+    btn.textContent = "Search";
   }
 });
 
-/* ---------------------------------------------------------------- benchmark */
-const LOWER_IS_BETTER = (metric) => metric.toLowerCase().includes("latency");
+/* ---------------------------------------------------------------- evaluation charts (plain SVG) */
+const CONFIG_ORDER = ["dense", "bm25", "hybrid_rrf", "full", "full_no_prior"];
+const SVG_NS = "http://www.w3.org/2000/svg";
+const color = (cfg) => `var(--series-${CONFIG_ORDER.indexOf(cfg) + 1})`;
 
-function fmt(metric, v) {
-  if (v === null || v === undefined) return "N/A";
-  if (typeof v !== "number") return escapeHtml(v);
-  if (LOWER_IS_BETTER(metric)) return `${v.toFixed(0)} ms`;
-  if (/hit|mrr/i.test(metric)) return v.toFixed(3);
-  return v.toFixed(2);
+function svgEl(tag, attrs = {}, parent) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  if (parent) parent.appendChild(el);
+  return el;
 }
 
-let benchmarkLoaded = false;
-async function loadBenchmark() {
-  if (benchmarkLoaded) return;
-  try {
-    const b = await api("api/benchmark");
-    benchmarkLoaded = true;
-    const configs = Object.keys(b.summary_table);
-    const metrics = configs.length ? Object.keys(b.summary_table[configs[0]]) : [];
-    $("#bench-meta").textContent = `${b.queries_count} benchmark queries · collection "${b.collection_name}" · run ${b.timestamp} (${b.file})`;
+/* Bar with a 4px rounded data-end and a square base (vertical or horizontal). */
+function barPath(x, y, w, h, horizontal) {
+  const r = Math.min(4, horizontal ? h / 2 : w / 2, horizontal ? w : h);
+  if (w <= 0 || h <= 0) return "";
+  if (horizontal) return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`;
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
 
-    let html = `<thead><tr><th>Metric</th>${configs.map((c) => `<th class="num">${escapeHtml(c.replace(/^Config \d+ \(|\)$/g, ""))}</th>`).join("")}</tr></thead><tbody>`;
-    for (const m of metrics) {
-      const vals = configs.map((c) => b.summary_table[c][m]);
-      const nums = vals.filter((v) => typeof v === "number");
-      const best = nums.length ? (LOWER_IS_BETTER(m) ? Math.min(...nums) : Math.max(...nums)) : null;
-      html += `<tr><td>${escapeHtml(m)}</td>${vals.map((v) => `<td class="num ${v === best && nums.length > 1 ? "best" : ""}">${fmt(m, v)}</td>`).join("")}</tr>`;
+const tip = () => $("#tooltip");
+function hover(el, html) {
+  el.addEventListener("mousemove", (ev) => {
+    const t = tip();
+    t.innerHTML = html;
+    t.classList.remove("hidden");
+    t.style.left = `${ev.clientX + 14}px`;
+    t.style.top = `${ev.clientY + 12}px`;
+  });
+  el.addEventListener("mouseleave", () => tip().classList.add("hidden"));
+}
+
+function axisY(svg, x0, x1, yScale, ticks, fmt) {
+  for (const t of ticks) {
+    const y = yScale(t);
+    svgEl("line", { x1: x0, x2: x1, y1: y, y2: y, class: "grid" }, svg);
+    svgEl("text", { x: x0 - 6, y: y + 4, class: "tick", "text-anchor": "end" }, svg).textContent = fmt(t);
+  }
+}
+
+function groupedBars(el, categories, series, { yMax = 1, fmt = (v) => v.toFixed(2), catLabel = (c) => c } = {}) {
+  const W = 520, H = 250, m = { l: 40, r: 8, t: 10, b: 34 };
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const y = (v) => m.t + ph - (ph * v) / yMax;
+  axisY(svg, m.l, W - m.r, y, [0, 0.25, 0.5, 0.75, 1].map((f) => f * yMax), fmt);
+  const gw = pw / categories.length, inner = gw * 0.78, bw = (inner - 2 * (series.length - 1)) / series.length;
+  categories.forEach((c, ci) => {
+    const gx = m.l + ci * gw + (gw - inner) / 2;
+    series.forEach((s, si) => {
+      const v = s.values[ci];
+      if (v === null || v === undefined) return;
+      const x = gx + si * (bw + 2), top = y(v);
+      const hit = svgEl("rect", { x: x - 1, y: m.t, width: bw + 2, height: ph, fill: "transparent" }, svg);
+      svgEl("path", { d: barPath(x, top, bw, m.t + ph - top, false), fill: s.color }, svg);
+      hover(hit, `<b>${escapeHtml(s.name)}</b><br>${escapeHtml(catLabel(c))}: ${fmt(v)}`);
+    });
+    svgEl("text", { x: m.l + ci * gw + gw / 2, y: H - 12, class: "tick", "text-anchor": "middle" }, svg).textContent = catLabel(c);
+  });
+  el.replaceChildren(svg);
+}
+
+function ciBars(el, rows, { xMax = 1, fmt = (v) => v.toFixed(3) } = {}) {
+  const W = 520, rowH = 34, m = { l: 190, r: 70, t: 6, b: 24 };
+  const H = m.t + m.b + rows.length * rowH;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  const pw = W - m.l - m.r, x = (v) => m.l + (pw * v) / xMax;
+  for (const t of [0, 0.25, 0.5, 0.75, 1].map((f) => f * xMax)) {
+    svgEl("line", { x1: x(t), x2: x(t), y1: m.t, y2: H - m.b, class: "grid" }, svg);
+    svgEl("text", { x: x(t), y: H - 8, class: "tick", "text-anchor": "middle" }, svg).textContent = fmt(t);
+  }
+  rows.forEach((r, i) => {
+    const cy = m.t + i * rowH + rowH / 2, bh = 12;
+    svgEl("text", { x: m.l - 8, y: cy + 4, class: "label", "text-anchor": "end" }, svg).textContent = r.name;
+    svgEl("path", { d: barPath(m.l, cy - bh / 2, x(r.value) - m.l, bh, true), fill: r.color }, svg);
+    if (r.ci) {
+      const [lo, hi] = r.ci;
+      svgEl("line", { x1: x(lo), x2: x(hi), y1: cy, y2: cy, class: "whisker" }, svg);
+      for (const v of [lo, hi]) svgEl("line", { x1: x(v), x2: x(v), y1: cy - 7, y2: cy + 7, class: "whisker" }, svg);
     }
-    $("#bench-table").innerHTML = html + "</tbody>";
+    svgEl("text", { x: W - m.r + 6, y: cy + 4, class: "value" }, svg).textContent = fmt(r.value);
+    const hit = svgEl("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, fill: "transparent" }, svg);
+    hover(hit, `<b>${escapeHtml(r.name)}</b><br>${r.tip}`);
+  });
+  el.replaceChildren(svg);
+}
 
-    $("#perquery-table").innerHTML =
-      `<thead><tr><th>ID</th><th>Question</th><th>Target judgment</th><th class="num">Rank</th><th>Top-1 retrieved</th></tr></thead><tbody>` +
-      b.per_query.map((q) => `<tr>
-        <td>${escapeHtml(q.query_id)}</td>
-        <td>${escapeHtml(q.query)}</td>
-        <td>${escapeHtml(q.target_case)}</td>
-        <td class="num ${q.rank === 1 ? "hit" : q.rank ? "" : "miss"}">${q.rank ?? "not in top-5"}</td>
-        <td>${escapeHtml(q.top_1_case)}</td></tr>`).join("") + "</tbody>";
-    $("#bench-area").classList.remove("hidden");
-    $("#bench-error").classList.add("hidden");
+function latencyBars(el, rows) {
+  const W = 520, rowH = 40, m = { l: 190, r: 70, t: 6, b: 24 };
+  const H = m.t + m.b + rows.length * rowH;
+  const xMax = Math.max(...rows.map((r) => r.p95 || 0), 1);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  const pw = W - m.l - m.r, x = (v) => m.l + (pw * v) / xMax;
+  for (const t of [0, 0.25, 0.5, 0.75, 1].map((f) => f * xMax)) {
+    svgEl("line", { x1: x(t), x2: x(t), y1: m.t, y2: H - m.b, class: "grid" }, svg);
+    svgEl("text", { x: x(t), y: H - 8, class: "tick", "text-anchor": "middle" }, svg).textContent = Math.round(t);
+  }
+  rows.forEach((r, i) => {
+    const top = m.t + i * rowH + 6, bh = 11;
+    svgEl("text", { x: m.l - 8, y: top + bh + 4, class: "label", "text-anchor": "end" }, svg).textContent = r.name;
+    svgEl("path", { d: barPath(m.l, top, x(r.p50) - m.l, bh, true), fill: r.color }, svg);
+    svgEl("path", { d: barPath(m.l, top + bh + 2, x(r.p95) - m.l, bh, true), fill: r.color, class: "p95" }, svg);
+    svgEl("text", { x: W - m.r + 6, y: top + bh + 4, class: "value" }, svg).textContent = `${Math.round(r.p50)} ms`;
+    const hit = svgEl("rect", { x: 0, y: top - 4, width: W, height: rowH, fill: "transparent" }, svg);
+    hover(hit, `<b>${escapeHtml(r.name)}</b><br>p50 ${Math.round(r.p50)} ms · p95 ${Math.round(r.p95)} ms`);
+  });
+  el.replaceChildren(svg);
+}
+
+let evaluationLoaded = false;
+async function loadEvaluation() {
+  if (evaluationLoaded) return;
+  try {
+    const R = await api("api/results");
+    evaluationLoaded = true;
+    const cfgs = CONFIG_ORDER.filter((c) => R.configs[c]);
+    const name = (c) => R.configs[c].label;
+    const run = R.run || {};
+    $("#eval-meta").textContent = `Run ${run.timestamp} · commit ${run.git_commit} · ${run.device} · ` +
+      `${run.corpus?.judgments?.toLocaleString()} judgments, ${run.corpus?.chunks?.toLocaleString()} passages · ` +
+      `queries ${JSON.stringify(run.queries?.counts || {})} · judgment-level ranking, k = 10, 95% bootstrap CIs (1,000 resamples).`;
+    $("#eval-legend").innerHTML = cfgs.map((c) =>
+      `<span class="legend-item"><span class="swatch" style="background:${color(c)}"></span>${escapeHtml(name(c))}</span>`).join("") +
+      `<span class="legend-item note">latency: upper bar p50, lower lighter bar p95</span>`;
+
+    const ks = ["hit@1", "hit@3", "hit@5", "hit@10"];
+    groupedBars($("#chart-hitk"), ks, cfgs.map((c) => ({ name: name(c), color: color(c), values: ks.map((k) => R.configs[c].overall[k].value) })),
+      { catLabel: (k) => k.replace("hit@", "Hit@") });
+    ciBars($("#chart-mrr"), cfgs.map((c) => {
+      const o = R.configs[c].overall["mrr@10"];
+      return { name: name(c), color: color(c), value: o.value, ci: o.ci, tip: `MRR@10 ${o.value.toFixed(3)}<br>95% CI [${o.ci[0].toFixed(3)}, ${o.ci[1].toFixed(3)}]` };
+    }));
+    latencyBars($("#chart-latency"), cfgs.map((c) => ({ name: name(c), color: color(c), ...R.configs[c].latency_ms })));
+    const types = Object.keys(R.configs[cfgs[0]].by_type);
+    groupedBars($("#chart-types"), types, cfgs.map((c) => ({ name: name(c), color: color(c), values: types.map((t) => R.configs[c].by_type[t]["hit@5"]) })),
+      { catLabel: (t) => `${t.replace("_", " ")} (n=${R.configs[cfgs[0]].by_type[t].n})` });
+
+    const metrics = ["hit@1", "hit@3", "hit@5", "hit@10", "mrr@10", "ndcg@10", "recall@10"];
+    let html = `<thead><tr><th>Config</th>${metrics.map((m) => `<th class="num">${m}</th>`).join("")}<th class="num">p50 ms</th><th class="num">p95 ms</th></tr></thead><tbody>`;
+    for (const c of cfgs) {
+      const o = R.configs[c].overall, l = R.configs[c].latency_ms;
+      html += `<tr><td>${escapeHtml(name(c))}</td>${metrics.map((m) => `<td class="num" title="95% CI [${o[m].ci.join(", ")}]">${o[m].value.toFixed(3)}</td>`).join("")}<td class="num">${Math.round(l.p50)}</td><td class="num">${Math.round(l.p95)}</td></tr>`;
+    }
+    for (const t of types) {
+      html += `<tr class="sub"><td colspan="${metrics.length + 3}">${escapeHtml(t)} (n=${R.configs[cfgs[0]].by_type[t].n})</td></tr>`;
+      for (const c of cfgs) {
+        const o = R.configs[c].by_type[t];
+        html += `<tr><td class="indent">${escapeHtml(name(c))}</td>${metrics.map((m) => `<td class="num">${o[m].toFixed(3)}</td>`).join("")}<td></td><td></td></tr>`;
+      }
+    }
+    $("#eval-table").innerHTML = html + "</tbody>";
+
+    const cal = R.calibration || {};
+    $("#sweep-table").innerHTML = `<thead><tr><th class="num">Threshold</th><th class="num">Out-of-scope refused</th><th class="num">In-scope refused</th><th class="num">Refused among Hit@1</th></tr></thead><tbody>` +
+      (cal.sweep || []).map((s) => `<tr class="${s.threshold === cal.current_min_relevance ? "current" : ""}"><td class="num">${s.threshold}</td><td class="num">${s.oos_refused}</td><td class="num">${s.in_scope_refused}</td><td class="num">${s.hit1_refused}</td></tr>`).join("") +
+      `</tbody>`;
+    const g = R.generation || {};
+    $("#gen-summary").innerHTML = g.status !== "run" ? escapeHtml(g.status || "not run") :
+      `<p>${g.n_answers} answers by ${escapeHtml(g.answer_model)}; ${g.n_judged} judged by ${escapeHtml(g.judge)}.</p>
+       <p>Judge means (0–10): ${g.judge_means ? Object.entries(g.judge_means).map(([k, v]) => `${escapeHtml(k)} ${v}`).join(" · ") : "not available"}</p>
+       <p>Citation precision ${g.citation_precision_mean ?? "n/a"} · answers with unknown citations ${g.answers_with_unknown_citations} · ends with "Verify…" ${g.ends_with_verify}/${g.n_answers} · out-of-scope refusal rate ${g.oos_refusal_rate}</p>`;
+    $("#eval-area").classList.remove("hidden");
+    $("#eval-error").classList.add("hidden");
   } catch (err) {
-    $("#bench-error").textContent = `Could not load benchmark: ${err.message}`;
-    $("#bench-error").classList.remove("hidden");
+    $("#eval-error").textContent = `Could not load results.json: ${err.message}`;
+    $("#eval-error").classList.remove("hidden");
   }
 }
 

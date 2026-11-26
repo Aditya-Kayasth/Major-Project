@@ -156,7 +156,59 @@ td.best { background: var(--accent-soft); color: var(--accent); font-weight: 700
 .stages { padding-left: 20px; margin: 0; }
 .stages li { margin-bottom: 10px; }
 
-.footer { text-align: center; color: var(--ink-soft); font-size: 12px; padding: 20px; }
+.footer { text-align: center; color: var(--ink-soft); font-size: 12.5px; padding: 20px; border-top: 1px solid var(--line); }
+.footer b { color: var(--ink); }
+
+/* Filters */
+input[type="number"] {
+  width: 74px; font: inherit; padding: 4px 6px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+
+/* Result flags (status badges: icon + label, never colour alone) */
+.flags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.flag { font-size: 13px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); }
+.flag.critical { border-color: #c4314b; color: #c4314b; font-weight: 600; }
+.flag.warn { border-color: var(--amber); color: var(--amber); }
+.flag.good { border-color: var(--green); color: var(--green); }
+.flag.neutral { color: var(--ink-soft); }
+.timing-line { font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; margin: 0 0 14px; }
+
+/* Judgment cards */
+.judgment { display: grid; grid-template-columns: 42px 1fr; gap: 12px; }
+.mchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 6px; }
+.mchip { font-size: 12.5px; padding: 2px 8px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); }
+.mchip-k { color: var(--ink-soft); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+.passage { margin-top: 10px; }
+.role { font-size: 12px; padding: 2px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.role.headnote { background: var(--bg); color: var(--ink-soft); border: 1px dashed var(--line); }
+.answer .cite { color: var(--accent); font-weight: 600; font-family: var(--sans); font-size: 0.92em; }
+
+/* Evaluation charts: categorical slots 1-5 of the reference palette, light and dark steps */
+.viz-root {
+  --series-1: #257de0; --series-2: #f47230; --series-3: #00b894; --series-4: #f2a600; --series-5: #ee7fac;
+}
+@media (prefers-color-scheme: dark) {
+  .viz-root { --series-1: #338ced; --series-2: #e76624; --series-3: #00a888; --series-4: #d28e05; --series-5: #e24d8b; }
+}
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 12px; font-size: 13px; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .tick { fill: var(--ink-soft); font-size: 11px; font-family: var(--sans); }
+.chart .label { fill: var(--ink); font-size: 12px; font-family: var(--sans); }
+.chart .value { fill: var(--ink); font-size: 12px; font-family: var(--sans); font-variant-numeric: tabular-nums; }
+.chart .whisker { stroke: var(--ink); stroke-width: 1.5; }
+.chart .p95 { opacity: 0.45; }
+.tooltip {
+  position: fixed; z-index: 10; pointer-events: none; max-width: 260px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; box-shadow: var(--shadow); padding: 6px 9px; font-size: 12.5px;
+}
+tr.sub td { background: var(--bg); font-weight: 600; }
+td.indent { padding-left: 22px; }
+tr.current td { background: var(--accent-soft); }
 .spinner {
   display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255, 255, 255, 0.5);
   border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; margin-right: 6px;

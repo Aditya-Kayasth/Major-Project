@@ -1,0 +1,42 @@
+[
+  {
+    "id": "D1",
+    "label": "Section-based question",
+    "query": "Can a conviction for murder under Section 302 IPC rest only on circumstantial evidence, and what must the chain of circumstances show?",
+    "filters": {},
+    "expect": "answer",
+    "verified": false
+  },
+  {
+    "id": "D2",
+    "label": "Fact pattern",
+    "query": "The accused stabbed the victim once with a kitchen knife during a sudden quarrel. The injury was on the thigh, not on a vital organ, and the victim recovered. The trial court convicted him of attempt to murder. Can the conviction stand, or does it fall to voluntarily causing hurt with a dangerous weapon?",
+    "filters": {},
+    "expect": "answer",
+    "verified": false
+  },
+  {
+    "id": "D3",
+    "label": "BNS section reaching IPC judgments (concordance)",
+    "query": "When is a killing murder under Section 103 BNS rather than culpable homicide not amounting to murder?",
+    "filters": {},
+    "expect": "answer; concordance adds Section 302 IPC",
+    "verified": false
+  },
+  {
+    "id": "D4",
+    "label": "Filter demo: benches of 3 or more judges",
+    "query": "When can the High Court quash criminal proceedings under Section 482 CrPC?",
+    "filters": {"min_bench": 3},
+    "expect": "answer from 3+ judge benches only",
+    "verified": false
+  },
+  {
+    "id": "D5",
+    "label": "Out of scope (should refuse)",
+    "query": "Can a buyer get specific performance of a contract for the sale of land when the seller backs out?",
+    "filters": {},
+    "expect": "refuse",
+    "verified": false
+  }
+]
