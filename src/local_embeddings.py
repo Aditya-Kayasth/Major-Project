@@ -124,35 +124,50 @@ class LocalEmbeddingEngine:
     def _st_prompts(self) -> dict:
         return (getattr(self._st_model, "prompts", None) or {}) if self._st_model is not None else {}
 
+    def effective_prompt(self, is_query: bool) -> str:
+        """The exact string prepended to every input.
+
+        Queries: the model's own non-empty 'query' prompt if it ships one, else QUERY_INSTRUCTION
+        (the BGE prefix for bge-*-en). Documents: the model's 'document' prompt, else nothing.
+        The prompt is always passed explicitly to encode(), so a model's default prompt can
+        never leak onto documents.
+        """
+        prompts = self._st_prompts()
+        if is_query:
+            return prompts.get("query") or self.query_prefix or ""
+        return prompts.get("document") or ""
+
+    def prompt_source(self, is_query: bool = True) -> str:
+        prompts = self._st_prompts()
+        key = "query" if is_query else "document"
+        if prompts.get(key):
+            return "model_config"
+        return "query_instruction" if (is_query and self.query_prefix) else "none"
+
     def prepare_texts(self, texts: List[str], is_query: bool) -> List[str]:
-        """Apply the query prefix (queries only) unless the model ships its own 'query' prompt."""
-        if is_query and self.query_prefix and "query" not in self._st_prompts():
-            return [self.query_prefix + t for t in texts]
-        return list(texts)
+        """The texts exactly as the model sees them (prompt + text)."""
+        prompt = self.effective_prompt(is_query)
+        return [prompt + t for t in texts] if prompt else list(texts)
 
     def embed_texts(self, texts: List[str], show_progress: bool = False, is_query: bool = False) -> List[List[float]]:
         """Normalized embeddings for a list of texts, in batches."""
         if not texts:
             return []
         self.initialize()
-        inputs = self.prepare_texts(texts, is_query)
 
         if self._st_model is not None:
-            prompts = self._st_prompts()
-            prompt_name = None
-            if is_query and "query" in prompts:
-                prompt_name = "query"
-            elif not is_query and "document" in prompts:
-                prompt_name = "document"
+            # Explicit prompt ("" for plain documents): overrides any default_prompt_name in the model config
             embeddings = self._st_model.encode(
-                inputs,
+                list(texts),
                 batch_size=self.batch_size,
                 show_progress_bar=show_progress,
                 normalize_embeddings=True,
                 convert_to_numpy=True,
-                prompt_name=prompt_name,
+                prompt=self.effective_prompt(is_query),
             )
             return embeddings.tolist()
+
+        inputs = self.prepare_texts(texts, is_query)
 
         import torch.nn.functional as F
 

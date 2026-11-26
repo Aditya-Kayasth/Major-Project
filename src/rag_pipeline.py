@@ -23,6 +23,22 @@ from src.vector_store import VectorStoreManager
 logger = logging.getLogger("IndianLegalRAG.Pipeline")
 
 
+def reranker_relevances(scores: List[float]) -> List[float]:
+    """Cross-encoder outputs as relevances in [0, 1], without a second sigmoid.
+
+    sentence-transformers 6 CrossEncoder.predict() already applies Sigmoid for 1-label models
+    (verified on the server: activation_fn=Sigmoid, outputs in [0,1]), so such a batch is used
+    as-is. Only a batch of raw logits (any value outside [0,1]) gets one sigmoid, applied to the
+    whole batch so the ordering stays consistent.
+    """
+    import math
+
+    vals = [float(s) for s in scores]
+    if all(0.0 <= v <= 1.0 for v in vals):
+        return vals
+    return [1.0 / (1.0 + math.exp(-max(min(v, 20.0), -20.0))) for v in vals]
+
+
 def get_stare_decisis_weight(court_name: str, bench_type: Optional[str] = None) -> float:
     """Compute Stare Decisis authoritative weight multiplier based on court tier and bench strength."""
     c = (court_name or "").lower()
@@ -333,15 +349,10 @@ class IndianLegalRAGPipeline:
             pairs = [[query, c["text"]] for c in top_fused]
             raw_scores = reranker.predict(pairs)
 
-            for c, raw_score in zip(top_fused, raw_scores):
+            relevances = reranker_relevances(raw_scores)
+            for c, raw_score, norm_score in zip(top_fused, raw_scores, relevances):
                 c_copy = dict(c)
                 raw_s = float(raw_score)
-                # Apply numerically stable sigmoid
-                try:
-                    import math
-                    norm_score = 1.0 / (1.0 + math.exp(-max(min(raw_s, 20.0), -20.0)))
-                except Exception:
-                    norm_score = 1.0 if raw_s > 0 else 0.0
 
                 # Factor in Stare Decisis precedent multiplier, binding role boost, and judge affinity
                 stare_weight = float(c.get("court_tier_weight", 1.0))

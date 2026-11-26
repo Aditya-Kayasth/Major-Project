@@ -119,13 +119,21 @@ def check_embeddings(settings):
         "The appellant challenged the land acquisition award on the ground of inadequate compensation.",
     ])
     sims = [float(np.dot(q, d)) for d in docs]
-    prepared = engine.prepare_texts([query], is_query=True)[0]
-    prefix_applied = prepared != query
+    q_prompt, d_prompt = engine.effective_prompt(True), engine.effective_prompt(False)
     assert abs(float(np.linalg.norm(q)) - 1.0) < 1e-2, "query vector not normalised"
     assert sims[0] > sims[1], f"relevant doc not closer to query: {sims}"
-    if "bge" in engine.model_name.lower() and "-en" in engine.model_name.lower():
-        assert prefix_applied, "BGE query prefix NOT applied"
-    assert engine.prepare_texts(["doc"], is_query=False) == ["doc"], "documents must not get a prefix"
+    is_bge_en = "bge" in engine.model_name.lower() and "-en" in engine.model_name.lower()
+    if is_bge_en:
+        assert q_prompt.startswith("Represent this sentence"), f"BGE query prompt missing: {q_prompt!r}"
+        assert d_prompt == "", f"documents must not get a prefix, got {d_prompt!r}"
+    # Behavioural check: the query vector must differ from the same text encoded with no prompt
+    q_plain = engine._st_model.encode([query], prompt="", normalize_embeddings=True, convert_to_numpy=True)[0]
+    cos_plain = float(np.dot(q, q_plain))
+    if q_prompt:
+        assert cos_plain < 0.9999, "query prompt has no effect on the vector (not applied)"
+    print(f"       query prompt source={engine.prompt_source(True)} prompt={q_prompt[:58]!r} | "
+          f"doc prompt={d_prompt!r} | cos(with, without prompt)={cos_plain:.4f}")
+    prefix_applied = bool(q_prompt) and cos_plain < 0.9999
 
     chunk = ("The prosecution relied on the dying declaration recorded by the Magistrate and the testimony "
              "of the eye-witnesses to establish the guilt of the accused under Section 302 IPC. ") * 5
