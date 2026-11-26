@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Benchmark v2 evaluation (Phase 6, step 2; run with nohup after generate_benchmark_v2.py).
+"""Benchmark v2 evaluation (Phase 6), in three resumable steps. Run each with nohup.
+
+  1. retrieval  (default, or --skip-llm)  all 5 configs on every in-scope query + out-of-scope relevance.
+                Writes per_query.json and run_manifest.json IMMEDIATELY, then results.json / results.md.
+  2. --llm-only                           grounded answers (Groq) for 5 out-of-scope + N in-scope queries
+                                          (default 15), reusing per_query.json (no retrieval re-run).
+                                          Appends to generation_answers.json after EVERY answer; resumes.
+  3. --judge-only                         Gemini judge on at most --judge-n answers (default 10), with
+                                          --judge-delay seconds between calls; appends to judge_rows.json
+                                          after every call; resumes. Loads no models.
+
+Every step finishes by rebuilding results.json / results.md from whatever files exist, so a stopped step
+loses at most the item in progress. Anything not run is reported as "not run". All LLM calls are cached.
 
 Configs (all ranked at JUDGMENT level, top 10, ground truth = target doc_id):
   dense          Chroma cosine on the raw query (bge-small + BGE query prefix), chunks -> judgments
@@ -9,18 +21,10 @@ Configs (all ranked at JUDGMENT level, top 10, ground truth = target doc_id):
                  judgments by best passage; positions after the reranked judgments are filled from the fused order
   full_no_prior  as full, with the authority prior switched off (ablation)
 
-Metrics: Hit@1/3/5/10, MRR@10, nDCG@10, Recall@10 with 95% bootstrap CIs (1,000 resamples, seed 42),
-by query type and (full) by year; latency mean/p50/p95 per config; paired bootstrap deltas.
-Out-of-scope queries: best cross-encoder relevance and refusal at MIN_RELEVANCE, plus a threshold sweep
-(also over in-scope queries) to calibrate MIN_RELEVANCE.
-Generation (optional): grounded answers (Groq) for 15 in-scope + 5 out-of-scope queries; Gemini judge
-on the 15 (groundedness, ratio/obiter, statutory accuracy, reasoning); citation precision and refusal
-rate from the citation check. All LLM calls are cached. Nothing is estimated: anything not run is "not run".
-
-Outputs in $BENCHMARKS_DIR/v2/: results.json (compact), results.md, run_manifest.json, per_query.json.
-
 Usage (server):
-    nohup python scripts/evaluate_v2.py --collection sc_criminal_cpu > ~/Pratik/workspace/logs/eval_v2.log 2>&1 &
+    nohup python scripts/evaluate_v2.py --skip-llm   > ~/Pratik/workspace/logs/eval_v2_retrieval.log 2>&1 &
+    nohup python scripts/evaluate_v2.py --llm-only   > ~/Pratik/workspace/logs/eval_v2_gen.log 2>&1 &
+    nohup python scripts/evaluate_v2.py --judge-only > ~/Pratik/workspace/logs/eval_v2_judge.log 2>&1 &
 """
 
 import argparse
@@ -31,7 +35,6 @@ import statistics
 import subprocess
 import sys
 import time
-from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -59,6 +62,7 @@ Return strictly valid JSON: {"groundedness": n, "ratio_obiter": n, "statutory_ac
 JUDGE_DIMS = ("groundedness", "ratio_obiter", "statutory_accuracy", "reasoning")
 
 
+# --------------------------------------------------------------------------- helpers
 def git_commit() -> str:
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_ROOT, capture_output=True,
@@ -67,7 +71,21 @@ def git_commit() -> str:
         return "unknown"
 
 
-def load_queries(out_dir: Path, store) -> List[Dict[str, Any]]:
+def read_json(path: Path, default: Any) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else default
+    except Exception:
+        return default
+
+
+def write_json(path: Path, data: Any, compact: bool = False) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, separators=(",", ":"), ensure_ascii=False) if compact
+                   else json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)
+
+
+def load_queries(out_dir: Path, db_path: Path) -> List[Dict[str, Any]]:
     path = out_dir / "queries_v2.json"
     if not path.exists():
         sys.exit("[ERROR] queries_v2.json not found: run scripts/generate_benchmark_v2.py first.")
@@ -76,7 +94,7 @@ def load_queries(out_dir: Path, store) -> List[Dict[str, Any]]:
     if human.exists():
         import sqlite3
 
-        conn = sqlite3.connect(f"file:{store.db_path}?mode=ro", uri=True)
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         for h in json.loads(human.read_text(encoding="utf-8")):
             ids = list(h.get("target_doc_ids") or [])
             for cit in h.get("target_citations") or []:
@@ -107,7 +125,6 @@ def rank(pipe, cfg: str, query: str, k: int = 10) -> Dict[str, Any]:
                                    use_authority=False if cfg == "full_no_prior" else None)
         ranking = bv.full_ranking([g["doc_id"] for g in out["judgments"]], out["fused_doc_order"], k)
         extra["best_relevance"] = max((g["relevance"] for g in out["judgments"]), default=0.0)
-        extra["n_reranked_judgments"] = len(out["judgments"])
     extra["ms"] = (time.perf_counter() - t0) * 1000.0
     extra["ranking"] = ranking
     return extra
@@ -131,33 +148,24 @@ def judge(client, settings, question: str, context: str, answer: str) -> Optiona
     return {d: float(data[d]) for d in JUDGE_DIMS} | {"feedback": str(data.get("feedback", ""))[:200]}
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Evaluate benchmark v2")
-    ap.add_argument("--collection", default="sc_criminal_cpu")
-    ap.add_argument("--skip-llm", action="store_true", help="Retrieval metrics only (no answers, no judge)")
-    ap.add_argument("--judge-n", type=int, default=15)
-    ap.add_argument("--max-queries", type=int, default=None, help="Smoke test only")
-    args = ap.parse_args()
-
+# --------------------------------------------------------------------------- step 1: retrieval
+def run_retrieval(args, settings, out_dir: Path) -> None:
     import torch
 
     from src.rag_pipeline import IndianLegalRAGPipeline
     from src.resource_guard import ResourceGuard
 
-    settings = get_settings()
     torch.set_num_threads(settings.num_threads)
-    guard = ResourceGuard(max_ram_gb=settings.max_ram_gb, warn_ram_gb=settings.warn_ram_gb, num_cpu_threads=settings.num_threads)
-    out_dir = settings.benchmarks_dir / "v2"
+    guard = ResourceGuard(max_ram_gb=settings.max_ram_gb, warn_ram_gb=settings.warn_ram_gb,
+                          num_cpu_threads=settings.num_threads)
     pipe = IndianLegalRAGPipeline(settings=settings, collection_name=args.collection)
-    queries = load_queries(out_dir, pipe.sqlite_store)
+    queries = load_queries(out_dir, pipe.sqlite_store.db_path)
     if args.max_queries:
         queries = queries[: args.max_queries] + [q for q in queries if q["type"] == "out_of_scope"][:2]
     in_scope = [q for q in queries if q["type"] != "out_of_scope"]
     oos = [q for q in queries if q["type"] == "out_of_scope"]
-    t_start = time.perf_counter()
-
-    # warm-up (model loading is not latency)
-    pipe.retrieve_hybrid(query="warm-up: bail under Section 439 CrPC", top_k=1)
+    t0 = time.perf_counter()
+    pipe.retrieve_hybrid(query="warm-up: bail under Section 439 CrPC", top_k=1)  # model loading is not latency
     pipe.vector_store.query_bm25("warm-up bail", top_k=1)
 
     per_query: List[Dict[str, Any]] = []
@@ -172,94 +180,16 @@ def main() -> None:
         per_query.append(rec)
         guard.get_ram_usage_gb()
         if i % 25 == 0 or i == len(in_scope):
-            print(f"[eval] {i}/{len(in_scope)} queries | {time.perf_counter() - t_start:.0f}s | "
-                  f"full hit@5 so far {statistics.mean(p['full']['hit@5'] for p in per_query):.3f} | "
-                  f"RAM peak {guard.peak_ram_gb:.1f} GB", flush=True)
-
+            print(f"[eval] {i}/{len(in_scope)} queries | {time.perf_counter() - t0:.0f}s | full hit@5 so far "
+                  f"{statistics.mean(p['full']['hit@5'] for p in per_query):.3f} | RAM peak {guard.peak_ram_gb:.1f} GB",
+                  flush=True)
     oos_rows = []
     for q in oos:
         r = rank(pipe, "full", q["query"])
-        oos_rows.append({"query_id": q["query_id"], "query": q["query"], "best_relevance": round(r["best_relevance"], 4),
-                         "refused_at_min_relevance": r["best_relevance"] < settings.min_relevance})
+        oos_rows.append({"query_id": q["query_id"], "query": q["query"], "best_relevance": round(r["best_relevance"], 4)})
 
-    # ------------------------------------------------------------------ aggregate retrieval
-    types = sorted({p["type"] for p in per_query})
-    configs_out: Dict[str, Any] = {}
-    for cfg in CONFIGS:
-        rows = [p[cfg] for p in per_query]
-        configs_out[cfg] = {
-            "label": LABELS[cfg],
-            "overall": bv.summarize(rows, with_ci=True, seed=SEED),
-            "by_type": {t: bv.summarize([p[cfg] for p in per_query if p["type"] == t], with_ci=False) for t in types},
-            "latency_ms": bv.latency_stats([r["ms"] for r in rows]),
-        }
-    by_year = {}
-    for y in sorted({p["year"] for p in per_query if p["year"]}):
-        rows = [p["full"] for p in per_query if p["year"] == y]
-        by_year[str(y)] = {"n": len(rows), "hit@5": round(statistics.mean(r["hit@5"] for r in rows), 4),
-                           "mrr@10": round(statistics.mean(r["mrr@10"] for r in rows), 4)}
-    deltas = {}
-    for a, b in (("full", "full_no_prior"), ("full", "hybrid_rrf"), ("hybrid_rrf", "bm25"), ("hybrid_rrf", "dense")):
-        for metric in ("mrr@10", "hit@5"):
-            deltas[f"{a}-{b}:{metric}"] = bv.paired_bootstrap_delta([p[a][metric] for p in per_query],
-                                                                    [p[b][metric] for p in per_query], seed=SEED)
-
-    in_rel = [p["full"]["best_relevance"] for p in per_query]
-    answerable = [p["full"]["best_relevance"] for p in per_query if p["full"]["hit@1"]]
-    calibration = {
-        "current_min_relevance": settings.min_relevance,
-        "in_scope_best_relevance": {"p05": round(sorted(in_rel)[max(0, int(0.05 * len(in_rel)) - 1)], 4) if in_rel else None,
-                                    "median": round(statistics.median(in_rel), 4) if in_rel else None},
-        "oos_best_relevance": [r["best_relevance"] for r in oos_rows],
-        "sweep": [{"threshold": t,
-                   "oos_refused": round(sum(r["best_relevance"] < t for r in oos_rows) / len(oos_rows), 4) if oos_rows else None,
-                   "in_scope_refused": round(sum(v < t for v in in_rel) / len(in_rel), 4) if in_rel else None,
-                   "hit1_refused": round(sum(v < t for v in answerable) / len(answerable), 4) if answerable else None}
-                  for t in THRESHOLDS],
-    }
-
-    # ------------------------------------------------------------------ generation + judge
-    generation: Dict[str, Any] = {"status": "not run (--skip-llm)"}
-    if not args.skip_llm:
-        client = make_gemini_client(settings.gemini_api_key)
-        picked = [q for q in in_scope if q["type"] == "legal_issue"][: max(0, args.judge_n - 5)] + \
-                 [q for q in in_scope if q["type"] == "fact_pattern"][:5]
-        gen_rows, judged = [], []
-        for q in picked:
-            res = pipe.generate_answer(query=q["query"], top_k=5)
-            cc = res["citation_check"]
-            row = {"query_id": q["query_id"], "type": q["type"], "low_confidence": res["low_confidence"],
-                   "citation_precision": cc["citation_precision"], "unknown_citations": len(cc["unknown_precedent_numbers"]) +
-                   len(cc["unknown_external_citations"]), "refused": cc["refused"], "ends_with_verify": cc["ends_with_verify"],
-                   "target_in_precedents": any(p["doc_id"] in q["target_doc_ids"] for p in res["precedents"]),
-                   "llm_sec": res["timings"].get("llm_generation_sec")}
-            if client is not None and not res["low_confidence"] and res["context"]:
-                score = judge(client, settings, q["query"], res["context"], res["answer"])
-                if score:
-                    row["judge"] = score
-                    judged.append(score)
-            gen_rows.append(row)
-            print(f"[gen] {q['query_id']} precision={row['citation_precision']} judged={'judge' in row}", flush=True)
-        oos_gen = [pipe.generate_answer(query=q["query"], top_k=5) for q in oos]
-        precisions = [r["citation_precision"] for r in gen_rows if r["citation_precision"] is not None]
-        generation = {
-            "status": "run",
-            "answer_model": get_budget(settings).llm_label(client),
-            "judge": "gemini (" + settings.gemini_model + ")" if client is not None else "not run (no GEMINI_API_KEY)",
-            "n_answers": len(gen_rows),
-            "n_judged": len(judged),
-            "judge_means": {d: round(statistics.mean(j[d] for j in judged), 2) for d in JUDGE_DIMS} if judged else None,
-            "citation_precision_mean": round(statistics.mean(precisions), 4) if precisions else None,
-            "answers_with_unknown_citations": sum(r["unknown_citations"] > 0 for r in gen_rows),
-            "ends_with_verify": sum(r["ends_with_verify"] for r in gen_rows),
-            "in_scope_refused": sum(r["refused"] for r in gen_rows),
-            "target_in_precedents": sum(r["target_in_precedents"] for r in gen_rows),
-            "oos_refusal_rate": round(sum(g["citation_check"]["refused"] for g in oos_gen) / len(oos_gen), 4) if oos_gen else None,
-            "oos_low_confidence": sum(g["low_confidence"] for g in oos_gen),
-        }
-        (out_dir / "generation_rows.json").write_text(json.dumps(gen_rows, indent=1, ensure_ascii=False), encoding="utf-8")
-
-    # ------------------------------------------------------------------ write outputs
+    # saved IMMEDIATELY, before anything else can fail
+    write_json(out_dir / "per_query.json", {"in_scope": per_query, "out_of_scope": oos_rows})
     vs = pipe.vector_store
     manifest = {
         "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -278,98 +208,233 @@ def main() -> None:
         "seed": SEED, "bootstrap_resamples": 1000,
         "queries": {"file_sha1": hashlib.sha1((out_dir / "queries_v2.json").read_bytes()).hexdigest()[:12],
                     "counts": {t: sum(1 for q in queries if q["type"] == t) for t in sorted({q["type"] for q in queries})}},
-        "elapsed_sec": round(time.perf_counter() - t_start, 1),
+        "retrieval_elapsed_sec": round(time.perf_counter() - t0, 1),
     }
-    results = {"run": {k: manifest[k] for k in ("timestamp", "git_commit", "device", "collection", "corpus", "queries")},
-               "configs": configs_out, "full_by_year": by_year, "deltas": deltas,
-               "out_of_scope": {"n": len(oos_rows), "refused_at_min_relevance": sum(r["refused_at_min_relevance"] for r in oos_rows)},
-               "calibration": calibration, "generation": generation}
-    (out_dir / "results.json").write_text(json.dumps(results, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
-    (out_dir / "run_manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
-    (out_dir / "per_query.json").write_text(json.dumps({"in_scope": per_query, "out_of_scope": oos_rows}, indent=1),
-                                            encoding="utf-8")
-    write_markdown(out_dir / "results.md", results, manifest)
+    write_json(out_dir / "run_manifest.json", manifest)
+    print(f"[eval] retrieval saved: per_query.json + run_manifest.json ({manifest['retrieval_elapsed_sec']}s)", flush=True)
 
-    # ------------------------------------------------------------------ summary (<= 60 lines)
-    size_kb = (out_dir / "results.json").stat().st_size / 1024
+
+# --------------------------------------------------------------------------- step 2: answers
+def run_generation(args, settings, out_dir: Path) -> None:
+    from src.rag_pipeline import IndianLegalRAGPipeline
+
+    if not (out_dir / "per_query.json").exists():
+        sys.exit("[ERROR] per_query.json missing: run the retrieval step first (--skip-llm).")
+    path = out_dir / "generation_answers.json"
+    rows: List[Dict[str, Any]] = read_json(path, [])
+    done = {r["query_id"] for r in rows}
+    pipe = IndianLegalRAGPipeline(settings=settings, collection_name=args.collection)
+    queries = load_queries(out_dir, pipe.sqlite_store.db_path)
+    oos = [q for q in queries if q["type"] == "out_of_scope"]
+    legal = [q for q in queries if q["type"] == "legal_issue"]
+    facts = [q for q in queries if q["type"] == "fact_pattern"]
+    n_facts = min(5, args.gen_n // 3)
+    picked = oos + legal[: args.gen_n - n_facts] + facts[:n_facts]  # out-of-scope first: mostly no LLM call
+    print(f"[gen] {len(picked)} queries ({len(oos)} out-of-scope, {args.gen_n - n_facts} legal, {n_facts} facts); "
+          f"{len(done)} already done; route {get_budget(settings).llm_label(pipe.gemini_client)}", flush=True)
+    for q in picked:
+        if q["query_id"] in done:
+            continue
+        t0 = time.perf_counter()
+        res = pipe.generate_answer(query=q["query"], top_k=args.gen_top_k)
+        cc = res["citation_check"]
+        rows.append({
+            "query_id": q["query_id"], "type": q["type"], "query": q["query"], "answer": res["answer"],
+            "context": res["context"], "low_confidence": res["low_confidence"], "best_relevance": res["best_relevance"],
+            "citation_check": cc,
+            "target_in_precedents": any(p["doc_id"] in (q.get("target_doc_ids") or []) for p in res["precedents"]),
+            "llm_sec": res["timings"].get("llm_generation_sec"), "wall_sec": round(time.perf_counter() - t0, 1),
+        })
+        write_json(path, rows)  # after EVERY answer
+        print(f"[gen] {q['query_id']} {q['type']} | low_conf {res['low_confidence']} | precision "
+              f"{cc['citation_precision']} | refused {cc['refused']} | llm {rows[-1]['llm_sec']}s | wall "
+              f"{rows[-1]['wall_sec']}s", flush=True)
+
+
+# --------------------------------------------------------------------------- step 3: judge
+def run_judge(args, settings, out_dir: Path) -> None:
+    answers = read_json(out_dir / "generation_answers.json", [])
+    if not answers:
+        sys.exit("[ERROR] generation_answers.json missing or empty: run --llm-only first.")
+    client = make_gemini_client(settings.gemini_api_key)
+    if client is None:
+        sys.exit("[ERROR] Gemini is not configured (GEMINI_API_KEY): the judge cannot run.")
+    path = out_dir / "judge_rows.json"
+    rows: List[Dict[str, Any]] = read_json(path, [])
+    done = {r["query_id"] for r in rows}
+    todo = [a for a in answers if a["type"] != "out_of_scope" and not a["low_confidence"] and a["context"]
+            and not a["citation_check"]["refused"]][: args.judge_n]
+    print(f"[judge] {len(todo)} answers to judge (max {args.judge_n}); {len(done)} already done; delay "
+          f"{args.judge_delay}s; model {settings.gemini_model}", flush=True)
+    first = True
+    for a in todo:
+        if a["query_id"] in done:
+            continue
+        if not first:
+            time.sleep(args.judge_delay)
+        first = False
+        score = judge(client, settings, a["query"], a["context"], a["answer"])
+        rows.append({"query_id": a["query_id"], "type": a["type"], "scores": score})
+        write_json(path, rows)  # after EVERY call
+        print(f"[judge] {a['query_id']} -> {score if score else 'FAILED (no valid JSON / quota)'}", flush=True)
+
+
+# --------------------------------------------------------------------------- results (from saved files)
+def aggregate(out_dir: Path, settings) -> Optional[Dict[str, Any]]:
+    pq = read_json(out_dir / "per_query.json", None)
+    if not pq:
+        return None
+    per_query, oos_rows = pq["in_scope"], pq["out_of_scope"]
+    manifest = read_json(out_dir / "run_manifest.json", {})
+    types = sorted({p["type"] for p in per_query})
+    configs_out: Dict[str, Any] = {}
+    for cfg in CONFIGS:
+        rows = [p[cfg] for p in per_query]
+        configs_out[cfg] = {"label": LABELS[cfg], "overall": bv.summarize(rows, with_ci=True, seed=SEED),
+                            "by_type": {t: bv.summarize([p[cfg] for p in per_query if p["type"] == t], with_ci=False)
+                                        for t in types},
+                            "latency_ms": bv.latency_stats([r["ms"] for r in rows])}
+    by_year = {}
+    for y in sorted({p["year"] for p in per_query if p["year"]}):
+        rows = [p["full"] for p in per_query if p["year"] == y]
+        by_year[str(y)] = {"n": len(rows), "hit@5": round(statistics.mean(r["hit@5"] for r in rows), 4),
+                           "mrr@10": round(statistics.mean(r["mrr@10"] for r in rows), 4)}
+    deltas = {}
+    for a, b in (("full", "full_no_prior"), ("full", "hybrid_rrf"), ("hybrid_rrf", "bm25"), ("hybrid_rrf", "dense")):
+        for metric in ("mrr@10", "hit@5"):
+            deltas[f"{a}-{b}:{metric}"] = bv.paired_bootstrap_delta([p[a][metric] for p in per_query],
+                                                                    [p[b][metric] for p in per_query], seed=SEED)
+    min_rel = manifest.get("retrieval", {}).get("min_relevance", settings.min_relevance)
+    in_rel = sorted(p["full"]["best_relevance"] for p in per_query)
+    answerable = [p["full"]["best_relevance"] for p in per_query if p["full"]["hit@1"]]
+    calibration = {
+        "current_min_relevance": min_rel,
+        "in_scope_best_relevance": {"p05": round(in_rel[max(0, int(0.05 * len(in_rel)) - 1)], 4) if in_rel else None,
+                                    "median": round(statistics.median(in_rel), 4) if in_rel else None},
+        "oos_best_relevance": [r["best_relevance"] for r in oos_rows],
+        "sweep": [{"threshold": t,
+                   "oos_refused": round(sum(r["best_relevance"] < t for r in oos_rows) / len(oos_rows), 4) if oos_rows else None,
+                   "in_scope_refused": round(sum(v < t for v in in_rel) / len(in_rel), 4) if in_rel else None,
+                   "hit1_refused": round(sum(v < t for v in answerable) / len(answerable), 4) if answerable else None}
+                  for t in THRESHOLDS],
+    }
+    return {"per_query": per_query, "oos_rows": oos_rows, "manifest": manifest, "types": types, "min_rel": min_rel,
+            "results": {"run": {k: manifest.get(k) for k in ("timestamp", "git_commit", "device", "collection", "corpus", "queries")},
+                        "configs": configs_out, "full_by_year": by_year, "deltas": deltas,
+                        "out_of_scope": {"n": len(oos_rows),
+                                         "refused_at_min_relevance": sum(r["best_relevance"] < min_rel for r in oos_rows)},
+                        "calibration": calibration}}
+
+
+def generation_summary(out_dir: Path, settings) -> Dict[str, Any]:
+    answers = read_json(out_dir / "generation_answers.json", [])
+    judged = [r for r in read_json(out_dir / "judge_rows.json", []) if r.get("scores")]
+    if not answers:
+        return {"status": "not run"}
+    ins = [a for a in answers if a["type"] != "out_of_scope"]
+    oos = [a for a in answers if a["type"] == "out_of_scope"]
+    prec = [a["citation_check"]["citation_precision"] for a in ins if a["citation_check"]["citation_precision"] is not None]
+    return {
+        "status": "run",
+        "answer_model": settings.llm_model,
+        "n_answers": len(ins),
+        "n_low_confidence": sum(a["low_confidence"] for a in ins),
+        "citation_precision_mean": round(statistics.mean(prec), 4) if prec else None,
+        "answers_with_unknown_citations": sum(len(a["citation_check"]["unknown_precedent_numbers"]) +
+                                              len(a["citation_check"]["unknown_external_citations"]) > 0 for a in ins),
+        "ends_with_verify": sum(a["citation_check"]["ends_with_verify"] for a in ins),
+        "in_scope_refused": sum(a["citation_check"]["refused"] for a in ins),
+        "target_in_precedents": sum(a["target_in_precedents"] for a in ins),
+        "llm_sec_median": round(statistics.median([a["llm_sec"] for a in ins if a["llm_sec"]]), 1) if ins else None,
+        "oos_n": len(oos),
+        "oos_refusal_rate": round(sum(a["citation_check"]["refused"] for a in oos) / len(oos), 4) if oos else None,
+        "oos_low_confidence": sum(a["low_confidence"] for a in oos),
+        "judge": f"gemini ({settings.gemini_model})" if judged else "not run",
+        "n_judged": len(judged),
+        "judge_means": {d: round(statistics.mean(r["scores"][d] for r in judged), 2) for d in JUDGE_DIMS} if judged else None,
+    }
+
+
+def write_results(out_dir: Path, settings) -> Optional[Dict[str, Any]]:
+    agg = aggregate(out_dir, settings)
+    if agg is None:
+        print("[results] per_query.json missing: nothing to write yet")
+        return None
+    results = {**agg["results"], "generation": generation_summary(out_dir, settings)}
+    write_json(out_dir / "results.json", results, compact=True)
+    write_markdown(out_dir / "results.md", results, agg["manifest"])
+    agg["results"] = results
+    return agg
+
+
+def print_summary(agg: Dict[str, Any], out_dir: Path) -> None:
+    R, manifest, per_query, types = agg["results"], agg["manifest"], agg["per_query"], agg["types"]
+    cfgs, cal, g = R["configs"], R["calibration"], R["generation"]
     print("=" * 100)
-    print(f"EVAL v2 | {manifest['timestamp']} | commit {manifest['git_commit']} | {args.collection} | "
-          f"{manifest['corpus']['judgments']} judgments | queries {manifest['queries']['counts']} | {manifest['elapsed_sec']}s")
+    print(f"EVAL v2 | {manifest.get('timestamp')} | commit {manifest.get('git_commit')} | {manifest.get('collection')} | "
+          f"{(manifest.get('corpus') or {}).get('judgments')} judgments | queries {(manifest.get('queries') or {}).get('counts')}")
     print(f"{'config':<30} {'Hit@1':>7} {'Hit@3':>7} {'Hit@5':>7} {'Hit@10':>7} {'MRR@10':>7} {'nDCG@10':>8}  {'MRR 95% CI':>16} {'p50 ms':>7} {'p95 ms':>7}")
     for cfg in CONFIGS:
-        o, lat = configs_out[cfg]["overall"], configs_out[cfg]["latency_ms"]
+        o, lat = cfgs[cfg]["overall"], cfgs[cfg]["latency_ms"]
         print(f"{LABELS[cfg]:<30} {o['hit@1']['value']:>7.3f} {o['hit@3']['value']:>7.3f} {o['hit@5']['value']:>7.3f} "
               f"{o['hit@10']['value']:>7.3f} {o['mrr@10']['value']:>7.3f} {o['ndcg@10']['value']:>8.3f}  "
               f"[{o['mrr@10']['ci'][0]:.3f}, {o['mrr@10']['ci'][1]:.3f}] {lat['p50']:>7.0f} {lat['p95']:>7.0f}")
     for t in types:
-        print(f"-- {t}: " + " | ".join(f"{LABELS[c]} H@5 {configs_out[c]['by_type'][t]['hit@5']:.3f} "
-                                       f"MRR {configs_out[c]['by_type'][t]['mrr@10']:.3f}" for c in ("bm25", "hybrid_rrf", "full"))
-              + f" (n={configs_out['full']['by_type'][t]['n']})")
-    print("full by year (H@5): " + " ".join(f"{y}:{v['hit@5']:.2f}(n{v['n']})" for y, v in by_year.items()))
+        print(f"-- {t}: " + " | ".join(f"{LABELS[c]} H@5 {cfgs[c]['by_type'][t]['hit@5']:.3f} MRR {cfgs[c]['by_type'][t]['mrr@10']:.3f}"
+                                       for c in ("bm25", "hybrid_rrf", "full")) + f" (n={cfgs['full']['by_type'][t]['n']})")
+    print("full by year (H@5): " + " ".join(f"{y}:{v['hit@5']:.2f}(n{v['n']})" for y, v in R["full_by_year"].items()))
     for key in ("full-full_no_prior:mrr@10", "full-hybrid_rrf:mrr@10", "hybrid_rrf-bm25:mrr@10", "hybrid_rrf-dense:mrr@10"):
-        d = deltas[key]
+        d = R["deltas"][key]
         print(f"delta {key}: {d['delta']:+.4f} CI [{d['ci'][0]:+.4f}, {d['ci'][1]:+.4f}]")
-    print(f"out-of-scope best relevance: {calibration['oos_best_relevance']} | refused at MIN_RELEVANCE "
-          f"{settings.min_relevance}: {results['out_of_scope']['refused_at_min_relevance']}/{len(oos_rows)}")
-    print(f"in-scope best relevance p05 {calibration['in_scope_best_relevance']['p05']} median "
-          f"{calibration['in_scope_best_relevance']['median']}")
+    print(f"out-of-scope best relevance: {cal['oos_best_relevance']} | refused at MIN_RELEVANCE {agg['min_rel']}: "
+          f"{R['out_of_scope']['refused_at_min_relevance']}/{R['out_of_scope']['n']}")
+    print(f"in-scope best relevance p05 {cal['in_scope_best_relevance']['p05']} median {cal['in_scope_best_relevance']['median']}")
     print("sweep (threshold: oos_refused / in_scope_refused / hit1_refused): " + " | ".join(
-        f"{s['threshold']}: {s['oos_refused']}/{s['in_scope_refused']}/{s['hit1_refused']}" for s in calibration["sweep"]))
-    g = generation
+        f"{s['threshold']}: {s['oos_refused']}/{s['in_scope_refused']}/{s['hit1_refused']}" for s in cal["sweep"]))
     if g.get("status") == "run":
-        print(f"generation: {g['n_answers']} answers ({g['answer_model']}) | judged {g['n_judged']} by {g['judge']} | "
-              f"judge means {g['judge_means']}")
-        print(f"citation precision mean {g['citation_precision_mean']} | answers with unknown citations "
-              f"{g['answers_with_unknown_citations']} | ends with verify {g['ends_with_verify']}/{g['n_answers']} | "
-              f"in-scope refused {g['in_scope_refused']} | target among precedents {g['target_in_precedents']}/{g['n_answers']} | "
-              f"OOS refusal rate {g['oos_refusal_rate']}")
+        print(f"generation: {g['n_answers']} in-scope answers ({g['answer_model']}, median LLM {g['llm_sec_median']}s) | "
+              f"low-confidence {g['n_low_confidence']} | citation precision mean {g['citation_precision_mean']} | unknown "
+              f"citations in {g['answers_with_unknown_citations']} | ends with verify {g['ends_with_verify']}/{g['n_answers']} | "
+              f"target among precedents {g['target_in_precedents']}/{g['n_answers']}")
+        print(f"out-of-scope via answer path: refusal rate {g['oos_refusal_rate']} (n={g['oos_n']}, low-confidence "
+              f"{g['oos_low_confidence']}) | judge: {g['judge']} n={g['n_judged']} means {g['judge_means']}")
     else:
-        print(f"generation: {g['status']}")
-    # sanity check of the ground-truth matching: one legal-issue, one fact-pattern, one Full miss
+        print("generation: not run")
     samples = [next((p for p in per_query if p["type"] == "legal_issue"), None),
                next((p for p in per_query if p["type"] == "fact_pattern"), None),
                next((p for p in per_query if p["full"]["rank"] is None), None)]
-    titles = {}
-    try:
-        import sqlite3
-
-        conn = sqlite3.connect(f"file:{pipe.sqlite_store.db_path}?mode=ro", uri=True)
-        ids = {d for p in samples if p for d in p["full"]["top3"][:1]}
-        titles = {r[0]: r[1] for r in conn.execute(
-            f"SELECT doc_id, case_title FROM documents WHERE doc_id IN ({','.join('?' * len(ids))})", list(ids))} if ids else {}
-        conn.close()
-    except Exception:
-        pass
     for label, p in zip(("sample legal", "sample facts", "sample miss"), samples):
         if p is None:
             print(f"{label}: (none)")
             continue
         top1 = p["full"]["top3"][0] if p["full"]["top3"] else None
-        print(f"{label}: {p['query_id']} | Q: {p['query'][:110]}")
+        print(f"{label}: {p['query_id']} | Q: {str(p.get('query'))[:110]}")
         print(f"    target {p['targets'][0]} {str(p.get('target_title'))[:45]} ({p.get('target_citation')}) | Full rank "
-              f"{p['full']['rank']} | Full top1 {top1} {str(titles.get(top1, ''))[:40]} | BM25 rank {p['bm25']['rank']}")
+              f"{p['full']['rank']} | Full top1 {top1} | BM25 rank {p['bm25']['rank']}")
+    size_kb = (out_dir / "results.json").stat().st_size / 1024
     print(f"files: $BENCHMARKS_DIR/v2/results.json ({size_kb:.1f} KB), results.md, run_manifest.json, per_query.json")
 
 
 def write_markdown(path: Path, results: Dict[str, Any], manifest: Dict[str, Any]) -> None:
-    L = [f"# Benchmark v2 results", "",
-         f"Run {manifest['timestamp']}, commit `{manifest['git_commit']}`, {manifest['device']}, collection "
-         f"`{manifest['collection']}` ({manifest['corpus']['judgments']} judgments, {manifest['corpus']['chunks']} chunks). "
-         f"Queries: {manifest['queries']['counts']}. Judgment-level ranking, k = 10, 95% bootstrap CIs (1,000 resamples, seed 42).", "",
+    corpus = manifest.get("corpus") or {}
+    L = ["# Benchmark v2 results", "",
+         f"Run {manifest.get('timestamp')}, commit `{manifest.get('git_commit')}`, {manifest.get('device')}, collection "
+         f"`{manifest.get('collection')}` ({corpus.get('judgments')} judgments, {corpus.get('chunks')} chunks). "
+         f"Queries: {(manifest.get('queries') or {}).get('counts')}. Judgment-level ranking, k = 10, 95% bootstrap CIs "
+         f"(1,000 resamples, seed 42).", "",
          "| Config | Hit@1 | Hit@3 | Hit@5 | Hit@10 | MRR@10 [95% CI] | nDCG@10 | p50 ms | p95 ms |",
          "|---|---|---|---|---|---|---|---|---|"]
-    for cfg, c in results["configs"].items():
+    for c in results["configs"].values():
         o, lat = c["overall"], c["latency_ms"]
         L.append(f"| {c['label']} | {o['hit@1']['value']:.3f} | {o['hit@3']['value']:.3f} | {o['hit@5']['value']:.3f} | "
                  f"{o['hit@10']['value']:.3f} | {o['mrr@10']['value']:.3f} [{o['mrr@10']['ci'][0]:.3f}, {o['mrr@10']['ci'][1]:.3f}] | "
                  f"{o['ndcg@10']['value']:.3f} | {lat['p50']:.0f} | {lat['p95']:.0f} |")
+    types = list(next(iter(results["configs"].values()))["by_type"].keys())
     L += ["", "## By query type (Hit@5 / MRR@10)", "", "| Type | n | " + " | ".join(c["label"] for c in results["configs"].values()) + " |",
           "|---|---|" + "---|" * len(results["configs"])]
-    types = next(iter(results["configs"].values()))["by_type"].keys()
     for t in types:
-        n = results["configs"]["full"]["by_type"][t]["n"]
-        L.append(f"| {t} | {n} | " + " | ".join(f"{c['by_type'][t]['hit@5']:.3f} / {c['by_type'][t]['mrr@10']:.3f}"
-                                                for c in results["configs"].values()) + " |")
+        L.append(f"| {t} | {results['configs']['full']['by_type'][t]['n']} | " + " | ".join(
+            f"{c['by_type'][t]['hit@5']:.3f} / {c['by_type'][t]['mrr@10']:.3f}" for c in results["configs"].values()) + " |")
     L += ["", "## Paired deltas (bootstrap 95% CI)", ""]
     L += [f"- {k}: {v['delta']:+.4f} [{v['ci'][0]:+.4f}, {v['ci'][1]:+.4f}]" for k, v in results["deltas"].items()]
     cal = results["calibration"]
@@ -379,6 +444,36 @@ def write_markdown(path: Path, results: Dict[str, Any], manifest: Dict[str, Any]
     L += [f"| {s['threshold']} | {s['oos_refused']} | {s['in_scope_refused']} | {s['hit1_refused']} |" for s in cal["sweep"]]
     L += ["", "## Generation", "", "```json", json.dumps(results["generation"], indent=1), "```", ""]
     path.write_text("\n".join(L), encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- main
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Evaluate benchmark v2 (resumable steps)")
+    ap.add_argument("--collection", default="sc_criminal_cpu")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--skip-llm", action="store_true", help="Step 1 only: retrieval metrics")
+    mode.add_argument("--llm-only", action="store_true", help="Step 2 only: answers, reusing per_query.json")
+    mode.add_argument("--judge-only", action="store_true", help="Step 3 only: Gemini judge on saved answers")
+    mode.add_argument("--results-only", action="store_true", help="Rebuild results.json/.md from saved files")
+    ap.add_argument("--gen-n", type=int, default=15, help="In-scope answers to generate (step 2)")
+    ap.add_argument("--gen-top-k", type=int, default=5, help="Judgments given to the LLM per answer")
+    ap.add_argument("--judge-n", type=int, default=10, help="Max answers to judge (step 3)")
+    ap.add_argument("--judge-delay", type=float, default=20.0, help="Seconds between judge calls")
+    ap.add_argument("--max-queries", type=int, default=None, help="Smoke test only")
+    args = ap.parse_args()
+
+    settings = get_settings()
+    out_dir = settings.benchmarks_dir / "v2"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if args.llm_only:
+        run_generation(args, settings, out_dir)
+    elif args.judge_only:
+        run_judge(args, settings, out_dir)
+    elif not args.results_only:
+        run_retrieval(args, settings, out_dir)  # default and --skip-llm: the LLM steps are separate now
+    agg = write_results(out_dir, settings)
+    if agg:
+        print_summary(agg, out_dir)
 
 
 if __name__ == "__main__":
