@@ -81,6 +81,7 @@ CPU-only Supreme Court criminal build described in `CLAUDE.md`. Tick each box wh
 - [ ] `run_manifest.json` plus a compact `results.json` (<15 KB) and `results.md` in `$BENCHMARKS_DIR/v2/`.
 - [ ] Remove `CORPUS_CASE_ALIASES` and the fuzzy title-match fallback in `evaluate_pipeline.py`, and update `tests/test_evaluation.py`.
 - [ ] `generate_synthetic_queries.py`: group by doc_id instead of the file stem; drop `--path-filter sc_2025`.
+- [ ] **Leakage rule:** synthetic queries are generated only from BODY sections (Ratio/Analysis, Facts), never from Headnote parents. A headnote is the editor's summary of the holding, so a query written from it would match the headnote chunk almost word for word. Every chunk records `section_kind = headnote | body` (set in Phase 3) so the generator can filter on it.
 
 ## Phase 7: demo and docs
 

@@ -22,6 +22,18 @@ The per-year table, the case-type distribution, the bench-strength distribution 
 
 Counts per year (CLAUDE.md D2, reproduced exactly by this run): 2018: 185, 2019: 264, 2020: 132, 2021: 196, 2022: 244, 2023: 250, 2024: 273, 2025: 347.
 
+## Download (Phase 2, `scripts/download_aws_sc.py`)
+
+| Item | Result |
+|---|---|
+| Selected criminal judgments (deduped on cnr, decision_date) | 1,891 (0 duplicates) |
+| PDFs downloaded and valid (`%PDF` header) | **1,889** (564.8 MB) |
+| Not found on S3 (HTTP 404) | 2: `2023_10_160_288`, `2023_3_30_compressed` |
+| `bench_source` | coram 1,877, declared 14, PDF needed 3 |
+| `author_source` | coram_star 1,647, judge_column 9, unknown 235 |
+
+**Corpus = 1,889 judgments.** The 2 missing PDFs stay in the manifest with status `not_found` and are not indexed.
+
 ## Findings and rules adopted
 
 1. **Bench data gap.** In 11 records the `Coram :` list names 1 judge while the trailing block declares `Bench : 2 Judges`.
