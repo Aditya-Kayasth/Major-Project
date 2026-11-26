@@ -47,8 +47,11 @@ _NAME = rf"{_TOK}(?:[ \t]+{_TOK})*"
 _ENTRY = rf"{_NAME}(?:\s*\*)?"
 CORAM_RE = re.compile(rf"Coram\s*:\s*({_ENTRY}(?:\s*,\s*{_ENTRY})*)")
 AND_SPLIT_RE = re.compile(r"\s+AND\s+")
+# Upper-case section labels that can directly follow the last Coram name (2023 layout:
+# "Coram : J.B. PARDIWALA, MANOJ MISRA HEADNOTES Issue for consideration : ...").
+CORAM_TRAILING_LABELS = {"HEADNOTES", "HEADNOTE", "CASE", "DETAILS", "ISSUE", "HELD", "JUDGMENT", "ORDER"}
 
-ISSUE_RE = re.compile(r"Issue for Consideration\s*", re.IGNORECASE)
+ISSUE_RE = re.compile(r"Issue for Consideration\s*:?\s*", re.IGNORECASE)
 HEADNOTES_RE = re.compile(r"Headnotes?\W*", re.IGNORECASE)
 # A subject line normally ends with the Act's year: "Code of Criminal Procedure, 1973"
 SUBJECT_YEAR_RE = re.compile(r"^(.{3,150}?,\s*\d{4})\b")
@@ -165,7 +168,10 @@ def parse_coram(text: str) -> Dict[str, Any]:
     for entry in m.group(1).split(","):
         for part in AND_SPLIT_RE.split(entry):
             starred = "*" in part
-            name = _norm(part.replace("*", ""))
+            tokens = _norm(part.replace("*", "")).split(" ")
+            while tokens and tokens[-1] in CORAM_TRAILING_LABELS:
+                tokens.pop()
+            name = " ".join(tokens).strip()
             if not name:
                 continue
             judges.append(name)

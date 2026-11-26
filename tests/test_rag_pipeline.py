@@ -8,11 +8,11 @@ import json
 import unittest
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from src.config import Settings, get_settings
 from src.rag_pipeline import IndianLegalRAGPipeline
 from src.vector_store import VectorStoreManager
+from tests._isolated import isolated_settings
 
 
 class MockCrossEncoder:
@@ -33,7 +33,7 @@ class TestIndianLegalRAGPipeline(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.settings = get_settings()
+        cls.tmp, cls.settings = isolated_settings()
         cls.test_col = f"test_rag_pipeline_{uuid.uuid4().hex[:6]}"
         cls.vector_store = VectorStoreManager(
             settings=cls.settings, collection_name=cls.test_col
@@ -123,9 +123,10 @@ class TestIndianLegalRAGPipeline(unittest.TestCase):
         if bm25_file.exists():
             bm25_file.unlink(missing_ok=True)
 
-        # Remove parent test files
+        # Remove parent test files, then the whole temp workspace
         (cls.settings.parent_store_dir / f"{cls.parent_id_1}.json").unlink(missing_ok=True)
         (cls.settings.parent_store_dir / f"{cls.parent_id_2}.json").unlink(missing_ok=True)
+        cls.tmp.cleanup()
 
     def test_01_rrf_fusion_ordering(self):
         """Verify Reciprocal Rank Fusion formula order on mock dense and sparse rankings."""
@@ -197,12 +198,16 @@ class TestIndianLegalRAGPipeline(unittest.TestCase):
         self.assertIn("total_latency_sec", result["timings"])
 
     def test_05_full_pipeline_execution_and_telemetry(self):
-        """Verify full execution pipeline generates structured response and timing breakdown."""
-        result = self.pipeline.generate_answer(
-            query="What are the essential ingredients of murder under Section 302 IPC?",
-            top_k=2,
-            collection_name=self.test_col,
-        )
+        """Verify full execution pipeline generates structured response and timing breakdown (LLM mocked)."""
+        fake_budget = MagicMock()
+        fake_budget.generate.return_value = "Mocked grounded answer citing [Precedent 1]."
+        with patch("src.rag_pipeline.get_budget", return_value=fake_budget):
+            result = self.pipeline.generate_answer(
+                query="What are the essential ingredients of murder under Section 302 IPC?",
+                top_k=2,
+                collection_name=self.test_col,
+            )
+        fake_budget.generate.assert_called_once()
 
         self.assertIn("answer", result)
         self.assertIsInstance(result["answer"], str)

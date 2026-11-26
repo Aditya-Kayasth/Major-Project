@@ -6,16 +6,16 @@ import unittest
 import uuid
 from pathlib import Path
 
-from src.config import Settings, get_settings
 from src.vector_store import BM25Registry, VectorStoreManager, normalize_chroma_filters
+from tests._isolated import isolated_settings
 
 
 class TestVectorStoreManager(unittest.TestCase):
-    """Test suite for Phase 2 multi-index retrieval and slicing."""
+    """Test suite for multi-index retrieval and slicing (Chroma + BM25 in a temp dir)."""
 
     @classmethod
     def setUpClass(cls):
-        cls.settings = get_settings()
+        cls.tmp, cls.settings = isolated_settings()
         cls.test_collection = f"test_legal_col_{uuid.uuid4().hex[:6]}"
         cls.manager = VectorStoreManager(
             settings=cls.settings, collection_name=cls.test_collection
@@ -71,6 +71,7 @@ class TestVectorStoreManager(unittest.TestCase):
         bm25_file = cls.manager._get_bm25_path(cls.test_collection)
         if bm25_file.exists():
             bm25_file.unlink(missing_ok=True)
+        cls.tmp.cleanup()
 
     def test_01_index_documents_and_persistence(self):
         """Test batch indexing into ChromaDB and disk persistence of BM25."""

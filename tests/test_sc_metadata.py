@@ -155,6 +155,20 @@ class TestBoilerplateAndCoram(unittest.TestCase):
         self.assertEqual(c["judges"], ["L. NAGESWARA RAO", "HEMANT GUPTA"])
         self.assertIsNone(c["author_judge"])
 
+    def test_trailing_headnotes_label_is_not_a_name(self):
+        # 2023 layout. Manifest bug: judges="J.B. PARDIWALA; MANOJ MISRA HEADNOTES" (2023_11_34_38).
+        # Text rebuilt from that manifest value and the PDF page 1 ("HEADNOTES", "Issue for consideration :").
+        text = ("KISHORE BALKRISHNA NAND versus STATE OF MAHARASHTRA & ANR. - [2023] 11 S.C.R. 34 2023 INSC 675 "
+                "Coram : J.B. PARDIWALA, MANOJ MISRA HEADNOTES Issue for consideration : Whether the allegations "
+                "made in the complaint ... make out an offence of defamation under Section 500 IPC or not.")
+        c = parse_coram(text)
+        self.assertEqual(c["judges"], ["J.B. PARDIWALA", "MANOJ MISRA"])
+        self.assertIsNone(c["author_judge"])
+        r = parse_record(text, "KISHORE BALKRISHNA NAND versus STATE OF MAHARASHTRA & ANR.")
+        self.assertEqual(r["bench_strength"], 2)
+        self.assertTrue(r["headnote_labelled"])
+        self.assertTrue(r["issue_for_consideration"].startswith("Whether the allegations"))
+
     def test_square_brackets_are_not_the_bench(self):
         scr_header = (
             "COURT REPORTS [2019] 13 S.C.R. MISS XYZ v. STATE OF GUJARAT & ANR (Criminal Appeal No.1619 of "

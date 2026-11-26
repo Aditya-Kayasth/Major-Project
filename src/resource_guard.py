@@ -1,8 +1,8 @@
 """Hardware, Memory, and Storage Guardrail Monitor for Indian Legal RAG.
 
 Enforces strict resource limits:
-- Max RAM Cap: 20 GB (prevents triggering cgroup OOM killer on containerized nodes)
-- Max Storage Cap: 30 GB (monitors disk consumption across models, ChromaDB, and SQLite)
+- Max RAM Cap: MAX_RAM_GB (default 18) measured over the whole process tree (parent + workers)
+- Max Storage Cap: optional (MAX_STORAGE_GB <= 0 disables it); the walk is throttled
 - GPU VRAM Protection: Configures PyTorch memory fractions and safe allocation buffers
 - Adaptive Throttling: Enforces cooldown intervals and garbage collection when nearing thresholds
 """
@@ -56,12 +56,13 @@ class ResourceGuard:
 
     def __init__(
         self,
-        max_ram_gb: float = 20.0,
-        warn_ram_gb: float = 16.0,
-        max_storage_gb: float = 30.0,
+        max_ram_gb: float = 18.0,
+        warn_ram_gb: float = 15.0,
+        max_storage_gb: float = 0.0,
         storage_check_paths: Optional[list] = None,
         vram_safety_fraction: float = 0.85,
-        num_cpu_threads: int = 8,
+        num_cpu_threads: int = 14,
+        storage_check_every: int = 50,
     ):
         self.max_ram_gb = max_ram_gb
         self.warn_ram_gb = warn_ram_gb
@@ -69,6 +70,10 @@ class ResourceGuard:
         self.storage_check_paths = storage_check_paths or []
         self.vram_safety_fraction = vram_safety_fraction
         self.num_cpu_threads = num_cpu_threads
+        self.storage_check_every = max(1, storage_check_every)
+        self._storage_calls = 0
+        self._storage_cached_gb = 0.0
+        self.peak_ram_gb = 0.0
         self._initialized = False
 
     def initialize_hardware(self) -> Dict[str, Any]:
@@ -111,10 +116,27 @@ class ResourceGuard:
         self._initialized = True
         return telemetry
 
+    @staticmethod
+    def process_tree_rss_bytes(process: Optional["psutil.Process"] = None) -> int:
+        """RSS of a process plus all its descendants (e.g. PDF extraction workers)."""
+        process = process or psutil.Process()
+        total = 0
+        try:
+            total += process.memory_info().rss
+            children = process.children(recursive=True)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return total
+        for child in children:
+            try:
+                total += child.memory_info().rss
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue  # a worker may exit between listing and reading
+        return total
+
     def get_ram_usage_gb(self) -> Tuple[float, float]:
-        """Return (process_rss_gb, system_used_ram_gb). Checks cgroup v2 if running inside container."""
-        process = psutil.Process()
-        proc_rss_gb = process.memory_info().rss / (1024 ** 3)
+        """Return (process_tree_rss_gb, system_used_ram_gb). Checks cgroup v2 if running inside container."""
+        proc_rss_gb = self.process_tree_rss_bytes() / (1024 ** 3)
+        self.peak_ram_gb = max(self.peak_ram_gb, proc_rss_gb)
 
         # Check cgroup v2 container memory usage if available
         cgroup_mem_current = Path("/sys/fs/cgroup/memory.current")
@@ -131,7 +153,13 @@ class ResourceGuard:
         return round(proc_rss_gb, 2), round(sys_used_gb, 2)
 
     def get_monitored_storage_gb(self) -> float:
-        """Compute total disk space consumed across all monitored directories (data, models, stores)."""
+        """Disk used by the monitored directories. Skipped (0.0) when MAX_STORAGE_GB <= 0, and
+        re-walked only every `storage_check_every` calls (a full walk is slow on NFS)."""
+        if self.max_storage_gb <= 0 or not self.storage_check_paths:
+            return 0.0
+        self._storage_calls += 1
+        if self._storage_calls > 1 and (self._storage_calls - 1) % self.storage_check_every:
+            return self._storage_cached_gb
         total_bytes = 0
         for path_obj in self.storage_check_paths:
             p = Path(path_obj).resolve()
@@ -146,7 +174,8 @@ class ResourceGuard:
                                 total_bytes += os.path.getsize(fp)
                             except OSError:
                                 pass
-        return round(total_bytes / (1024 ** 3), 3)
+        self._storage_cached_gb = round(total_bytes / (1024 ** 3), 3)
+        return self._storage_cached_gb
 
     def get_vram_usage_gb(self) -> Tuple[float, float]:
         """Return (vram_allocated_gb, vram_reserved_gb) if CUDA is available."""
@@ -219,9 +248,9 @@ class ResourceGuard:
         vram_alloc, _ = self.get_vram_usage_gb()
         storage_gb = self.get_monitored_storage_gb()
         prefix = f"[{step_name}] " if step_name else ""
+        storage = f"{storage_gb:.2f}GB/{self.max_storage_gb:.0f}GB" if self.max_storage_gb > 0 else "off"
         return (
-            f"{prefix}RAM: {proc_ram:.1f}GB/{self.max_ram_gb:.0f}GB | "
-            f"SysRAM: {sys_ram:.1f}GB | VRAM: {vram_alloc:.1f}GB | "
-            f"Storage: {storage_gb:.2f}GB/{self.max_storage_gb:.0f}GB"
+            f"{prefix}TreeRAM: {proc_ram:.1f}GB/{self.max_ram_gb:.0f}GB (peak {self.peak_ram_gb:.1f}) | "
+            f"SysRAM: {sys_ram:.1f}GB | VRAM: {vram_alloc:.1f}GB | Storage: {storage}"
         )
 

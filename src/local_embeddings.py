@@ -1,21 +1,15 @@
-"""Local and High-Capacity Neural Embedding Engine for Indian Legal RAG.
+"""Local Neural Embedding Engine for Indian Legal RAG.
 
-Optimized for:
-1. zeroentropy/zembed-1 (4B parameter distilled model running in BF16 on Blackwell/CUDA)
-2. BAAI/bge-base-en-v1.5 or bge-small-en-v1.5 (Local open-source baseline)
-3. Fallback to Google Gemini Embedding API when configured
-
-Engineered with:
-- Batch-wise inference with tqdm progress bar
-- Strict PyTorch VRAM safety bounds and garbage collection
-- Truncation to avoid token overflow
+CPU plan (CLAUDE.md D4): BAAI/bge-small-en-v1.5, fp32 on CPU, auto device.
+- Queries get the BGE instruction prefix; documents get none (asymmetric retrieval).
+  Models whose sentence-transformers config defines a "query" prompt (e.g. zembed-1) use
+  that prompt instead.
+- torch threads are set explicitly (NUM_THREADS / INDEX_TORCH_THREADS).
+- The CUDA branches (bf16/fp16, VRAM check) are kept for the stretch GPU run only.
 """
 
-import gc
 import logging
-from typing import Any, Dict, List, Optional, Union
-
-import numpy as np
+from typing import Any, List, Optional
 
 try:
     import torch
@@ -25,10 +19,20 @@ except ImportError:
 
 logger = logging.getLogger("IndianLegalRAG.LocalEmbeddings")
 
+BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
+
+
+def resolve_query_instruction(model_name: str, setting: Optional[str] = "auto") -> str:
+    """'auto' -> the BGE prefix for English BGE v1.5-style models, else ''. Any other value is used as-is."""
+    if setting is None or setting == "auto":
+        name = (model_name or "").lower()
+        return BGE_QUERY_INSTRUCTION if ("bge-" in name and "-en" in name) else ""
+    return setting
+
 
 def _mean_pooling(model_output: Any, attention_mask: Any) -> Any:
     """Mean pooling over token embeddings taking attention mask into account."""
-    token_embeddings = model_output[0]  # First element has all token embeddings
+    token_embeddings = model_output[0]
     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
     sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
     sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
@@ -36,20 +40,24 @@ def _mean_pooling(model_output: Any, attention_mask: Any) -> Any:
 
 
 class LocalEmbeddingEngine:
-    """High-performance embedding engine with automatic device selection and precision management."""
+    """Embedding engine with automatic device selection (cuda if available, else cpu fp32)."""
 
     def __init__(
         self,
-        model_name: str = "zeroentropy/zembed-1",
+        model_name: str = "BAAI/bge-small-en-v1.5",
         device: Optional[str] = None,
-        batch_size: int = 32,
+        batch_size: int = 64,
         max_length: int = 512,
         use_bf16: bool = True,
+        num_threads: Optional[int] = None,
+        query_instruction: Optional[str] = "auto",
     ):
         self.model_name = model_name
         self.batch_size = batch_size
         self.max_length = max_length
         self.use_bf16 = use_bf16
+        self.num_threads = num_threads
+        self.query_prefix = resolve_query_instruction(model_name, query_instruction)
 
         if device is None:
             self.device = "cuda" if (HAS_TORCH and torch.cuda.is_available()) else "cpu"
@@ -58,124 +66,86 @@ class LocalEmbeddingEngine:
 
         self.model = None
         self.tokenizer = None
-        self._st_model = None  # SentenceTransformer instance if available
+        self._st_model = None
         self._initialized = False
 
+    def _dtype(self) -> Any:
+        """fp32 on CPU; bf16 (or fp16) only on CUDA."""
+        if self.device == "cuda":
+            return torch.bfloat16 if (self.use_bf16 and torch.cuda.is_bf16_supported()) else torch.float16
+        return torch.float32
+
     def initialize(self) -> None:
-        """Lazy loader for embedding model onto selected device with safe precision."""
+        """Lazy loader for the embedding model."""
         if self._initialized:
             return
-
         if not HAS_TORCH:
             raise RuntimeError("PyTorch is required for local neural embeddings.")
 
         from src.resource_guard import configure_torch_backends
 
         configure_torch_backends()
+        if self.num_threads:
+            torch.set_num_threads(int(self.num_threads))
 
-        # Check VRAM capacity before loading 4B models on GPU
-        if self.device == "cuda":
+        if self.device == "cuda":  # stretch GPU run only
             try:
                 total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
                 if "zembed" in self.model_name.lower() and total_vram_gb < 7.0:
-                    logger.warning(
-                        f"[HardwareGuard] GPU VRAM ({total_vram_gb:.1f} GB) is below 7.0 GB required for 4B '{self.model_name}'. "
-                        "Switching to 'BAAI/bge-small-en-v1.5' to operate within hardware constraints."
-                    )
+                    logger.warning(f"GPU VRAM {total_vram_gb:.1f} GB < 7 GB for '{self.model_name}'; using bge-small.")
                     self.model_name = "BAAI/bge-small-en-v1.5"
+                    self.query_prefix = resolve_query_instruction(self.model_name, "auto")
             except Exception:
                 pass
 
-        logger.info(f"Loading neural embedding model '{self.model_name}' on device '{self.device}'...")
+        dtype = self._dtype()
+        logger.info(f"Loading embedding model '{self.model_name}' on '{self.device}' ({dtype}), "
+                    f"threads={torch.get_num_threads()}")
 
-        # Determine precision
-        dtype = torch.float32
-        if self.device == "cuda":
-            if self.use_bf16 and torch.cuda.is_bf16_supported():
-                dtype = torch.bfloat16
-                logger.info("Using native BF16 precision for embedding engine.")
-            else:
-                dtype = torch.float16
-                logger.info("Using FP16 half-precision for embedding engine.")
-
-        # 1. First attempt: Load via SentenceTransformers
         try:
             from sentence_transformers import SentenceTransformer
-            model_kwargs = {"torch_dtype": dtype} if self.device == "cuda" else {}
+
+            model_kwargs = {"dtype": dtype} if self.device == "cuda" else {}
             self._st_model = SentenceTransformer(
-                self.model_name,
-                device=self.device,
-                model_kwargs=model_kwargs,
-                trust_remote_code=True,
+                self.model_name, device=self.device, model_kwargs=model_kwargs, trust_remote_code=True
             )
-            self._initialized = True
-            logger.info(f"Successfully initialized '{self.model_name}' via SentenceTransformers.")
-            return
-        except torch.cuda.OutOfMemoryError:
-            logger.warning("CUDA OOM during model load. Re-attempting on CPU...")
-            torch.cuda.empty_cache()
-            self.device = "cpu"
-            self.model_name = "BAAI/bge-small-en-v1.5"
-            from sentence_transformers import SentenceTransformer
-            self._st_model = SentenceTransformer(self.model_name, device="cpu")
             self._initialized = True
             return
         except Exception as st_err:
-            logger.debug(f"SentenceTransformer loader skipped ({st_err}). Falling back to HuggingFace Transformers...")
+            logger.warning(f"SentenceTransformer load failed ({st_err}); trying transformers AutoModel.")
 
-        # 2. Second attempt: Load via Transformers AutoModel
-        try:
-            from transformers import AutoModel, AutoTokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name,
-                trust_remote_code=True,
-            )
-            self.model = AutoModel.from_pretrained(
-                self.model_name,
-                torch_dtype=dtype,
-                trust_remote_code=True,
-            ).to(self.device)
-            self.model.eval()
-            self._initialized = True
-            logger.info(f"Successfully initialized '{self.model_name}' via Transformers AutoModel.")
-        except torch.cuda.OutOfMemoryError:
-            logger.warning("CUDA OOM during AutoModel load. Falling back to CPU...")
-            torch.cuda.empty_cache()
-            self.device = "cpu"
-            self.model_name = "BAAI/bge-small-en-v1.5"
-            from sentence_transformers import SentenceTransformer
-            self._st_model = SentenceTransformer(self.model_name, device="cpu")
-            self._initialized = True
-        except Exception as hf_err:
-            logger.error(f"Failed to load local embedding model '{self.model_name}': {hf_err}")
-            raise RuntimeError(
-                f"Could not load embedding model '{self.model_name}'. Check internet connectivity or cache: {hf_err}"
-            )
+        from transformers import AutoModel, AutoTokenizer  # transformers 5: `dtype=` (was `torch_dtype=`)
 
-    def embed_texts(
-        self, texts: List[str], show_progress: bool = False, is_query: bool = False
-    ) -> List[List[float]]:
-        """Compute normalized vector embeddings for a list of text strings in memory-safe batches.
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+        self.model = AutoModel.from_pretrained(self.model_name, dtype=dtype, trust_remote_code=True).to(self.device)
+        self.model.eval()
+        self._initialized = True
 
-        Asymmetric retrieval models (zembed-1, e5, bge-m3 style) ship separate 'query' and
-        'document' prompts. Queries MUST be encoded with the query prompt, otherwise the
-        model's default ('document') prompt is applied and dense recall degrades.
-        """
+    def _st_prompts(self) -> dict:
+        return (getattr(self._st_model, "prompts", None) or {}) if self._st_model is not None else {}
+
+    def prepare_texts(self, texts: List[str], is_query: bool) -> List[str]:
+        """Apply the query prefix (queries only) unless the model ships its own 'query' prompt."""
+        if is_query and self.query_prefix and "query" not in self._st_prompts():
+            return [self.query_prefix + t for t in texts]
+        return list(texts)
+
+    def embed_texts(self, texts: List[str], show_progress: bool = False, is_query: bool = False) -> List[List[float]]:
+        """Normalized embeddings for a list of texts, in batches."""
         if not texts:
             return []
-
         self.initialize()
+        inputs = self.prepare_texts(texts, is_query)
 
-        # If loaded via SentenceTransformer
         if self._st_model is not None:
-            prompts = getattr(self._st_model, "prompts", None) or {}
+            prompts = self._st_prompts()
             prompt_name = None
             if is_query and "query" in prompts:
                 prompt_name = "query"
             elif not is_query and "document" in prompts:
                 prompt_name = "document"
             embeddings = self._st_model.encode(
-                texts,
+                inputs,
                 batch_size=self.batch_size,
                 show_progress_bar=show_progress,
                 normalize_embeddings=True,
@@ -184,34 +154,25 @@ class LocalEmbeddingEngine:
             )
             return embeddings.tolist()
 
-        # Otherwise use Transformers pipeline with mean pooling
-        all_embeddings: List[List[float]] = []
         import torch.nn.functional as F
 
-        for i in range(0, len(texts), self.batch_size):
-            batch_texts = texts[i : i + self.batch_size]
+        all_embeddings: List[List[float]] = []
+        for i in range(0, len(inputs), self.batch_size):
             encoded = self.tokenizer(
-                batch_texts,
+                inputs[i : i + self.batch_size],
                 padding=True,
                 truncation=True,
                 max_length=self.max_length,
                 return_tensors="pt",
             ).to(self.device)
-
             with torch.no_grad():
                 outputs = self.model(**encoded)
                 pooled = _mean_pooling(outputs, encoded["attention_mask"])
-                normalized = F.normalize(pooled, p=2, dim=1)
-                all_embeddings.extend(normalized.cpu().float().numpy().tolist())
-
-            # Clear temporary GPU memory after each batch
+                all_embeddings.extend(F.normalize(pooled, p=2, dim=1).cpu().float().numpy().tolist())
             if self.device == "cuda":
                 torch.cuda.empty_cache()
-
         return all_embeddings
 
     def embed_query(self, query: str) -> List[float]:
-        """Generate embedding vector for a single legal query."""
         results = self.embed_texts([query], show_progress=False, is_query=True)
         return results[0] if results else []
-

@@ -15,9 +15,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import chromadb
 from chromadb.api.models.Collection import Collection
 from chromadb.config import Settings as ChromaSettings
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
 from rank_bm25 import BM25Okapi
 from tqdm import tqdm
 
@@ -54,7 +51,7 @@ def sanitize_metadata_for_chroma(metadata: Dict[str, Any]) -> Dict[str, Union[st
         elif isinstance(v, (str, int, float, bool)):
             clean[k] = v
         elif isinstance(v, list):
-            clean[k] = ", ".join(str(item) for item in v)
+            clean[k] = "; ".join(str(item) for item in v)  # CLAUDE.md §7: lists as "; "-joined strings
         elif isinstance(v, dict):
             clean[k] = str(v)
         else:
@@ -200,7 +197,8 @@ class VectorStoreManager:
         self,
         settings: Optional[Settings] = None,
         collection_name: Optional[str] = None,
-        gemini_client: Optional[genai.Client] = None,
+        gemini_client: Optional[Any] = None,
+        embed_threads: Optional[int] = None,
     ):
         self.settings = settings or get_settings()
         self.persist_dir = Path(self.settings.chroma_db_dir).resolve()
@@ -212,22 +210,23 @@ class VectorStoreManager:
         )
 
         self.default_collection_name = collection_name or self.settings.collection_name
-        self.client = gemini_client or (
-            genai.Client(api_key=self.settings.gemini_api_key)
-            if self.settings.gemini_api_key and self.settings.gemini_api_key != "your_gemini_api_key_here"
-            else None
-        )
+        # The Gemini client is only needed for EMBEDDING_PROVIDER=gemini; google-genai is imported lazily.
+        self.client = gemini_client
+        if self.client is None and self.settings.embedding_provider == "gemini":
+            if self.settings.gemini_api_key and self.settings.gemini_api_key != "your_gemini_api_key_here":
+                from google import genai
 
-        # Initialize local neural embedding engine if configured
+                self.client = genai.Client(api_key=self.settings.gemini_api_key)
+
+        # Local embedding engine (CPU fp32 / auto device), batch size and threads from settings
         self.local_embedding_engine: Optional[LocalEmbeddingEngine] = None
-        if getattr(self.settings, "embedding_provider", "local") == "local":
-            try:
-                self.local_embedding_engine = LocalEmbeddingEngine(
-                    model_name=getattr(self.settings, "local_embedding_model", "zeroentropy/zembed-1"),
-                    batch_size=32,
-                )
-            except Exception as err:
-                logger.warning(f"LocalEmbeddingEngine deferred or failed to init: {err}")
+        if self.settings.embedding_provider == "local":
+            self.local_embedding_engine = LocalEmbeddingEngine(
+                model_name=self.settings.local_embedding_model,
+                batch_size=self.settings.embed_batch_size,
+                num_threads=embed_threads or self.settings.num_threads,
+                query_instruction=self.settings.query_instruction,
+            )
 
         # Initialize resource guardrail monitor
         self.guard = ResourceGuard(
@@ -329,6 +328,8 @@ class VectorStoreManager:
             raise ValueError(
                 "Neither local embedding engine nor GEMINI_API_KEY is configured for embedding generation."
             )
+        from google.genai import types
+        from google.genai.errors import APIError
 
         model_candidates = [
             self.settings.gemini_embedding_model,

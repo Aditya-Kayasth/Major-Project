@@ -32,29 +32,26 @@ from src.resource_guard import ResourceGuard, ResourceGuardrailException
 from src.sqlite_store import SQLiteParentStore
 from src.vector_store import VectorStoreManager
 
-# Setup rotating file and console logging
-LOG_DIR = Path("data/logs")
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOG_DIR / "indexing.log"
-
 logger = logging.getLogger("IndianLegalRAG.Indexer")
 logger.setLevel(logging.INFO)
 
-# Formatter
 formatter = logging.Formatter(
     "[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-
-# Console Handler
 ch = logging.StreamHandler(sys.stdout)
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-# File Handler
-fh = logging.FileHandler(str(LOG_FILE), encoding="utf-8")
-fh.setFormatter(formatter)
-logger.addHandler(fh)
+
+def setup_file_logging(logs_dir: Path, collection: str) -> Path:
+    """Log file in the workspace LOGS_DIR (never inside the git folder)."""
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_file = logs_dir / f"index_{collection}.log"
+    fh = logging.FileHandler(str(log_file), encoding="utf-8")
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    return log_file
 
 
 class CheckpointManager:
@@ -163,6 +160,7 @@ def main():
     settings.validate()
 
     target_collection = args.collection or settings.collection_name
+    setup_file_logging(settings.logs_dir, target_collection)
     doc_batch_size = args.doc_batch_size
     embed_batch_size = args.embedding_batch_size
 

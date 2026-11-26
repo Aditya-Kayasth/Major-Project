@@ -12,14 +12,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-import torch
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
-
 from src.config import Settings, get_settings
 from src.concordance import StatutoryConcordance
-from src.llm_budget import get_budget
+from src.llm_budget import gen_config, get_budget, make_gemini_client
 from src.resource_guard import ResourceGuard
 from src.sqlite_store import SQLiteParentStore
 from src.vector_store import VectorStoreManager
@@ -79,15 +74,11 @@ class IndianLegalRAGPipeline:
         self,
         settings: Optional[Settings] = None,
         vector_store: Optional[VectorStoreManager] = None,
-        gemini_client: Optional[genai.Client] = None,
+        gemini_client: Optional[Any] = None,
     ):
         self.settings = settings or get_settings()
         self.vector_store = vector_store or VectorStoreManager(settings=self.settings)
-        self.gemini_client = gemini_client or (
-            genai.Client(api_key=self.settings.gemini_api_key)
-            if self.settings.gemini_api_key and self.settings.gemini_api_key != "your_gemini_api_key_here"
-            else None
-        )
+        self.gemini_client = gemini_client or make_gemini_client(self.settings.gemini_api_key)
         self.sqlite_store = SQLiteParentStore(self.settings.sqlite_db_path)
         self.guard = ResourceGuard(
             max_ram_gb=self.settings.max_ram_gb,
@@ -123,7 +114,8 @@ class IndianLegalRAGPipeline:
             )
             from sentence_transformers import CrossEncoder
 
-            model_kwargs = {"torch_dtype": torch.float16} if device == "cuda" else {}
+            # transformers 5 / sentence-transformers 6: `dtype` (was `torch_dtype`); fp32 on CPU
+            model_kwargs = {"dtype": torch.float16} if device == "cuda" else {}
             self._reranker = CrossEncoder(
                 self.settings.reranker_model,
                 device=device,
@@ -522,7 +514,7 @@ Analyze the legal query based exclusively on the provided judicial context. Prov
             client=self.gemini_client,
             models=[self.settings.gemini_model, "gemini-flash-latest"],
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=gen_config(
                 system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION,
                 temperature=0.1,
             ),

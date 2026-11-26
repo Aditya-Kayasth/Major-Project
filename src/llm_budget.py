@@ -27,11 +27,38 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from google.genai import types
+from types import SimpleNamespace
 
 from src.config import Settings, get_settings
 
 logger = logging.getLogger("IndianLegalRAG.LLMBudget")
+
+
+def gen_config(**kwargs: Any) -> Any:
+    """A google-genai GenerateContentConfig if the package is installed, else a plain namespace.
+
+    The provider chain only reads `system_instruction`, `temperature` and `response_mime_type`
+    from it, so core modules never need google-genai at import time.
+    """
+    try:
+        from google.genai import types
+
+        return types.GenerateContentConfig(**kwargs)
+    except ImportError:
+        return SimpleNamespace(**kwargs)
+
+
+def make_gemini_client(api_key: str) -> Optional[Any]:
+    """Gemini client, or None when the key is missing/placeholder or google-genai is not installed."""
+    if not api_key or api_key == "your_gemini_api_key_here":
+        return None
+    try:
+        from google import genai
+
+        return genai.Client(api_key=api_key)
+    except ImportError:
+        logger.warning("google-genai is not installed; Gemini is unavailable.")
+        return None
 
 _lock = threading.Lock()
 _last_call_ts_by_provider: Dict[str, float] = {}
@@ -134,7 +161,7 @@ class GeminiBudget:
         client: Any,
         models: List[str],
         contents: Any,
-        config: Optional[types.GenerateContentConfig] = None,
+        config: Optional[Any] = None,
         use_cache: bool = True,
         max_retries: int = 3,
     ) -> Optional[str]:
@@ -285,7 +312,7 @@ class GeminiBudget:
         client: Any,
         models: List[str],
         contents: Any,
-        config: Optional[types.GenerateContentConfig],
+        config: Optional[Any],
         max_retries: int,
     ) -> Optional[str]:
         """Gemini call with rate limiting, daily budget and 429 handling. None on failure."""

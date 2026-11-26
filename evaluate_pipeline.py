@@ -23,14 +23,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import torch
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
 from tqdm import tqdm
 
 from src.config import Settings, get_settings
-from src.llm_budget import get_budget
+from src.llm_budget import gen_config, get_budget
 from src.rag_pipeline import GROUNDED_LEGAL_SYSTEM_INSTRUCTION, IndianLegalRAGPipeline
 from src.vector_store import VectorStoreManager
 
@@ -275,7 +271,7 @@ Evaluate strictly according to the system rubric and return JSON:"""
             client=self.client,
             models=[self.settings.gemini_model],
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=gen_config(
                 system_instruction=LLM_JUDGE_SYSTEM_INSTRUCTION,
                 response_mime_type="application/json",
                 temperature=0.1,
@@ -610,7 +606,7 @@ Evaluate strictly according to the system rubric and return JSON:"""
             client=self.client,
             models=[self.settings.gemini_model],
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=gen_config(
                 system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION, temperature=0.1
             ),
         )

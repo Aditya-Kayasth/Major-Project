@@ -17,12 +17,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pypdf
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
 from tqdm import tqdm
 
 from src.config import Settings, get_settings
+from src.llm_budget import make_gemini_client
 from src.resource_guard import ResourceGuard
 from src.sqlite_store import SQLiteParentStore
 
@@ -75,9 +73,8 @@ class LegalDocumentLoader:
     def __init__(self, settings: Optional[Settings] = None, enable_ocr: bool = True):
         self.settings = settings or get_settings()
         self.enable_ocr = enable_ocr
-        self.client: Optional[genai.Client] = None
-        if self.settings.gemini_api_key and self.settings.gemini_api_key != "your_gemini_api_key_here":
-            self.client = genai.Client(api_key=self.settings.gemini_api_key)
+        # Gemini OCR is off for this corpus (digital PDFs); the client is created only when OCR is enabled.
+        self.client: Optional[Any] = make_gemini_client(self.settings.gemini_api_key) if enable_ocr else None
 
         # Initialize embedded SQLite parent store
         self.sqlite_store = SQLiteParentStore(self.settings.sqlite_db_path)
@@ -95,12 +92,12 @@ class LegalDocumentLoader:
             num_cpu_threads=self.settings.num_threads,
         )
 
-    def _get_gemini_client(self) -> genai.Client:
-        """Ensure authenticated Gemini Client is available."""
+    def _get_gemini_client(self) -> Any:
+        """Ensure an authenticated Gemini client is available (OCR fallback only)."""
         if not self.client:
-            if not self.settings.gemini_api_key:
-                raise ValueError("GEMINI_API_KEY is not configured in environment.")
-            self.client = genai.Client(api_key=self.settings.gemini_api_key)
+            self.client = make_gemini_client(self.settings.gemini_api_key)
+            if not self.client:
+                raise ValueError("GEMINI_API_KEY is not configured (or google-genai is not installed).")
         return self.client
 
     def extract_digital_pdf(self, file_path: Path) -> str:
@@ -120,6 +117,9 @@ class LegalDocumentLoader:
     def extract_via_gemini_ocr(self, file_path: Path) -> str:
         """Perform fast-fail multimodal OCR on scanned PDF/image via Gemini Files API with auto-cleanup."""
         client = self._get_gemini_client()
+        from google.genai import types
+        from google.genai.errors import APIError
+
         uploaded_file = None
         logger.info(f"Triggering Gemini Multimodal OCR fallback for: {file_path.name}")
 

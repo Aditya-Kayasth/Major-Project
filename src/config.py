@@ -30,20 +30,34 @@ class Settings(BaseModel):
     """Production settings and hyperparameters for Indian Legal RAG."""
 
     # Resource Guardrails (Strict Memory & Storage Ceilings)
+    # Hard limit for everything running together is 20 GB (CLAUDE.md §3); the guard counts the
+    # whole process tree (parent + extraction workers).
     max_ram_gb: float = Field(
-        default_factory=lambda: float(os.getenv("MAX_RAM_GB", "20.0"))
+        default_factory=lambda: float(os.getenv("MAX_RAM_GB", "18.0"))
     )
     warn_ram_gb: float = Field(
-        default_factory=lambda: float(os.getenv("WARN_RAM_GB", "16.0"))
+        default_factory=lambda: float(os.getenv("WARN_RAM_GB", "15.0"))
     )
+    # 0 disables the storage walk (NFS home has 13 TB free; walking the store every batch is slow)
     max_storage_gb: float = Field(
-        default_factory=lambda: float(os.getenv("MAX_STORAGE_GB", "30.0"))
+        default_factory=lambda: float(os.getenv("MAX_STORAGE_GB", "0"))
     )
     vram_safety_fraction: float = Field(
         default_factory=lambda: float(os.getenv("VRAM_SAFETY_FRACTION", "0.85"))
     )
+    # torch threads for query-time work (server, evaluation); 16 cores available
     num_threads: int = Field(
-        default_factory=lambda: int(os.getenv("NUM_THREADS", "8"))
+        default_factory=lambda: int(os.getenv("NUM_THREADS", "14"))
+    )
+    # Indexing: PDF extraction workers (spawned processes, no torch) + torch threads in the main process
+    extract_workers: int = Field(
+        default_factory=lambda: int(os.getenv("EXTRACT_WORKERS", "4"))
+    )
+    index_torch_threads: int = Field(
+        default_factory=lambda: int(os.getenv("INDEX_TORCH_THREADS", "12"))
+    )
+    embed_batch_size: int = Field(
+        default_factory=lambda: int(os.getenv("EMBED_BATCH_SIZE", "64"))
     )
 
     # Embedding Provider Configuration (local vs. gemini)
@@ -51,7 +65,12 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("EMBEDDING_PROVIDER", "local").lower()
     )
     local_embedding_model: str = Field(
-        default_factory=lambda: os.getenv("LOCAL_EMBEDDING_MODEL", "zeroentropy/zembed-1")
+        default_factory=lambda: os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+    )
+    # Query instruction for asymmetric retrieval. "auto" = the BGE prefix for bge-*-en models
+    # (CLAUDE.md D4); "" = none; any other string is used as-is. Documents never get a prefix.
+    query_instruction: str = Field(
+        default_factory=lambda: os.getenv("QUERY_INSTRUCTION", "auto")
     )
     gemini_embedding_model: str = Field(
         default_factory=lambda: os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")
@@ -112,23 +131,23 @@ class Settings(BaseModel):
         default_factory=lambda: _resolve_path(os.getenv("CHROMA_DB_DIR"), "chromadb_store")
     )
     collection_name: str = Field(
-        default_factory=lambda: os.getenv("COLLECTION_NAME", "indian_legal_precedents")
+        default_factory=lambda: os.getenv("COLLECTION_NAME", "sc_criminal_cpu")
     )
 
-    # 3-Tier Hierarchical Legal Chunking Hyperparameters
+    # Chunking (CLAUDE.md D5): parent 2000, child 800, overlap 120 characters
     parent_chunk_size: int = Field(
-        default_factory=lambda: int(os.getenv("PARENT_CHUNK_SIZE", "1500"))
+        default_factory=lambda: int(os.getenv("PARENT_CHUNK_SIZE", "2000"))
     )
     child_chunk_size: int = Field(
-        default_factory=lambda: int(os.getenv("CHILD_CHUNK_SIZE", "400"))
+        default_factory=lambda: int(os.getenv("CHILD_CHUNK_SIZE", "800"))
     )
     chunk_overlap: int = Field(
-        default_factory=lambda: int(os.getenv("CHUNK_OVERLAP", "80"))
+        default_factory=lambda: int(os.getenv("CHUNK_OVERLAP", "120"))
     )
 
-    # Reranker Model
+    # Reranker Model (CLAUDE.md D4: bge-reranker-base on CPU; v2-m3 only if the pilot allows)
     reranker_model: str = Field(
-        default_factory=lambda: os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+        default_factory=lambda: os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
     )
 
     # Data Storage Directories & SQLite Path
@@ -170,6 +189,22 @@ class Settings(BaseModel):
     metadata_dir: Path = Field(
         default_factory=lambda: _resolve_path(os.getenv("METADATA_DIR"), "data/metadata")
     )
+    logs_dir: Path = Field(
+        default_factory=lambda: _resolve_path(os.getenv("LOGS_DIR"), "data/logs")
+    )
+
+    # ------------------------------------------------------------------ derived paths
+    @property
+    def manifest_path(self) -> Path:
+        return self.metadata_dir / "manifest.parquet"
+
+    def sqlite_path_for(self, collection: str) -> Path:
+        """One SQLite file per collection, next to SQLITE_DB_PATH (pilot and full runs never share)."""
+        return self.sqlite_db_path.parent / f"{collection}.sqlite"
+
+    def checkpoint_path_for(self, collection: str) -> Path:
+        """One indexing checkpoint per collection, next to CHECKPOINT_PATH."""
+        return self.checkpoint_path.parent / f"checkpoint_{collection}.json"
 
     @classmethod
     def validate(cls, instance: Optional["Settings"] = None) -> "Settings":
@@ -206,6 +241,7 @@ class Settings(BaseModel):
             cfg.raw_data_dir,
             cfg.processed_data_dir,
             cfg.benchmarks_dir,
+            cfg.logs_dir,
         ]
 
         for directory in target_directories:

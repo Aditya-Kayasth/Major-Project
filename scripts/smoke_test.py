@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Pre-flight smoke test: verifies every component on THIS machine's library versions
-before committing to a long indexing run.
+"""Pre-flight smoke test on THIS machine (CPU-only plan; CUDA is reported, never required).
 
-Checks (each prints PASS/FAIL):
-  1. Library versions and CUDA
-  2. Embedding model loads, query/document prompts are applied, vectors are sane
-  3. Cross-encoder reranker loads and ranks a relevant passage above an irrelevant one
-  4. ChromaDB create / upsert / get-by-ids / query / delete in a temporary directory
-  5. BM25 registry scoring
-  6. (optional, --llm) two LLM calls through the provider chain (plain + JSON mode)
+Checks (each prints PASS/FAIL, one line):
+  1. Library versions and device
+  2. Effective settings vs CLAUDE.md targets (OK / DIFFERS; values are not printed)
+  3. GPU attention kernel (skipped without CUDA)
+  4. Embedding model: BGE query prefix applied, relevant > irrelevant, throughput (chunks/sec)
+  5. Cross-encoder reranker: ordering, latency per 20 pairs, output range (Phase 4 double-sigmoid check)
+  6. ChromaDB: create/upsert/get/query/delete, and that the collection really uses cosine distance
+  7. BM25 registry scoring
+  8. (optional, --llm) two LLM calls through the provider chain
 
 Usage:
     python scripts/smoke_test.py            # no API calls
@@ -26,6 +27,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 RESULTS = []
 
+# CLAUDE.md targets (§3, D4, D5)
+TARGETS = {
+    "max_ram_gb": 18.0,
+    "warn_ram_gb": 15.0,
+    "num_threads": 14,
+    "parent_chunk_size": 2000,
+    "child_chunk_size": 800,
+    "chunk_overlap": 120,
+    "embed_batch_size": 64,
+    "local_embedding_model": "BAAI/bge-small-en-v1.5",
+    "reranker_model": "BAAI/bge-reranker-base",
+    "collection_name": "sc_criminal_cpu",
+}
+
 
 def check(name):
     def wrap(fn):
@@ -38,88 +53,121 @@ def check(name):
             except Exception as err:
                 RESULTS.append((name, False))
                 print(f"[FAIL] {name}: {err}")
-                traceback.print_exc()
+                traceback.print_exc(limit=3)
         return run
     return wrap
 
 
-@check("Library versions & CUDA")
+@check("Library versions & device")
 def check_versions():
     import chromadb
+    import pypdf
     import sentence_transformers
     import torch
     import transformers
 
-    assert torch.cuda.is_available(), "CUDA not available to PyTorch"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     return (
         f"torch {torch.__version__} | transformers {transformers.__version__} | "
         f"sentence-transformers {sentence_transformers.__version__} | chromadb {chromadb.__version__} | "
-        f"GPU {torch.cuda.get_device_name(0)}"
+        f"pypdf {pypdf.__version__} | device={device} | torch threads={torch.get_num_threads()}"
     )
 
 
-@check("GPU attention kernel (scaled_dot_product_attention)")
+@check("Settings vs CLAUDE.md targets")
+def check_settings(settings):
+    diffs = [k for k, v in TARGETS.items() if getattr(settings, k) != v]
+    if diffs:
+        print("       DIFFERS (check .env): " + ", ".join(diffs))
+    return "all match" if not diffs else f"{len(diffs)} differ (listed above; not a failure)"
+
+
+@check("GPU attention kernel")
 def check_sdpa():
     import torch
+
+    if not torch.cuda.is_available():
+        return "skipped (no CUDA; CPU plan)"
     import torch.nn.functional as F
 
     from src.resource_guard import configure_torch_backends
 
     configure_torch_backends()
-    try:
-        cudnn_version = torch.backends.cudnn.version()
-    except Exception as err:
-        cudnn_version = f"unavailable ({err})"
     q = torch.randn(2, 8, 128, 64, device="cuda", dtype=torch.bfloat16)
     out = F.scaled_dot_product_attention(q, q, q)
     torch.cuda.synchronize()
     assert out.shape == q.shape
-    return f"cudnn_enabled={torch.backends.cudnn.enabled} cudnn_version={cudnn_version}"
+    return f"cudnn_enabled={torch.backends.cudnn.enabled}"
 
 
-@check("Embedding model (query vs document prompts)")
+@check("Embedding model (query prefix, relevance, throughput)")
 def check_embeddings(settings):
     import numpy as np
 
     from src.local_embeddings import LocalEmbeddingEngine
 
-    engine = LocalEmbeddingEngine(model_name=settings.local_embedding_model, batch_size=8)
-    q = engine.embed_texts(["Is anticipatory bail available for offences under Section 438 CrPC?"], is_query=True)[0]
-    docs = engine.embed_texts(
-        [
-            "The court held that anticipatory bail under Section 438 CrPC may be granted where the accused apprehends arrest.",
-            "The appellant challenged the land acquisition award on the ground of inadequate compensation.",
-        ]
+    engine = LocalEmbeddingEngine(
+        model_name=settings.local_embedding_model,
+        batch_size=settings.embed_batch_size,
+        num_threads=settings.num_threads,
+        query_instruction=settings.query_instruction,
     )
+    query = "Is anticipatory bail available for offences under Section 438 CrPC?"
+    q = engine.embed_texts([query], is_query=True)[0]
+    docs = engine.embed_texts([
+        "The court held that anticipatory bail under Section 438 CrPC may be granted where the accused apprehends arrest.",
+        "The appellant challenged the land acquisition award on the ground of inadequate compensation.",
+    ])
     sims = [float(np.dot(q, d)) for d in docs]
-    prompts = list((getattr(engine._st_model, "prompts", None) or {}).keys()) if engine._st_model else []
-    assert len(q) > 0 and abs(float(np.linalg.norm(q)) - 1.0) < 1e-2, "query vector not normalised"
+    prepared = engine.prepare_texts([query], is_query=True)[0]
+    prefix_applied = prepared != query
+    assert abs(float(np.linalg.norm(q)) - 1.0) < 1e-2, "query vector not normalised"
     assert sims[0] > sims[1], f"relevant doc not closer to query: {sims}"
-    return f"model={engine.model_name} dim={len(q)} prompts={prompts} sim(relevant)={sims[0]:.3f} > sim(irrelevant)={sims[1]:.3f}"
+    if "bge" in engine.model_name.lower() and "-en" in engine.model_name.lower():
+        assert prefix_applied, "BGE query prefix NOT applied"
+    assert engine.prepare_texts(["doc"], is_query=False) == ["doc"], "documents must not get a prefix"
+
+    chunk = ("The prosecution relied on the dying declaration recorded by the Magistrate and the testimony "
+             "of the eye-witnesses to establish the guilt of the accused under Section 302 IPC. ") * 5
+    texts = [chunk[:800]] * 256
+    t0 = time.perf_counter()
+    engine.embed_texts(texts)
+    rate = len(texts) / (time.perf_counter() - t0)
+    return (f"model={engine.model_name} device={engine.device} dim={len(q)} prefix_applied={prefix_applied} "
+            f"sim {sims[0]:.3f} > {sims[1]:.3f} | {rate:.0f} chunks/sec (800 chars, batch {engine.batch_size}; "
+            f"CLAUDE.md: 170)")
 
 
-@check("Cross-encoder reranker")
+@check("Cross-encoder reranker (ordering, latency, output range)")
 def check_reranker(settings):
     from src.rag_pipeline import IndianLegalRAGPipeline
 
-    class _NoStore:  # avoid touching the real vector store
-        pass
-
-    pipe = IndianLegalRAGPipeline.__new__(IndianLegalRAGPipeline)
+    pipe = IndianLegalRAGPipeline.__new__(IndianLegalRAGPipeline)  # avoid touching the real stores
     pipe.settings = settings
     pipe._reranker = None
     reranker = pipe._get_reranker()
-    scores = reranker.predict(
-        [
-            ["Is anticipatory bail available under Section 438 CrPC?", "Anticipatory bail under Section 438 CrPC may be granted by the Sessions Court or High Court."],
-            ["Is anticipatory bail available under Section 438 CrPC?", "The tenant failed to pay rent for three consecutive months."],
-        ]
-    )
+    q = "Is anticipatory bail available under Section 438 CrPC?"
+    scores = reranker.predict([
+        [q, "Anticipatory bail under Section 438 CrPC may be granted by the Sessions Court or High Court."],
+        [q, "The tenant failed to pay rent for three consecutive months."],
+    ])
     assert float(scores[0]) > float(scores[1]), f"reranker ordering wrong: {scores}"
-    return f"scores={[round(float(s), 3) for s in scores]}"
+    passage = ("The High Court granted anticipatory bail subject to conditions, observing that personal liberty "
+               "under Article 21 must be balanced against the needs of the investigation. ") * 4
+    pairs = [[q, passage[:800]] for _ in range(20)]
+    reranker.predict(pairs)  # warm-up
+    t0 = time.perf_counter()
+    out = reranker.predict(pairs)
+    per20 = time.perf_counter() - t0
+    lo, hi = float(min(out)), float(max(out))
+    in_unit = 0.0 <= min(float(s) for s in scores) and max(float(s) for s in scores) <= 1.0
+    activation = type(getattr(reranker, "activation_fn", None)).__name__
+    return (f"model={settings.reranker_model} scores={[round(float(s), 3) for s in scores]} | "
+            f"{per20:.2f}s per 20 pairs (CLAUDE.md: 0.42) | predict() in [0,1]: {in_unit} "
+            f"(activation_fn={activation}) -> if True, rag_pipeline's extra sigmoid is a double sigmoid (Phase 4)")
 
 
-@check("ChromaDB create/upsert/get/query/delete")
+@check("ChromaDB create/upsert/get/query/delete + cosine space")
 def check_chroma():
     import chromadb
     from chromadb.config import Settings as ChromaSettings
@@ -131,16 +179,21 @@ def check_chroma():
             ids=["a", "b"],
             documents=["section 302 murder", "land acquisition"],
             embeddings=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
-            metadatas=[{"year": 2025, "court": "SC"}, {"year": 2024, "court": "HC"}],
+            metadatas=[{"year": 2025, "doc_id": "x"}, {"year": 2024, "doc_id": "y"}],
         )
         got = col.get(ids=["a", "zzz"], include=[])
         assert got["ids"] == ["a"], f"get by ids returned {got['ids']}"
-        res = col.query(query_embeddings=[[0.9, 0.1, 0.0]], n_results=2, include=["documents", "metadatas", "distances"])
+        res = col.query(query_embeddings=[[1.0, 0.0, 0.0]], n_results=2, include=["distances"])
         assert res["ids"][0][0] == "a", f"nearest neighbour wrong: {res['ids']}"
+        d_orth = float(res["distances"][0][1])  # cosine: 1.0 for orthogonal unit vectors; squared L2: 2.0
+        space = "cosine" if abs(d_orth - 1.0) < 1e-3 else ("l2" if abs(d_orth - 2.0) < 1e-3 else f"? ({d_orth})")
+        assert space == "cosine", f"collection distance space is {space}, not cosine"
+        filt = col.get(where={"doc_id": {"$in": ["y"]}}, include=[])
+        assert filt["ids"] == ["b"], f"$in filter returned {filt['ids']}"
         page = col.get(include=["documents", "metadatas"], limit=1, offset=1)
         assert len(page["ids"]) == 1, "pagination failed"
         client.delete_collection("smoke")
-    return "ok"
+    return f"space={space} | $in filter ok"
 
 
 @check("BM25 registry")
@@ -162,42 +215,40 @@ def check_bm25():
 def check_llm(settings):
     import json
 
-    from google import genai
-    from google.genai import types
+    from src.llm_budget import gen_config, get_budget, make_gemini_client
 
-    from src.llm_budget import get_budget
-
-    has_gemini = bool(settings.gemini_api_key) and settings.gemini_api_key != "your_gemini_api_key_here"
-    client = genai.Client(api_key=settings.gemini_api_key) if has_gemini else None
+    client = make_gemini_client(settings.gemini_api_key)
     budget = get_budget(settings)
     route = budget.llm_label(client)
     assert route != "none configured", "no LLM configured (set LLM_API_KEY or GEMINI_API_KEY)"
-    text = budget.generate(
-        client=client, models=[settings.gemini_model],
-        contents="In one sentence: what does Section 438 CrPC provide?", use_cache=False,
-    )
+    text = budget.generate(client=client, models=[settings.gemini_model],
+                           contents="In one sentence: what does Section 438 CrPC provide?", use_cache=False)
     assert text, f"no response from any provider in route: {route}"
     raw = budget.generate(
         client=client, models=[settings.gemini_model], use_cache=False,
         contents='Return JSON {"query": "<a legal research question about bail>", "answer": "<one sentence>"}',
-        config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.2),
+        config=gen_config(response_mime_type="application/json", temperature=0.2),
     )
     data = json.loads(raw)
     assert data.get("query") and data.get("answer"), f"JSON mode returned unexpected keys: {list(data)}"
-    return f"route={route} | answer={text.strip()[:70]!r}"
+    return f"route={route}"
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Pre-flight smoke test")
-    parser.add_argument("--llm", "--gemini", dest="llm", action="store_true", help="Also make 2 LLM requests through the provider chain")
+    parser = argparse.ArgumentParser(description="Pre-flight smoke test (CPU)")
+    parser.add_argument("--llm", "--gemini", dest="llm", action="store_true", help="Also make 2 LLM requests")
     args = parser.parse_args()
 
+    import torch
+
     from src.config import get_settings
+    from src.resource_guard import ResourceGuard
 
     settings = get_settings()
-    print(f"Embedding provider: {settings.embedding_provider} ({settings.local_embedding_model}) | reranker: {settings.reranker_model}\n")
+    torch.set_num_threads(settings.num_threads)
 
     check_versions()
+    check_settings(settings)
     check_sdpa()
     check_embeddings(settings)
     check_reranker(settings)
@@ -206,18 +257,10 @@ def main():
     if args.llm:
         check_llm(settings)
 
-    try:
-        import psutil
-        import torch
-
-        rss = psutil.Process().memory_info().rss / 1024 ** 3
-        vram = torch.cuda.max_memory_allocated() / 1024 ** 3 if torch.cuda.is_available() else 0.0
-        print(f"\nPeak VRAM: {vram:.1f} GB | Process RAM: {rss:.1f} GB")
-    except Exception:
-        pass
-
+    tree_gb = ResourceGuard.process_tree_rss_bytes() / 1024 ** 3
+    print(f"\nProcess-tree RAM: {tree_gb:.2f} GB (limit {settings.max_ram_gb:.0f} GB)")
     failed = [n for n, ok in RESULTS if not ok]
-    print("\n" + ("ALL CHECKS PASSED - safe to start indexing." if not failed else f"FAILED: {failed}"))
+    print("ALL CHECKS PASSED" if not failed else f"FAILED: {failed}")
     sys.exit(1 if failed else 0)
 
 

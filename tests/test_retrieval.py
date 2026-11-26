@@ -4,15 +4,22 @@ import json
 import unittest
 from pathlib import Path
 
-from src.config import Settings, get_settings
+from src.config import Settings
 from src.document_loader import LegalDocumentLoader
+from tests._isolated import isolated_settings
 
 
 class TestLegalRAGComponents(unittest.TestCase):
-    """Test suite for Phase 1 ingestion and hierarchical chunking modules."""
+    """Test suite for Phase 1 ingestion and hierarchical chunking modules (temp dirs only)."""
+
+    def setUp(self):
+        self.tmp, self.settings = isolated_settings()
+
+    def tearDown(self):
+        self.tmp.cleanup()
 
     def test_settings_loaded_and_validated(self):
-        settings = Settings.validate()
+        settings = self.settings
         self.assertIsInstance(settings, Settings)
         self.assertGreater(settings.parent_chunk_size, 0)
         self.assertGreater(settings.child_chunk_size, 0)
@@ -22,7 +29,7 @@ class TestLegalRAGComponents(unittest.TestCase):
         self.assertTrue(settings.raw_data_dir.exists())
 
     def test_hierarchical_legal_chunking(self):
-        loader = LegalDocumentLoader()
+        loader = LegalDocumentLoader(settings=self.settings, enable_ocr=False)
         sample_judgment = (
             "# Facts\n"
             "The appellant was convicted under Section 302 of the Indian Penal Code by the Sessions Court.\n\n"
@@ -76,7 +83,7 @@ class TestLegalRAGComponents(unittest.TestCase):
 
     def test_record_failed_file(self):
         """Verify that failed file metadata is appended to data/processed/failed_files.json."""
-        loader = LegalDocumentLoader()
+        loader = LegalDocumentLoader(settings=self.settings, enable_ocr=False)
         fake_path = Path("data/raw_judgments/corrupted_scan.pdf")
         loader._record_failed_file(fake_path, "OCR processing failed after 3 retries")
 
@@ -92,7 +99,7 @@ class TestLegalRAGComponents(unittest.TestCase):
 
     def test_record_scanned_for_gpu_ocr(self):
         """Verify that scanned PDFs needing GPU/background OCR are queued in scanned_for_gpu_ocr.json."""
-        loader = LegalDocumentLoader()
+        loader = LegalDocumentLoader(settings=self.settings, enable_ocr=False)
         fake_path = Path("data/raw_judgments/scanned_appeal_2024.pdf")
         loader._record_scanned_for_gpu_ocr(fake_path, "503 High Demand Fast-Skip")
 
@@ -108,7 +115,7 @@ class TestLegalRAGComponents(unittest.TestCase):
 
     def test_disk_caching(self):
         """Verify that successful document text is cached to data/processed/{stem}.txt and loaded instantly."""
-        loader = LegalDocumentLoader()
+        loader = LegalDocumentLoader(settings=self.settings, enable_ocr=False)
         test_txt = "IN THE SUPREME COURT OF INDIA\nArticle 21 Constitutional Ruling test content."
         fake_file = loader.settings.raw_data_dir / "test_cache_doc.txt"
         fake_file.parent.mkdir(parents=True, exist_ok=True)
