@@ -358,6 +358,8 @@ class IndianLegalRAGPipeline:
         timings["funnel_latency_sec"] = round(time.perf_counter() - t_all, 4)
         return {
             "judgments": judgments,
+            # judgment order of the fused (RRF) list: evaluation fills past the reranked judgments with it
+            "fused_doc_order": [judgment_key(c) for c in dedupe_by_judgment(fused)][:50],
             "retrieved_parents": parents,
             "child_citations": citations,
             "reranked_candidates": reranked,
@@ -426,7 +428,7 @@ class IndianLegalRAGPipeline:
 
         t = time.perf_counter()
         if not judgments or low_confidence:
-            answer, precedents = INSUFFICIENT_ANSWER, []
+            answer, precedents, context = INSUFFICIENT_ANSWER, [], ""
         else:
             context, precedents = self.build_context(judgments)
             prompt = (f"Legal question:\n{query}\n\nPrecedents (the only sources you may use):\n\n{context}\n\n"
@@ -442,6 +444,7 @@ class IndianLegalRAGPipeline:
         timings["total_latency_sec"] = round(time.perf_counter() - t_all, 4)
         return {
             "answer": answer,
+            "context": context,
             "low_confidence": low_confidence,
             "best_relevance": best_relevance,
             "min_relevance": self.settings.min_relevance,

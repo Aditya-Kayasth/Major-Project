@@ -34,6 +34,19 @@ Counts per year (CLAUDE.md D2, reproduced exactly by this run): 2018: 185, 2019:
 
 **Corpus = 1,889 judgments.** The 2 missing PDFs stay in the manifest with status `not_found` and are not indexed.
 
+## Index (Phase 5, `index_corpus.py --collection sc_criminal_cpu`)
+
+| Item | Result |
+|---|---|
+| Judgments indexed | **1,889** (0 failed) |
+| Child chunks / parent sections | 129,707 / 52,101 |
+| Time | 1,747 s (64.9 docs/min) on CPU, 4 spawned extraction workers, 12 torch threads |
+| Peak RAM (process tree) | 2.29 GB |
+| Headnote split | details 1,870, body_marker 13, none 6 |
+| Author | from the PDF 1,711, manifest `coram_star` 136, unknown 36 |
+| Disposition (PDF end text vs `disposal_nature`) | agrees 1,667 / 1,690 |
+| Judgments with ≥ 1 statute section found | 1,751 / 1,889 |
+
 ## Findings and rules adopted
 
 1. **Bench data gap.** In 11 records the `Coram :` list names 1 judge while the trailing block declares `Bench : 2 Judges`.

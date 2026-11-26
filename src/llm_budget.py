@@ -164,18 +164,23 @@ class GeminiBudget:
         config: Optional[Any] = None,
         use_cache: bool = True,
         max_retries: int = 3,
+        providers: Optional[List[str]] = None,
     ) -> Optional[str]:
         """Generate text via the provider chain with caching. None if every provider fails.
 
         ``client`` is the Gemini client (may be None). The chain is the primary
         SYNTHESIS_PROVIDER followed by any other configured provider, so a rate-limited or
         out-of-quota provider transparently hands over to the next one.
+        ``providers`` restricts the chain (e.g. ["gemini"] for the LLM judge, so the judge is
+        never the same model family as the answer generator).
         """
         system = getattr(config, "system_instruction", None) if config else None
         json_mode = getattr(config, "response_mime_type", None) == "application/json" if config else False
         temperature = getattr(config, "temperature", None) if config else None
 
         chain = self._chain(client)
+        if providers is not None:
+            chain = [p for p in chain if p in providers]
         engine = self._engine_label(chain[0]) if chain else ""
         key_src = json.dumps([engine, str(system), str(contents)], ensure_ascii=False)
         cache_key = hashlib.sha256(key_src.encode("utf-8")).hexdigest()
