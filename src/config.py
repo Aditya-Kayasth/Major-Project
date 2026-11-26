@@ -165,6 +165,11 @@ class Settings(BaseModel):
     benchmarks_dir: Path = Field(
         default_factory=lambda: _resolve_path(os.getenv("BENCHMARKS_DIR"), "data/benchmarks")
     )
+    # Official SC metadata (AWS Open Data parquet): $METADATA_DIR/sc/year=YYYY/metadata.parquet.
+    # Read-only input, so it is not created by validate().
+    metadata_dir: Path = Field(
+        default_factory=lambda: _resolve_path(os.getenv("METADATA_DIR"), "data/metadata")
+    )
 
     @classmethod
     def validate(cls, instance: Optional["Settings"] = None) -> "Settings":

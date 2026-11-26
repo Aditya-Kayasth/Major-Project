@@ -109,9 +109,10 @@
   - **`judge` usually holds ONE name** (only 14% have several). Don't use it for bench strength.
   - **`raw_html` is the rich field.** It is mostly web-page boilerplate, but it contains:
     - `| Case No :</span><font color='green'> CRIMINAL APPEAL No. 645/2019</font>`, the **case type and number**
-    - the SCR header, e.g. `MISS XYZ v. STATE OF GUJARAT & ANR (Criminal Appeal No.1619 of 2019) OCTOBER 25, 2019 [UDAY UMESH LALIT, INDU MALHOTRA AND R...]`, the **full bench in square brackets**
-    - possibly headnote text
-  - Parse `raw_html` with regex/BeautifulSoup to get `case_no`, `case_type` and the bench list. Fallback for the bench: the PDF's first page (same `[NAME, NAME AND NAME, JJ.]` header).
+    - **(checked 26 Nov, `scripts/peek_raw_html.py`)** After tags are stripped, the text is: a long disclaimer (2018–2019 records), then `<title> - [YYYY] N S.C.R. P YYYY INSC N Coram : NAME * , NAME <subject / headnote text> Decision Date : DD-MM-YYYY | Case No : ... | Disposal Nature : ... | Bench : N Judges ...`
+    - **Bench = the `Coram :` list** (comma-separated, upper-case names). The name marked `*` is the author; some records have no `*`. The **`Bench : N Judges`** field in the trailing block is a cross-check. **Do NOT use square brackets:** the `[` is the `[2019] 3 S.C.R.` citation.
+    - 2025 records have `Issue for Consideration` and `Headnotes†` labels, cut short in raw_html (keep them as `headnote_snippet`; the full headnote comes from the PDF in Phase 3). 2019 records have no label: the text after Coram starts with a subject line such as `Code of Criminal Procedure, 1973` (keep it as `subject_hint`).
+  - Parse `raw_html` with regex (`src/sc_metadata.py`) to get `case_no`, `case_type`, the Coram bench, author, decision date, disposal nature and `Bench : N`. Fallback for the bench: the PDF's first page.
   - English PDF sizes 2018–2025: 6,674 files, ~2.56 GB in total, avg ~200–525 KB per file.
 - English only.
 
@@ -153,7 +154,7 @@
 **D5. Chunking:** parent 2,000 chars, child 800 chars, overlap 120. Keep the rhetorical-marker flushing, role tags and the `[role | title]` prefix. Add a `Headnote` role when an e-SCR headnote block ("Issue for Consideration" / "Headnotes") appears before the judgment body.
 
 **D6. Hierarchy from metadata:**
-- `bench_strength` = number of judges in the bench list parsed from `raw_html` (SCR header in square brackets), else from PDF page 1. NOT from the `judge` column.
+- `bench_strength` = number of names in the `Coram :` list parsed from `raw_html`, cross-checked against `Bench : N Judges`; else from PDF page 1. NOT from the `judge` column, and NOT from square brackets.
 - `bench_type`: 1 Single, 2 Division (2), 3–4 Full (3+), ≥5 Constitution Bench.
 - Authority order: Constitution > 3-judge > 2-judge.
 - Stays a **bounded ±5% tie-breaker**; `AUTHORITY_STRENGTH=0` switches it off for the ablation.
