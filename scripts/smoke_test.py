@@ -172,7 +172,7 @@ def check_reranker(settings):
     activation = type(getattr(reranker, "activation_fn", None)).__name__
     return (f"model={settings.reranker_model} scores={[round(float(s), 3) for s in scores]} | "
             f"{per20:.2f}s per 20 pairs (CLAUDE.md: 0.42) | predict() in [0,1]: {in_unit} "
-            f"(activation_fn={activation}) -> if True, rag_pipeline's extra sigmoid is a double sigmoid (Phase 4)")
+            f"(activation_fn={activation}) -> rag_pipeline.reranker_relevances uses in-range predict() output as-is (no second sigmoid)")
 
 
 @check("ChromaDB create/upsert/get/query/delete + cosine space")

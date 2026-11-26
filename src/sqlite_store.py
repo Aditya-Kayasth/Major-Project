@@ -38,13 +38,28 @@ class SQLiteParentStore:
         conn.execute("PRAGMA cache_size=-64000;")  # 64 MB cache
         return conn
 
+    # One row per judgment (CLAUDE.md §7 doc-level fields + parse results)
+    DOCUMENT_COLUMNS = [
+        ("doc_id", "TEXT PRIMARY KEY"), ("case_title", "TEXT"), ("petitioner", "TEXT"), ("respondent", "TEXT"),
+        ("court", "TEXT"), ("decision_date", "TEXT"), ("year", "INTEGER"), ("judges", "TEXT"),
+        ("bench_strength", "INTEGER"), ("bench_type", "TEXT"), ("bench_source", "TEXT"), ("author_judge", "TEXT"),
+        ("author_source", "TEXT"), ("citation", "TEXT"), ("case_id", "TEXT"), ("cnr", "TEXT"),
+        ("disposal_nature", "TEXT"), ("disposition_pdf", "TEXT"), ("disposition_agrees", "INTEGER"),
+        ("case_type", "TEXT"), ("case_no", "TEXT"), ("reportable", "INTEGER"), ("statutes_cited", "TEXT"),
+        ("layout", "TEXT"), ("headnote", "TEXT"), ("headnote_split", "TEXT"), ("body_marker", "TEXT"),
+        ("pdf_judges", "TEXT"), ("pdf_author", "TEXT"), ("pdf_author_source", "TEXT"),
+        ("author_pdf_agrees", "INTEGER"), ("n_pages", "INTEGER"), ("n_chars", "INTEGER"),
+        ("n_parents", "INTEGER"), ("n_chunks", "INTEGER"), ("source_path", "TEXT"), ("indexed_at", "TEXT"),
+    ]
+
     def _init_db(self) -> None:
-        """Create parent table and indices if they do not exist."""
+        """Create the parent and documents tables and indices if they do not exist."""
         with self._get_connection() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS parent_chunks (
                     parent_id TEXT PRIMARY KEY,
+                    doc_id TEXT,
                     case_title TEXT,
                     court TEXT,
                     year INTEGER,
@@ -57,9 +72,63 @@ class SQLiteParentStore:
                 );
                 """
             )
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(parent_chunks);")}
+            if "doc_id" not in cols:  # older store files
+                conn.execute("ALTER TABLE parent_chunks ADD COLUMN doc_id TEXT;")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_parent_case_title ON parent_chunks(case_title);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_parent_court ON parent_chunks(court);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_parent_doc ON parent_chunks(doc_id);")
+            col_sql = ", ".join(f"{name} {kind}" for name, kind in self.DOCUMENT_COLUMNS)
+            conn.execute(f"CREATE TABLE IF NOT EXISTS documents ({col_sql});")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_year ON documents(year);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_bench ON documents(bench_strength);")
             conn.commit()
+
+    # ------------------------------------------------------------------ documents
+    def upsert_documents(self, docs: List[Dict[str, Any]]) -> int:
+        """Insert or replace judgment rows (unknown keys are ignored; bools stored as 0/1)."""
+        if not docs:
+            return 0
+        names = [n for n, _ in self.DOCUMENT_COLUMNS]
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+
+        def value(d: Dict[str, Any], k: str) -> Any:
+            v = d.get(k, now if k == "indexed_at" else None)
+            return int(v) if isinstance(v, bool) else v
+
+        rows = [tuple(value(d, k) for k in names) for d in docs]
+        with self._get_connection() as conn:
+            conn.executemany(
+                f"INSERT OR REPLACE INTO documents ({', '.join(names)}) VALUES ({', '.join('?' for _ in names)});", rows
+            )
+            conn.commit()
+        return len(rows)
+
+    def get_document(self, doc_id: str) -> Optional[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            row = conn.execute("SELECT * FROM documents WHERE doc_id = ?;", (doc_id,)).fetchone()
+            return dict(row) if row else None
+
+    def count_documents(self) -> int:
+        with self._get_connection() as conn:
+            return conn.execute("SELECT COUNT(*) FROM documents;").fetchone()[0]
+
+    def doc_ids_where(self, year_from: Optional[int] = None, year_to: Optional[int] = None,
+                      min_bench: Optional[int] = None) -> List[str]:
+        """doc_ids matching simple filters (used by Phase 4 retrieval filters)."""
+        clauses, args = [], []
+        if year_from is not None:
+            clauses.append("year >= ?")
+            args.append(int(year_from))
+        if year_to is not None:
+            clauses.append("year <= ?")
+            args.append(int(year_to))
+        if min_bench is not None:
+            clauses.append("bench_strength >= ?")
+            args.append(int(min_bench))
+        sql = "SELECT doc_id FROM documents" + (" WHERE " + " AND ".join(clauses) if clauses else "") + ";"
+        with self._get_connection() as conn:
+            return [r[0] for r in conn.execute(sql, args).fetchall()]
 
     def insert_parent(self, parent_data: Dict[str, Any]) -> bool:
         """Insert a single parent chunk."""
@@ -77,6 +146,7 @@ class SQLiteParentStore:
                 continue
 
             meta = p.get("metadata") or {}
+            doc_id = p.get("doc_id") or meta.get("doc_id")
             case_title = p.get("case_title") or meta.get("case_title", "")
             court = meta.get("court", "")
             year = meta.get("year")
@@ -87,7 +157,7 @@ class SQLiteParentStore:
             meta_json = json.dumps(meta, ensure_ascii=False)
 
             rows.append(
-                (parent_id, case_title, court, year, role, macro_section, char_length, text, meta_json)
+                (parent_id, doc_id, case_title, court, year, role, macro_section, char_length, text, meta_json)
             )
 
         with self._get_connection() as conn:
@@ -95,8 +165,8 @@ class SQLiteParentStore:
             cursor.executemany(
                 """
                 INSERT OR REPLACE INTO parent_chunks (
-                    parent_id, case_title, court, year, role, macro_section, char_length, text, metadata_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    parent_id, doc_id, case_title, court, year, role, macro_section, char_length, text, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 rows,
             )
@@ -178,9 +248,10 @@ class SQLiteParentStore:
         return results
 
     def clear(self) -> None:
-        """Delete all parent chunks (used by a full re-index)."""
+        """Delete all parents and documents of THIS store file (= one collection)."""
         with self._get_connection() as conn:
             conn.execute("DELETE FROM parent_chunks;")
+            conn.execute("DELETE FROM documents;")
             conn.commit()
 
     def count_parents(self) -> int:

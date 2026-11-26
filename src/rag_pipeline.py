@@ -91,11 +91,14 @@ class IndianLegalRAGPipeline:
         settings: Optional[Settings] = None,
         vector_store: Optional[VectorStoreManager] = None,
         gemini_client: Optional[Any] = None,
+        collection_name: Optional[str] = None,
     ):
         self.settings = settings or get_settings()
-        self.vector_store = vector_store or VectorStoreManager(settings=self.settings)
+        self.vector_store = vector_store or VectorStoreManager(settings=self.settings, collection_name=collection_name)
+        self.collection_name = collection_name or self.vector_store.default_collection_name
         self.gemini_client = gemini_client or make_gemini_client(self.settings.gemini_api_key)
-        self.sqlite_store = SQLiteParentStore(self.settings.sqlite_db_path)
+        # One SQLite file per collection (pilot and full index never share parents)
+        self.sqlite_store = SQLiteParentStore(self.settings.sqlite_path_for(self.collection_name))
         self.guard = ResourceGuard(
             max_ram_gb=self.settings.max_ram_gb,
             warn_ram_gb=self.settings.warn_ram_gb,
@@ -229,7 +232,7 @@ class IndianLegalRAGPipeline:
             bench = candidate.get("bench_type") or meta.get("bench_type", "")
             role = candidate.get("legal_role") or meta.get("legal_role") or meta.get("role", "")
             author = candidate.get("author_judge") or meta.get("author_judge", "")
-            coram = candidate.get("coram") or meta.get("coram", "")
+            coram = candidate.get("judges") or meta.get("judges") or meta.get("coram", "")
 
             # 1. Stare Decisis Precedent Multiplier (Court Tier + Bench Strength)
             stare_weight = get_stare_decisis_weight(court, bench)
@@ -386,7 +389,7 @@ class IndianLegalRAGPipeline:
             case_title = child.get("case_title") or meta.get("case_title", "Unknown Case")
             court = child.get("court") or meta.get("court", "Unknown Court")
             year = child.get("year") or meta.get("year", "")
-            role = child.get("role") or meta.get("role", "Obiter Dicta")
+            role = child.get("role") or meta.get("role", "Unclassified")
 
             # Collect child citation snippet
             child_citations.append(
@@ -499,10 +502,10 @@ class IndianLegalRAGPipeline:
             p_role = p_meta.get("role") or p_meta.get("legal_role", "Ratio Decidendi")
             p_bench = p_meta.get("bench_type", "Bench")
             p_author = p_meta.get("author_judge", "Judge")
-            if str(p_meta.get("coram", "")).strip() in ("", "Not Recorded"):
+            if not str(p_meta.get("judges") or p_meta.get("coram") or "").strip() or p_meta.get("coram") == "Not Recorded":
                 # Bench type is only a fallback guess when the coram could not be parsed
                 p_bench, p_author = "bench not recorded", "not recorded"
-            p_disp = p_meta.get("disposition", "Not Stated")
+            p_disp = p_meta.get("disposal_nature") or p_meta.get("disposition", "Not Stated")
             p_text = parent.get("text", "")
             context_blocks.append(
                 f"### [Precedent {idx}] {p_title} ({p_court}, {p_year})\n"

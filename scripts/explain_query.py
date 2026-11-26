@@ -39,13 +39,18 @@ def show_record(pipeline: IndianLegalRAGPipeline, offset: int) -> None:
           f"SQLite parent sections: {pipeline.sqlite_store.count_parents():,}")
     print(LINE)
 
+    if collection.count() == 0:
+        print("collection is empty")
+        return
+    if offset is None or offset >= collection.count():
+        offset = collection.count() // 2
     rec = collection.get(limit=1, offset=offset, include=["documents", "metadatas", "embeddings"])
     chunk_id, document, meta = rec["ids"][0], rec["documents"][0], dict(rec["metadatas"][0])
     vector = rec["embeddings"][0]
     raw_text = meta.pop("raw_text", "")
 
     print(f"CHUNK ID  : {chunk_id}")
-    print("            = sha1(file name)[:16] - p<parent index> - c<child index>  (deterministic)\n")
+    print("            = doc_id (sha1(cnr or path)[:16]) - p<parent index> - c<child index>  (deterministic)\n")
     print("EMBEDDED TEXT (what the embedding model and BM25 actually see):")
     print(f"  {document}\n")
     print("METADATA (stored next to the vector; used for citations, filters and the authority prior):")
@@ -100,14 +105,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Inspect stored chunks and trace the retrieval funnel")
     parser.add_argument("query", nargs="?", help="Legal question to trace")
     parser.add_argument("--show-record", action="store_true", help="Print one stored chunk and its parent")
-    parser.add_argument("--offset", type=int, default=1234, help="Which stored chunk to show")
+    parser.add_argument("--offset", type=int, default=None, help="Which stored chunk to show (default: middle)")
+    parser.add_argument("--collection", default=None, help="Chroma collection (default COLLECTION_NAME)")
     parser.add_argument("--top-k", type=int, default=5)
     args = parser.parse_args()
     if not args.query and not args.show_record:
         parser.error("give a query and/or --show-record")
 
     configure_torch_backends()
-    pipeline = IndianLegalRAGPipeline(settings=get_settings())
+    pipeline = IndianLegalRAGPipeline(settings=get_settings(), collection_name=args.collection)
     if args.show_record:
         show_record(pipeline, args.offset)
     if args.query:

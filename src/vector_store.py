@@ -47,7 +47,7 @@ def sanitize_metadata_for_chroma(metadata: Dict[str, Any]) -> Dict[str, Union[st
     clean: Dict[str, Union[str, int, float, bool]] = {}
     for k, v in metadata.items():
         if v is None:
-            clean[k] = ""
+            continue  # omit unknown values: keeps int/bool fields single-typed for Chroma filters
         elif isinstance(v, (str, int, float, bool)):
             clean[k] = v
         elif isinstance(v, list):

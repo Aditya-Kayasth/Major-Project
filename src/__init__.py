@@ -1,10 +1,15 @@
-"""Indian Legal RAG System.
+"""Indian Legal Precedents RAG (Supreme Court criminal judgments, CPU build).
 
-Production-grade modular Retrieval-Augmented Generation pipeline tailored for
-Indian Supreme Court & High Court judgments, statutory provisions, and precedents.
+Kept import-free on purpose: PDF extraction workers are spawned processes that import only
+src.judgment_text (+ pypdf), so importing the package must not pull in pydantic, torch, etc.
 """
 
-from src.config import Settings, get_settings
+__version__ = "0.2.0"
 
-__all__ = ["Settings", "get_settings"]
-__version__ = "0.1.0"
+
+def __getattr__(name):  # lazy access: `from src import get_settings` still works
+    if name in ("Settings", "get_settings"):
+        from src import config
+
+        return getattr(config, name)
+    raise AttributeError(name)

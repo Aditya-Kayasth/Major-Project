@@ -79,7 +79,7 @@ class TestLegalRAGComponents(unittest.TestCase):
             roles.add(child["role"])
 
         # Ensure legal roles were detected
-        self.assertTrue(any(r in roles for r in ["Facts", "Submissions", "Precedents Cited", "Ratio Decidendi", "Order"]))
+        self.assertTrue(any(r in roles for r in ["Facts", "Submissions", "Precedents Cited", "Ratio/Analysis", "Order"]))
 
     def test_record_failed_file(self):
         """Verify that failed file metadata is appended to data/processed/failed_files.json."""
