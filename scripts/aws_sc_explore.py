@@ -74,6 +74,58 @@ def _s(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def txt(value: Any) -> str:
+    """Display string for any DataFrame cell: '' for None / NaN / <NA>; lists joined with '; '."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return "; ".join(txt(v) for v in value)
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):  # array-like cells
+        pass
+    return str(value)
+
+
+def num(value: Any) -> str:
+    """Integer display for a possibly-NaN numeric cell (bench_strength becomes float when NaN is present)."""
+    s = txt(value)
+    if not s:
+        return ""
+    try:
+        return str(int(float(s)))
+    except ValueError:
+        return s
+
+
+def n_items(value: Any) -> int:
+    return len(value) if isinstance(value, (list, tuple)) else 0
+
+
+def fmt_example(r: pd.Series, width: int = 220) -> str:
+    line = (f"  {txt(r.get('path'))} | {txt(r.get('case_type'))} | {txt(r.get('bench_type')) or '?'} | "
+            f"{txt(r.get('judges'))} | author={txt(r.get('author_judge_coram'))} | {txt(r.get('subject_hint'))[:40]}")
+    return line[:width]
+
+
+def fmt_failure(r: pd.Series, width: int = 220) -> str:
+    line = (f"  {txt(r.get('path'))} | {txt(r.get('bench_check'))} | coram={n_items(r.get('judges'))} "
+            f"declared={num(r.get('bench_declared')) or '-'} | {txt(r.get('coram_context'))}")
+    return line[:width]
+
+
+def fmt_failure_report(r: pd.Series) -> str:
+    return (f"- {txt(r.get('path'))} | {txt(r.get('bench_check'))} | judges={txt(r.get('judges'))} | "
+            f"declared={num(r.get('bench_declared')) or '-'} | judge column={txt(r.get('judge_column'))} | "
+            f"{txt(r.get('coram_context'))}")
+
+
+def positions(mask: pd.Series) -> List[int]:
+    """Row positions (for .iloc) where mask is True."""
+    return [i for i, ok in enumerate(mask.tolist()) if ok]
+
+
 def share(n: int, d: int) -> str:
     return f"{n}/{d} ({100.0 * n / d:.1f}%)" if d else f"{n}/0"
 
@@ -122,7 +174,8 @@ def main() -> None:
             records.append(p)
         per_year[year] = {"rows": len(df), "case_no": n_case_no, "criminal": n_crim}
 
-    crim = pd.DataFrame(records)
+    # Positional index (0..n-1); all row access below uses .iloc
+    crim = pd.DataFrame(records).reset_index(drop=True)
     n = len(crim)
 
     S: List[str] = []  # summary (stdout, <= 60 lines)
@@ -147,11 +200,11 @@ def main() -> None:
     S.append("-- case types (criminal): count | raw | label")
     ct = crim.groupby(["case_type_raw", "case_type"], dropna=False).size().sort_values(ascending=False)
     for (raw_t, label), cnt in list(ct.items())[:12]:
-        S.append(f"  {cnt:5d} | {raw_t} | {label}")
+        S.append(f"  {cnt:5d} | {txt(raw_t) or '(none)'} | {txt(label) or '(none)'}")
     if len(ct) > 12:
         S.append(f"  ... {len(ct) - 12} more raw types (see report)")
     R.append("## All case types (criminal)\n")
-    R.extend(f"- {cnt} | {raw_t} | {label}" for (raw_t, label), cnt in ct.items())
+    R.extend(f"- {cnt} | {txt(raw_t) or '(none)'} | {txt(label) or '(none)'}" for (raw_t, label), cnt in ct.items())
 
     # ------------------------------------------------------------------ bench
     has_bench = crim["bench_strength"].notna()
@@ -161,7 +214,7 @@ def main() -> None:
     S.append(f"  parsed bench: {share(int(has_bench.sum()), n)}")
     S.append("  bench_strength: " + "  ".join(f"{k}:{v}" for k, v in sorted(strength_counts.items()))
              + f"  none:{int((~has_bench).sum())}")
-    S.append("  bench_type: " + "  ".join(f"{k or 'unknown'}:{v}" for k, v in Counter(crim["bench_type"]).most_common()))
+    S.append("  bench_type: " + "  ".join(f"{k or 'unknown'}:{v}" for k, v in Counter(crim["bench_type"].map(txt)).most_common()))
     S.append("  vs 'Bench : N Judges': " + "  ".join(f"{k}:{checks.get(k, 0)}"
                                                     for k in ("match", "mismatch", "no_declared", "no_coram")))
     S.append(f"  author marked '*': {share(int(crim['author_judge_coram'].notna().sum()), n)}")
@@ -179,50 +232,44 @@ def main() -> None:
              f"html==parquet: {share(agree, int(both.sum()))}")
     S.append(f"  scr_citation: {share(int(crim['scr_citation'].notna().sum()), n)} | "
              f"neutral_citation: {share(int(crim['neutral_citation'].notna().sum()), n)}")
-    disp = Counter(crim["disposal_nature_html"].fillna("(none)")).most_common(6)
+    disp = Counter(crim["disposal_nature_html"].map(txt).replace("", "(none)")).most_common(6)
     S.append("  disposal (top 6): " + " | ".join(f"{k}:{v}" for k, v in disp))
-    dup_key = crim["cnr"] + "|" + crim["decision_date_parquet"].fillna("")
-    dups = int(dup_key.duplicated(keep=False).sum())
+    dup_key = crim["cnr"].map(txt) + "|" + crim["decision_date_parquet"].map(txt)
+    dup_mask = dup_key.duplicated(keep=False)
+    dups = int(dup_mask.sum())
     S.append(f"  duplicates on (cnr, decision_date): {dups} rows | duplicate paths: "
-             f"{int(crim['path'].duplicated(keep=False).sum())} | empty cnr: {int((crim['cnr'] == '').sum())}")
+             f"{int(crim['path'].duplicated(keep=False).sum())} | empty cnr: {int((crim['cnr'].map(txt) == '').sum())}")
     if dups:
         R.append("\n## Duplicate (cnr, decision_date) rows\n")
-        for _, r in crim[dup_key.duplicated(keep=False)].iterrows():
-            R.append(f"- {r['cnr']} | {r['decision_date_parquet']} | {r['path']} | {r['case_no']}")
+        for i in positions(dup_mask):
+            r = crim.iloc[i]
+            R.append(f"- {txt(r.get('cnr'))} | {txt(r.get('decision_date_parquet'))} | {txt(r.get('path'))} | "
+                     f"{txt(r.get('case_no'))}")
 
     # ------------------------------------------------------------------ examples
-    def fmt_example(r: pd.Series) -> str:
-        line = (f"  {r['path']} | {r['case_type']} | {r['bench_type'] or '?'} | {'; '.join(r['judges'])} | "
-                f"author={r['author_judge_coram']} | {(r['subject_hint'] or '')[:40]}")
-        return line[:220]
-
-    ok_idx = list(crim.index[crim["bench_check"].isin(["match", "no_declared"])])
+    ok_pos = positions(crim["bench_check"].isin(["match", "no_declared"]))
     S.append("-- 5 parsed examples")
-    for i in rng.sample(ok_idx, min(5, len(ok_idx))):
-        S.append(fmt_example(crim.loc[i]))
+    for i in rng.sample(ok_pos, min(5, len(ok_pos))):
+        S.append(fmt_example(crim.iloc[i]))
     R.append("\n## 20 parsed examples\n")
-    R.extend("-" + fmt_example(crim.loc[i])[1:] for i in rng.sample(ok_idx, min(20, len(ok_idx))))
+    R.extend("-" + fmt_example(crim.iloc[i])[1:] for i in rng.sample(ok_pos, min(20, len(ok_pos))))
 
-    fail = crim[crim["bench_check"].isin(["no_coram", "mismatch"])]
-    S.append(f"-- failures: {len(fail)} (no_coram {checks.get('no_coram', 0)}, mismatch {checks.get('mismatch', 0)}); 5 shown")
-    fail_idx = list(fail.index)
-    for i in rng.sample(fail_idx, min(5, len(fail_idx))):
-        r = crim.loc[i]
-        S.append((f"  {r['path']} | {r['bench_check']} | coram={len(r['judges'])} declared={r['bench_declared']} | "
-                  f"{r['coram_context']}")[:220])
+    fail_pos = positions(crim["bench_check"].isin(["no_coram", "mismatch"]))
+    S.append(f"-- failures: {len(fail_pos)} (no_coram {checks.get('no_coram', 0)}, "
+             f"mismatch {checks.get('mismatch', 0)}); 5 shown")
+    for i in rng.sample(fail_pos, min(5, len(fail_pos))):
+        S.append(fmt_failure(crim.iloc[i]))
     R.append("\n## All failures (no_coram / mismatch)\n")
-    for _, r in fail.iterrows():
-        R.append(f"- {r['path']} | {r['bench_check']} | judges={r['judges']} | declared={r['bench_declared']} | "
-                 f"judge column={r['judge_column']} | {r['coram_context']}")
+    R.extend(fmt_failure_report(crim.iloc[i]) for i in fail_pos)
 
     # ------------------------------------------------------------------ HEAD checks
     S.append("-- HEAD check of 5 PDF keys (public S3, HTTPS)")
     if args.no_head:
         S.append("  skipped (--no-head)")
     else:
-        for i in rng.sample(list(crim.index), min(5, n)):
-            r = crim.loc[i]
-            key = pdf_key(int(r["year"]), r["path"])
+        for i in rng.sample(range(n), min(5, n)):
+            r = crim.iloc[i]
+            key = pdf_key(int(r["year"]), txt(r.get("path")))
             status, length = head_check(key)
             size = f"{int(length) / 1024:.0f} KB" if (length and str(length).isdigit()) else (length or "-")
             S.append(f"  {status} | {size} | {key}")
