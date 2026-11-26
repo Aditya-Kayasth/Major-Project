@@ -151,6 +151,11 @@ class Settings(BaseModel):
     )
     # D4: rerank the top 20, or the top 30 if latency allows (measured 0.26 s per 20 pairs on CPU)
     rerank_top_n: int = Field(default_factory=lambda: int(os.getenv("RERANK_TOP_N", "30")))
+    # Judgment-level results: up to N best passages per judgment are kept / sent to the LLM
+    passages_per_judgment: int = Field(default_factory=lambda: int(os.getenv("PASSAGES_PER_JUDGMENT", "2")))
+    # Low-confidence refusal: if the best judgment's cross-encoder relevance is below this, no LLM call
+    # (calibrated in Phase 6 with the out-of-scope queries)
+    min_relevance: float = Field(default_factory=lambda: float(os.getenv("MIN_RELEVANCE", "0.10")))
 
     # Data Storage Directories & SQLite Path
     sqlite_db_path: Path = Field(

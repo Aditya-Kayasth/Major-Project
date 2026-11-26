@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 
 from src.config import get_settings
 from src.llm_budget import get_budget
-from src.rag_pipeline import IndianLegalRAGPipeline
+from src.rag_pipeline import IndianLegalRAGPipeline, bench_label
 from src.resource_guard import ResourceGuard
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
@@ -90,7 +90,7 @@ def _format_candidate(rank: int, c: Dict[str, Any]) -> Dict[str, Any]:
         "year": c.get("year") or meta.get("year", ""),
         "decision_date": meta.get("decision_date", ""),
         "citation": meta.get("citation", ""),
-        "bench_type": meta.get("bench_type", ""),
+        "bench_type": bench_label(meta.get("bench_strength")),
         "bench_strength": meta.get("bench_strength"),
         "judges": meta.get("judges", ""),
         "author_judge": meta.get("author_judge", ""),
@@ -141,35 +141,28 @@ def examples(limit: int = 8) -> List[str]:
 def search(req: SearchRequest) -> Dict[str, Any]:
     query = req.query.strip()
     with _pipeline_lock:
-        # All 30 fused candidates are cross-encoder scored; asking for all of them lets us
-        # show the best chunk from each distinct judgment rather than 5 chunks of one case.
-        retrieve_k = 30 if req.one_per_case else req.top_k
-        funnel = pipeline.retrieve_hybrid(query=query, top_k=retrieve_k, candidate_pool_size=60, filters=req.filters())
+        # The funnel already returns one result per JUDGMENT (best passage; up to 2 passages each)
+        funnel = pipeline.retrieve_hybrid(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
+        candidates = funnel["reranked_candidates"][: req.top_k]
+        passages = {g["doc_id"]: [str((p.get("metadata") or {}).get("raw_text") or p.get("text", ""))[:600]
+                                  for p in g["passages"]] for g in funnel["judgments"]}
 
-        candidates = funnel["reranked_candidates"]
-        if req.one_per_case:
-            seen, distinct = set(), []
-            for c in candidates:
-                key = _doc_key(c)
-                if key not in seen:
-                    seen.add(key)
-                    distinct.append(c)
-            candidates = distinct
-        candidates = candidates[: req.top_k]
-
-        answer, citation_check, precedents = None, None, None
+        answer, citation_check, precedents, low_confidence = None, None, None, None
         llm_timings: Dict[str, Any] = {}
         if req.generate_answer:
             result = pipeline.generate_answer(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
             answer = result.get("answer")
             citation_check = result.get("citation_check")
             precedents = result.get("precedents")
+            low_confidence = result.get("low_confidence")
             llm_timings = {"llm_generation_sec": result.get("timings", {}).get("llm_generation_sec")}
 
     return {
         "query": query,
         "expanded_query": funnel.get("expanded_query", query),
-        "results": [_format_candidate(i, c) for i, c in enumerate(candidates, start=1)],
+        "results": [{**_format_candidate(i, c), "passages": passages.get((c.get("metadata") or {}).get("doc_id"), [])}
+                    for i, c in enumerate(candidates, start=1)],
+        "low_confidence": low_confidence,
         "timings": {**funnel["timings"], **{k: v for k, v in llm_timings.items() if v is not None}},
         "funnel_counts": {**funnel.get("funnel_counts", {}), "returned": len(candidates)},
         "answer": answer,

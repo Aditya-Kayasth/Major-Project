@@ -36,14 +36,14 @@ if not logger.handlers:
 # Bench strength -> raw authority multiplier (bounded later by _authority_factor)
 BENCH_AUTHORITY = ((5, 1.25), (3, 1.15), (2, 1.05), (1, 1.0))
 FILTER_KEYS = ("year_from", "year_to", "min_bench")
-INSUFFICIENT_ANSWER = "Insufficient precedent in the indexed corpus.\n\nVerify on the official source."
+INSUFFICIENT_ANSWER = "Insufficient precedent in the indexed corpus."
 
-GROUNDED_LEGAL_SYSTEM_INSTRUCTION = """You are a legal research assistant for Indian criminal law. You answer ONLY from the numbered precedents provided to you ([Precedent 1] ... [Precedent N]); they are passages from judgments of the Supreme Court of India.
+GROUNDED_LEGAL_SYSTEM_INSTRUCTION = """You are a legal research assistant for Indian criminal law. You answer ONLY from the numbered precedents provided to you ([Precedent 1] ... [Precedent N]). Each precedent is one judgment of the Supreme Court of India, with one or two passages from it.
 
 Rules:
 1. Cite only as [Precedent N], using the numbers given. Never mention a case, citation, statutory section or judge that does not appear in the provided precedents.
 2. Separate the ratio decidendi (the holding on which the case was decided) from obiter dicta (passing remarks), and say which is which. Passages with role "Headnote" are editorial summaries: rely on the judgment text where both are given.
-3. Give more weight to larger benches (Constitution Bench > Full bench of 3-4 judges > Division bench of 2 > single judge) and say so when it matters.
+3. A larger bench outweighs a smaller one: a Constitution Bench (5 or more judges) outweighs a Four-Judge or Three-Judge Bench, which outweighs a Division Bench (2 judges), which outweighs a Single Judge. Say so when it matters.
 4. If the precedents conflict, say so explicitly, naming the precedents with their dates and bench sizes.
 5. IPC and BNS: offences committed before 1 July 2024 are governed by the IPC (and the CrPC / Evidence Act); offences on or after 1 July 2024 by the BNS (and the BNSS / BSA). When a precedent applies an old-code section, mention that the date of the offence decides which code applies.
 6. If the precedents do not answer the question, reply exactly "Insufficient precedent in the indexed corpus." and nothing else except rule 7.
@@ -86,18 +86,56 @@ def _field(c: Dict[str, Any], key: str, default: Any = None) -> Any:
     return v if v not in (None, "") else _meta(c).get(key, default)
 
 
+def bench_label(bench_strength: Any) -> str:
+    """Display label from bench_strength (never 'Full Bench')."""
+    try:
+        n = int(bench_strength)
+    except (TypeError, ValueError):
+        return "Bench not recorded"
+    if n >= 5:
+        return f"Constitution Bench ({n} judges)"
+    return {1: "Single Judge", 2: "Division Bench (2 judges)", 3: "Three-Judge Bench", 4: "Four-Judge Bench"}.get(
+        n, "Bench not recorded")
+
+
 def precedent_header(n: int, meta: Dict[str, Any]) -> str:
-    """[Precedent N] title | citation | date | bench_type: judges | author: ... | disposal: ... | role: ..."""
+    """[Precedent N] title | citation | date | bench label: judges | author: ... | disposal: ... | role: ..."""
     def val(key: str, default: str = "not recorded") -> str:
         v = meta.get(key)
         return str(v).strip() if v not in (None, "") else default
 
-    bench = val("bench_type", "bench not recorded")
-    if meta.get("bench_strength"):
-        bench = f"{bench} [{meta.get('bench_strength')} judges]"
-    return (f"[Precedent {n}] {val('case_title', 'untitled')} | {val('citation')} | {val('decision_date', str(meta.get('year') or 'date not recorded'))} | "
-            f"{bench}: {val('judges', 'judges not recorded')} | author: {val('author_judge')} | "
-            f"disposal: {val('disposal_nature')} | role: {val('role', 'Unclassified')}")
+    date = val("decision_date", str(meta.get("year") or "date not recorded"))
+    return (f"[Precedent {n}] {val('case_title', 'untitled')} | {val('citation')} | {date} | "
+            f"{bench_label(meta.get('bench_strength'))}: {val('judges', 'judges not recorded')} | "
+            f"author: {val('author_judge')} | disposal: {val('disposal_nature')} | role: {val('role', 'Unclassified')}")
+
+
+def judgment_key(c: Dict[str, Any]) -> str:
+    """Group key for judgment-level results: doc_id, else source_path, else parent_id, else chunk_id."""
+    return str(_field(c, "doc_id") or _field(c, "source_path") or _field(c, "parent_id") or c.get("chunk_id"))
+
+
+def dedupe_by_judgment(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """First (best) hit per judgment, order preserved: turns any chunk ranking into a judgment ranking."""
+    seen: Set[str] = set()
+    out = []
+    for h in hits:
+        k = judgment_key(h)
+        if k not in seen:
+            seen.add(k)
+            out.append(h)
+    return out
+
+
+def passage_window(parent_text: str, child_raw: str, size: int = 1500) -> str:
+    """~size chars of the parent around the matched child passage (keeps the prompt small)."""
+    if not parent_text:
+        return child_raw or ""
+    if len(parent_text) <= size:
+        return parent_text
+    pos = parent_text.find((child_raw or "")[:120]) if child_raw else -1
+    start = max(0, (pos if pos >= 0 else 0) - 300)
+    return parent_text[start:start + size].strip()
 
 
 class IndianLegalRAGPipeline:
@@ -245,7 +283,7 @@ class IndianLegalRAGPipeline:
         t = time.perf_counter()
         where, allowed_ids, finfo = self.resolve_filters(filters, collection_name)
         timings["metadata_filtering_sec"] = round(time.perf_counter() - t, 4)
-        empty = {"retrieved_parents": [], "child_citations": [], "reranked_candidates": [], "expanded_query": search_query,
+        empty = {"judgments": [], "retrieved_parents": [], "child_citations": [], "reranked_candidates": [], "expanded_query": search_query,
                  "filters": finfo, "funnel_counts": {"dense": 0, "bm25": 0, "fused": 0, "reranked": 0, "returned": 0, "parents": 0}}
         if finfo["empty"]:
             timings["funnel_latency_sec"] = round(time.perf_counter() - t_all, 4)
@@ -271,37 +309,55 @@ class IndianLegalRAGPipeline:
         timings["rrf_fusion_sec"] = round(time.perf_counter() - t, 4)
 
         t = time.perf_counter()
-        reranked: List[Dict[str, Any]] = []
+        scored: List[Dict[str, Any]] = []
         if top_fused:
             raw = self._get_reranker().predict([[query, c["text"]] for c in top_fused])
             for c, raw_s, rel in zip(top_fused, raw, reranker_relevances(raw)):
                 factor = self._authority_factor(c["authority_multiplier"], use_authority)
-                reranked.append({**c, "raw_cross_encoder_score": float(raw_s), "relevance": rel,
-                                 "authority_factor": factor, "rerank_score": round(rel * factor, 6)})
-            reranked.sort(key=lambda x: x["rerank_score"], reverse=True)
-            reranked = reranked[:top_k]
+                scored.append({**c, "raw_cross_encoder_score": float(raw_s), "relevance": rel,
+                               "authority_factor": factor, "rerank_score": round(rel * factor, 6)})
+            scored.sort(key=lambda x: x["rerank_score"], reverse=True)
+
+        # Judgment-level ranking: score = best chunk; up to PASSAGES_PER_JUDGMENT best passages each
+        groups: Dict[str, Dict[str, Any]] = {}
+        for c in scored:
+            key = judgment_key(c)
+            g = groups.get(key)
+            if g is None:
+                groups[key] = {"doc_id": _field(c, "doc_id") or key, "best": c, "score": c["rerank_score"],
+                               "relevance": c["relevance"], "authority_factor": c["authority_factor"], "passages": [c]}
+            elif len(g["passages"]) < self.settings.passages_per_judgment:
+                g["passages"].append(c)
+        judgments = sorted(groups.values(), key=lambda g: g["score"], reverse=True)[:top_k]
+        for rank, g in enumerate(judgments, start=1):
+            g["rank"] = rank
+        reranked = [g["best"] for g in judgments]  # one (best) chunk per judgment, in judgment order
         timings["reranking_sec"] = round(time.perf_counter() - t, 4)
 
         t = time.perf_counter()
-        seen: Set[str] = set()
         parents: List[Dict[str, Any]] = []
         citations: List[Dict[str, Any]] = []
-        for c in reranked:
-            parent_id = _field(c, "parent_id")
-            citations.append({
-                "chunk_id": c["chunk_id"], "parent_id": parent_id, "doc_id": _field(c, "doc_id"),
-                "case_title": _field(c, "case_title", "Unknown case"), "citation": _field(c, "citation"),
-                "court": _field(c, "court", ""), "year": _field(c, "year", ""), "role": _field(c, "role", "Unclassified"),
-                "snippet": (_field(c, "raw_text") or c.get("text", ""))[:300], "rerank_score": c.get("rerank_score", 0.0),
-            })
-            if parent_id and parent_id not in seen:
-                seen.add(parent_id)
-                parent = self.retrieve_parent_context(parent_id, collection_name)
-                if parent:
-                    parents.append(parent)
+        for g in judgments:
+            seen: Set[str] = set()
+            g["parents"] = []
+            for c in g["passages"]:
+                parent_id = _field(c, "parent_id")
+                citations.append({
+                    "chunk_id": c["chunk_id"], "parent_id": parent_id, "doc_id": g["doc_id"], "judgment_rank": g["rank"],
+                    "case_title": _field(c, "case_title", "Unknown case"), "citation": _field(c, "citation"),
+                    "court": _field(c, "court", ""), "year": _field(c, "year", ""), "role": _field(c, "role", "Unclassified"),
+                    "snippet": (_field(c, "raw_text") or c.get("text", ""))[:300], "rerank_score": c.get("rerank_score", 0.0),
+                })
+                if parent_id and parent_id not in seen:
+                    seen.add(parent_id)
+                    parent = self.retrieve_parent_context(parent_id, collection_name)
+                    if parent:
+                        g["parents"].append(parent)
+                        parents.append(parent)
         timings["parent_expansion_sec"] = round(time.perf_counter() - t, 4)
         timings["funnel_latency_sec"] = round(time.perf_counter() - t_all, 4)
         return {
+            "judgments": judgments,
             "retrieved_parents": parents,
             "child_citations": citations,
             "reranked_candidates": reranked,
@@ -309,42 +365,70 @@ class IndianLegalRAGPipeline:
             "expanded_query": search_query,
             "filters": finfo,
             "funnel_counts": {"dense": len(dense), "bm25": len(bm25), "fused": len(fused), "reranked": len(top_fused),
-                              "returned": len(reranked), "parents": len(parents)},
+                              "judgments": len(groups), "returned": len(judgments), "parents": len(parents)},
         }
 
     # ------------------------------------------------------------------ synthesis
-    def build_context(self, parents: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]]]:
-        """Numbered precedent blocks + the precedent list (for the citation check and the UI)."""
+    @staticmethod
+    def judgment_meta(g: Dict[str, Any]) -> Dict[str, Any]:
+        """Doc-level metadata of a judgment (parent metadata if loaded, else the best chunk's)."""
+        meta = dict(_meta(g["best"]))
+        if g.get("parents"):
+            pm = g["parents"][0]
+            meta.update({k: v for k, v in (pm.get("metadata") or {}).items() if v not in (None, "")})
+            meta["case_title"] = pm.get("case_title") or meta.get("case_title")
+        roles = list(dict.fromkeys(str(_field(c, "role", "Unclassified")) for c in g["passages"]))
+        meta["role"] = ", ".join(roles)
+        return meta
+
+    def build_context(self, judgments: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]]]:
+        """ONE [Precedent N] block per judgment with its passages under it, + the precedent list."""
         blocks, precedents = [], []
-        for n, parent in enumerate(parents, start=1):
-            meta = {**(parent.get("metadata") or {}), "case_title": parent.get("case_title") or
-                    (parent.get("metadata") or {}).get("case_title")}
-            blocks.append(f"{precedent_header(n, meta)}\n{parent.get('text', '')}")
+        parent_by_id = {p.get("parent_id"): p for g in judgments for p in g.get("parents", [])}
+        for n, g in enumerate(judgments, start=1):
+            meta = self.judgment_meta(g)
+            lines = [precedent_header(n, meta)]
+            used: Set[str] = set()
+            for i, c in enumerate(g["passages"], start=1):
+                pid = _field(c, "parent_id")
+                raw = _field(c, "raw_text") or c.get("text", "")
+                text = passage_window(parent_by_id[pid]["text"], raw) if (pid in parent_by_id and pid not in used) else raw
+                used.add(pid)
+                lines.append(f"Passage {i} (role: {_field(c, 'role', 'Unclassified')}):\n{text}")
+            blocks.append("\n".join(lines))
             precedents.append({
-                "n": n, "doc_id": meta.get("doc_id"), "parent_id": parent.get("parent_id"),
-                "case_title": meta.get("case_title"), "citation": meta.get("citation"), "case_id": meta.get("case_id"),
-                "decision_date": meta.get("decision_date"), "bench_type": meta.get("bench_type"),
-                "bench_strength": meta.get("bench_strength"), "judges": meta.get("judges"),
-                "author_judge": meta.get("author_judge"), "disposal_nature": meta.get("disposal_nature"),
-                "role": meta.get("role"), "section_kind": meta.get("section_kind"), "header": precedent_header(n, meta),
+                "n": n, "doc_id": g["doc_id"], "case_title": meta.get("case_title"), "citation": meta.get("citation"),
+                "case_id": meta.get("case_id"), "decision_date": meta.get("decision_date"),
+                "bench_strength": meta.get("bench_strength"), "bench_label": bench_label(meta.get("bench_strength")),
+                "judges": meta.get("judges"), "author_judge": meta.get("author_judge"),
+                "disposal_nature": meta.get("disposal_nature"), "roles": meta.get("role"),
+                "n_passages": len(g["passages"]), "score": g["score"], "relevance": g["relevance"],
+                "header": precedent_header(n, meta),
             })
         return "\n\n".join(blocks), precedents
 
     def generate_answer(self, query: str, top_k: int = 5, candidate_pool_size: int = 60,
                         filters: Optional[Dict[str, Any]] = None, collection_name: Optional[str] = None,
                         use_authority: Optional[bool] = None) -> Dict[str, Any]:
-        """Funnel + grounded answer + citation check."""
+        """Funnel + grounded answer + citation check.
+
+        No LLM call (answer = exactly INSUFFICIENT_ANSWER) when nothing was retrieved, or when the best
+        judgment's relevance is below MIN_RELEVANCE (low_confidence=True; the ranked list is still returned).
+        """
         t_all = time.perf_counter()
         funnel = self.retrieve_hybrid(query=query, top_k=top_k, candidate_pool_size=candidate_pool_size,
                                       filters=filters, collection_name=collection_name, use_authority=use_authority)
         timings = dict(funnel["timings"])
+        judgments = funnel["judgments"]
         parents = funnel["retrieved_parents"]
+        best_relevance = max(g["relevance"] for g in judgments) if judgments else None
+        low_confidence = bool(judgments) and best_relevance < self.settings.min_relevance
 
         t = time.perf_counter()
-        if not parents:
+        if not judgments or low_confidence:
             answer, precedents = INSUFFICIENT_ANSWER, []
         else:
-            context, precedents = self.build_context(parents)
+            context, precedents = self.build_context(judgments)
             prompt = (f"Legal question:\n{query}\n\nPrecedents (the only sources you may use):\n\n{context}\n\n"
                       f"Answer the question following the rules. Cite as [Precedent N].")
             answer = get_budget(self.settings).generate(
@@ -358,7 +442,14 @@ class IndianLegalRAGPipeline:
         timings["total_latency_sec"] = round(time.perf_counter() - t_all, 4)
         return {
             "answer": answer,
+            "low_confidence": low_confidence,
+            "best_relevance": best_relevance,
+            "min_relevance": self.settings.min_relevance,
             "precedents": precedents,
+            "judgments": [{"rank": g["rank"], "doc_id": g["doc_id"], "score": g["score"], "relevance": g["relevance"],
+                           "case_title": self.judgment_meta(g).get("case_title"),
+                           "citation": self.judgment_meta(g).get("citation"), "n_passages": len(g["passages"])}
+                          for g in judgments],
             "citation_check": check_citations(answer, precedents),
             "retrieved_parents": parents,
             "child_citations": funnel["child_citations"],

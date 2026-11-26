@@ -23,7 +23,7 @@ from typing import Any, Dict, List
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import get_settings  # noqa: E402
-from src.rag_pipeline import IndianLegalRAGPipeline  # noqa: E402
+from src.rag_pipeline import IndianLegalRAGPipeline, bench_label  # noqa: E402
 from src.resource_guard import configure_torch_backends  # noqa: E402
 
 LINE = "-" * 100
@@ -70,11 +70,13 @@ def compact(pipeline: IndianLegalRAGPipeline, query: str, top_k: int, filters) -
         print(f"   expanded: {out['expanded_query'][len(query):].strip()}")
     if filters:
         print(f"   filters: {out['filters']['applied']} -> matching docs {out['filters']['matching_docs']}")
-    for rank, c in enumerate(out["reranked_candidates"], start=1):
-        bench = f"{_m(c, 'bench_type', '?')} ({_m(c, 'bench_strength', '?')})"
-        print(f"  {rank}. {str(_m(c, 'case_title'))[:52]:<52} | {_m(c, 'citation', '-'):<14} | {bench:<18} | "
-              f"{str(_m(c, 'author_judge', '-'))[:22]:<22} | {str(_m(c, 'role'))[:14]:<14} | "
-              f"score {c['rerank_score']:.4f} (rel {c['relevance']:.4f} x auth {c['authority_factor']:.4f})")
+    for g in out["judgments"]:  # one line per JUDGMENT (best passage score; up to 2 passages kept)
+        c = g["best"]
+        roles = ", ".join(dict.fromkeys(str(_m(p, "role")) for p in g["passages"]))
+        print(f"  {g['rank']}. {str(_m(c, 'case_title'))[:50]:<50} | {_m(c, 'citation', '-'):<14} | "
+              f"{bench_label(_m(c, 'bench_strength', None)):<25} | {str(_m(c, 'author_judge', '-'))[:22]:<22} | "
+              f"{roles[:28]:<28} | {len(g['passages'])}p | score {g['score']:.4f} "
+              f"(rel {g['relevance']:.4f} x auth {g['authority_factor']:.4f})")
     t = out["timings"]
     print("   ms: " + ", ".join(f"{k.replace('_sec', '')}={v * 1000:.0f}" for k, v in t.items()))
     return t
@@ -138,6 +140,8 @@ def main() -> None:
         print(res["answer"])
         print(LINE)
         cc = res["citation_check"]
+        print(f"LOW CONFIDENCE: {res['low_confidence']} (best relevance {res['best_relevance']}, "
+              f"MIN_RELEVANCE {res['min_relevance']})")
         print(f"CITATION CHECK: precision={cc['citation_precision']} | cited={cc['cited_precedents']} of "
               f"{cc['n_precedents']} | unknown numbers={cc['unknown_precedent_numbers']} | "
               f"unknown external={cc['unknown_external_citations']} | refused={cc['refused']} | "

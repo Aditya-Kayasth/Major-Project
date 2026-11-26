@@ -1,14 +1,15 @@
 """Phase 4 (minimal): concordance with required Act names, citation check, bench-strength authority
 prior, precedent headers + prompt rules, and SQLite-based filters. Temp dirs only; no LLM calls."""
 
+import re
 import unittest
 import uuid
 from unittest.mock import MagicMock, patch
 
 from src.citation_check import check_citations
 from src.concordance import StatutoryConcordance as SC
-from src.rag_pipeline import (GROUNDED_LEGAL_SYSTEM_INSTRUCTION, IndianLegalRAGPipeline, bench_authority_multiplier,
-                              precedent_header)
+from src.rag_pipeline import (GROUNDED_LEGAL_SYSTEM_INSTRUCTION, INSUFFICIENT_ANSWER, IndianLegalRAGPipeline,
+                              bench_authority_multiplier, bench_label, dedupe_by_judgment, precedent_header)
 from src.sqlite_store import SQLiteParentStore
 from src.vector_store import VectorStoreManager
 from tests._isolated import isolated_settings
@@ -97,26 +98,40 @@ class TestAuthorityAndPrompt(unittest.TestCase):
                                  "judges": "ABHAY MANOHAR SAPRE; DINESH MAHESHWARI", "author_judge": "DINESH MAHESHWARI",
                                  "disposal_nature": "Case Partly allowed", "role": "Ratio/Analysis"})
         self.assertEqual(h, "[Precedent 2] SUGREEV KUMAR versus STATE OF PUNJAB & ORS. | 2019 INSC 386 | 2019-03-15 | "
-                            "Division (2) [2 judges]: ABHAY MANOHAR SAPRE; DINESH MAHESHWARI | author: DINESH MAHESHWARI | "
+                            "Division Bench (2 judges): ABHAY MANOHAR SAPRE; DINESH MAHESHWARI | author: DINESH MAHESHWARI | "
                             "disposal: Case Partly allowed | role: Ratio/Analysis")
         self.assertIn("author: not recorded", precedent_header(1, {"case_title": "X"}))
+        self.assertIn("Bench not recorded", precedent_header(1, {"case_title": "X"}))
+
+    def test_bench_labels_never_full_bench(self):
+        self.assertEqual([bench_label(n) for n in (1, 2, 3, 4, 5, 7)],
+                         ["Single Judge", "Division Bench (2 judges)", "Three-Judge Bench", "Four-Judge Bench",
+                          "Constitution Bench (5 judges)", "Constitution Bench (7 judges)"])
+        self.assertEqual(bench_label(None), "Bench not recorded")
+        self.assertNotIn("Full Bench", GROUNDED_LEGAL_SYSTEM_INSTRUCTION)
+        self.assertNotIn("Full", precedent_header(1, {"bench_strength": 3, "bench_type": "Full (3+)"}))
 
     def test_prompt_rules(self):
         p = GROUNDED_LEGAL_SYSTEM_INSTRUCTION
-        for rule in ("[Precedent N]", "ratio decidendi", "obiter dicta", "larger benches", "conflict",
-                     "1 July 2024", "Insufficient precedent in the indexed corpus.", "Verify on the official source."):
+        for rule in ("[Precedent N]", "ratio decidendi", "obiter dicta", "larger bench outweighs a smaller one",
+                     "conflict", "1 July 2024", "Insufficient precedent in the indexed corpus.",
+                     "Verify on the official source."):
             self.assertIn(rule, p)
 
 
 class MockCrossEncoder:
+    def __init__(self, value=0.5):
+        self.value = value
+
     def predict(self, pairs):
-        return [0.5 for _ in pairs]  # equal relevance: only the authority prior decides
+        return [self.value for _ in pairs]  # equal relevance: only the authority prior decides
 
 
 class TestFiltersAndPrior(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.tmp, cls.settings = isolated_settings(authority_strength=0.1, authority_max_bonus=0.05)
+        cls.tmp, cls.settings = isolated_settings(authority_strength=0.1, authority_max_bonus=0.05,
+                                                  min_relevance=0.10, passages_per_judgment=2)
         cls.col = f"test_phase4_{uuid.uuid4().hex[:6]}"
         cls.vs = VectorStoreManager(settings=cls.settings, collection_name=cls.col)
         cls.pipe = IndianLegalRAGPipeline(settings=cls.settings, vector_store=cls.vs)
@@ -134,6 +149,11 @@ class TestFiltersAndPrior(unittest.TestCase):
             chunks.append({"chunk_id": f"{pid}-c000", "parent_id": pid, "doc_id": d, "year": y, "bench_strength": b,
                            "case_title": f"Case {d}", "role": "Ratio/Analysis",
                            "text": "Bail under Section 439 CrPC: personal liberty and the triple test."})
+        # Judgment dC has 3 matching chunks: results must still list it ONCE, with at most 2 passages
+        for i, role in ((1, "Facts"), (2, "Headnote")):
+            chunks.append({"chunk_id": f"dC-p00000-c00{i}", "parent_id": "dC-p00000", "doc_id": "dC", "year": 2024,
+                           "bench_strength": 5, "case_title": "Case dC", "role": role,
+                           "text": f"Bail under Section 439 CrPC, personal liberty and the triple test (part {i})."})
         cls.vs.index_documents(chunks, collection_name=cls.col, batch_size=10)
 
     @classmethod
@@ -175,9 +195,45 @@ class TestFiltersAndPrior(unittest.TestCase):
         with patch("src.rag_pipeline.get_budget", return_value=fake):
             res = self.pipe.generate_answer("bail Section 439 CrPC", top_k=3)
         prompt = fake.generate.call_args.kwargs["contents"]
-        self.assertIn("[Precedent 1] Case dC | 2024 INSC 5 |", prompt)
+        self.assertIn("[Precedent 1] Case dC | 2024 INSC 5 | 2024 | Constitution Bench (5 judges):", prompt)
         self.assertEqual(res["citation_check"]["citation_precision"], 1.0)
         self.assertEqual(len(res["precedents"]), 3)
+        self.assertFalse(res["low_confidence"])
+
+    def test_one_result_per_judgment_with_max_two_passages(self):
+        out = self.pipe.retrieve_hybrid("bail Section 439 CrPC", top_k=5)
+        self.assertEqual([g["doc_id"] for g in out["judgments"]], ["dC", "dB", "dA"])  # top-k = k JUDGMENTS
+        self.assertEqual(len(self.docs(out)), len(set(self.docs(out))))
+        dc = out["judgments"][0]
+        self.assertEqual(len(dc["passages"]), 2)
+        self.assertEqual(dc["score"], max(p["rerank_score"] for p in dc["passages"]))
+        fake = MagicMock()
+        fake.generate.return_value = "x [Precedent 1]\n\nVerify on the official source."
+        with patch("src.rag_pipeline.get_budget", return_value=fake):
+            self.pipe.generate_answer("bail Section 439 CrPC", top_k=5)
+        prompt = fake.generate.call_args.kwargs["contents"]
+        self.assertEqual(len(re.findall(r"\[Precedent \d+\]", prompt)), 3)  # ONE precedent block per judgment
+        self.assertEqual(prompt.count("Passage 2 ("), 1)  # only dC has a second passage
+
+    def test_low_confidence_refusal_without_llm_call(self):
+        self.pipe._reranker = MockCrossEncoder(0.05)  # below MIN_RELEVANCE 0.10
+        try:
+            fake = MagicMock()
+            with patch("src.rag_pipeline.get_budget", return_value=fake):
+                res = self.pipe.generate_answer("unrelated question about tenancy law", top_k=3)
+            fake.generate.assert_not_called()
+            self.assertTrue(res["low_confidence"])
+            self.assertEqual(res["answer"], INSUFFICIENT_ANSWER)
+            self.assertEqual(res["answer"], "Insufficient precedent in the indexed corpus.")
+            self.assertEqual(len(res["judgments"]), 3)  # the ranked list is still returned
+            self.assertTrue(res["citation_check"]["refused"])
+        finally:
+            self.pipe._reranker = MockCrossEncoder()
+
+    def test_dedupe_by_judgment_helper(self):
+        hits = [{"chunk_id": "a1", "metadata": {"doc_id": "a"}}, {"chunk_id": "a2", "metadata": {"doc_id": "a"}},
+                {"chunk_id": "b1", "metadata": {"doc_id": "b"}}]
+        self.assertEqual([h["chunk_id"] for h in dedupe_by_judgment(hits)], ["a1", "b1"])
 
 
 if __name__ == "__main__":
