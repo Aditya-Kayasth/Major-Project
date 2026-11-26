@@ -115,11 +115,29 @@
   - English PDF sizes 2018–2025: 6,674 files, ~2.56 GB in total, avg ~200–525 KB per file.
 - English only.
 
-**D2. Scope (LOCKED):** **all Supreme Court criminal judgments 2018–2025 — about 1,970 judgments, ~0.75 GB of PDFs.**
-- Criminal = the `Case No` value in `raw_html` matches `CRIMINAL|CRL|Crl\.` (e.g. CRIMINAL APPEAL, SLP (CRL.), REVIEW PETITION (CRIMINAL), WRIT PETITION (CRIMINAL)).
-- A loose "criminal anywhere in raw_html" match gives 1,973 for 2018–2025 (per year: 193 / 272 / 144 / 207 / 260 / 259 / 283 / 355). The strict Case No filter may give slightly fewer. Report both.
-- No sampling: index all of them. Extend to 2015–2017 (+~600) only if I ask.
-- Domain: IPC/BNS, CrPC/BNSS, Evidence Act/BSA, NDPS, POCSO, etc. Typical issues: murder, attempt, culpable homicide, dowry death, rape, bail, quashing, evidence, sentencing.
+**D2. Scope (LOCKED, exact):** **all Supreme Court criminal judgments 2018–2025 = 1,891 judgments** (English PDFs, ≈0.7 GB).
+- **Selection rule (verified on the server, 26 Nov):**
+  1. `case_no` = regex `Case No\s*:\s*</span>\s*<font[^>]*>\s*([^<]+)` on `raw_html` (case-insensitive). It parsed for 6,676 of 6,676 rows.
+  2. **criminal** = `case_no` contains `CRIMINAL` or `CRL` (case-insensitive).
+- **Counts per year:** 2018: 185, 2019: 264, 2020: 132, 2021: 196, 2022: 244, 2023: 250, 2024: 273, 2025: 347 (total 1,891).
+- **Case types:**
+
+  | Case type | Count |
+  |---|---|
+  | CRIMINAL APPEAL | 1,723 |
+  | SLP (CRIMINAL) | 72 (+4 "SPECIAL LEAVE TO PETITION") |
+  | WRIT PETITION (CRIMINAL) | 56 |
+  | REVIEW PETITION (CRIMINAL) | 13 |
+  | TRANSFER PETITION (CRIMINAL) | 6 |
+  | SUO MOTO WRIT (CRIMINAL) | 6 |
+  | CONTEMPT (CRIMINAL) | 3 + 3 suo moto |
+  | CRIMINAL MISC. PETITION | 2 |
+  | TRANSFERRED CASE (CRIMINAL) | 2 |
+  | CURATIVE (CRL) | 1 |
+
+- **Excluded on purpose:** 82 judgments that mention "criminal" but are civil matters by case number (Civil Appeals, Writ Petitions (Civil), e.g. PIL guideline cases). State this in the data card.
+- No sampling: index all 1,891. Dedupe on `(cnr, decision_date)` and report any duplicates.
+- **Domain:** IPC/BNS, CrPC/BNSS, Evidence Act/BSA, NDPS, POCSO, etc. Typical issues: murder, attempt, culpable homicide, dowry death, rape, bail, quashing, evidence, sentencing.
 - High Court data is out of scope (stretch only).
 
 **D3. Vector DB:** keep **ChromaDB**. No Qdrant (future scope for full-corpus scale).
@@ -183,7 +201,7 @@ SQLite gets a `documents` table (one row per judgment) next to the parent table.
 - The metadata is already downloaded (D1). Write `src/sc_metadata.py` with a parser for `raw_html` → `case_no`, `case_type`, `bench` (list), `bench_strength`, plus headnote text if present. Add unit tests built on real snippets I paste.
 - Write `scripts/aws_sc_explore.py`:
   - apply the parser to 2018–2025
-  - print, per year: total, loose criminal count, strict Case No criminal count, the distribution of `case_type` values, the share with a parsed bench, and the `bench_strength` distribution
+  - print, per year: total and criminal count (must reproduce D2: 1,891), the distribution of `case_type` values, the share with a parsed bench, and the `bench_strength` distribution
   - show 5 parsed examples and 5 failures
   - HEAD-check 5 PDF keys (`{path}_EN.pdf`)
 - The script prints a ≤60-line summary for me to paste back, and writes the full report to `$METADATA_DIR/sc_explore_report.md`. After I paste the summary, you save it as `docs/data_exploration.md` in the repo. **Stop and wait for my paste.**
@@ -219,7 +237,7 @@ SQLite gets a `documents` table (one row per judgment) next to the parent table.
 ### Phase 5: Pilot, then full indexing (server)
 - Give me one command: download a 100-judgment pilot if it isn't already there, then index it into `sc_criminal_cpu_pilot`.
 - Print docs/min, chunks/doc, peak RAM (process tree) and p50/p95 latency of 10 test queries (both rerankers).
-- From that, project the time and RAM for the full ~1,970 judgments. **I choose the reranker.**
+- From that, project the time and RAM for the full 1,891 judgments. **I choose the reranker.**
 - Then the full run with nohup, and a status command (progress + RAM).
 
 ### Phase 6: Evaluation (PC writes, server runs)
