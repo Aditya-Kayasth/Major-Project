@@ -149,6 +149,8 @@ class Settings(BaseModel):
     reranker_model: str = Field(
         default_factory=lambda: os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
     )
+    # D4: rerank the top 20, or the top 30 if latency allows (measured 0.26 s per 20 pairs on CPU)
+    rerank_top_n: int = Field(default_factory=lambda: int(os.getenv("RERANK_TOP_N", "30")))
 
     # Data Storage Directories & SQLite Path
     sqlite_db_path: Path = Field(

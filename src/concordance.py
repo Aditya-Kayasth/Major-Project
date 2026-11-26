@@ -86,67 +86,68 @@ IEA_TO_BSA: Dict[str, str] = {
 BSA_TO_IEA: Dict[str, str] = {v: k for k, v in IEA_TO_BSA.items()}
 
 
+
+# Act-name patterns. The Act name is REQUIRED: a bare "Section 107" is never mapped, and a section
+# is only mapped within its own code ("Section 107 IPC" must not pick up the CrPC 107 -> BNSS 126 entry).
+_ACT_PATTERNS = {
+    "CrPC": r"cr\.?\s?p\.?\s?c\.?|code\s+of\s+criminal\s+procedure",
+    "BNSS": r"b\.?\s?n\.?\s?s\.?\s?s\.?|bharatiya\s+nagarik\s+suraksha\s+sanhita",
+    "IPC": r"i\.?\s?p\.?\s?c\.?|indian\s+penal\s+code|penal\s+code",
+    "BNS": r"b\.?\s?n\.?\s?s\.?(?!\s?s)|bharatiya\s+nyaya\s+sanhita",
+    "Evidence Act": r"(?:indian\s+)?evidence\s+act|i\.?e\.?a\.?",
+    "BSA": r"b\.?\s?s\.?\s?a\.?|bharatiya\s+sakshya\s+adhiniyam",
+}
+# source code -> (mapping, target code)
+_MAPPINGS = {
+    "CrPC": (CRPC_TO_BNSS, "BNSS"),
+    "BNSS": (BNSS_TO_CRPC, "CrPC"),
+    "IPC": (IPC_TO_BNS, "BNS"),
+    "BNS": (BNS_TO_IPC, "IPC"),
+    "Evidence Act": (IEA_TO_BSA, "BSA"),
+    "BSA": (BSA_TO_IEA, "Evidence Act"),
+}
+_SEC = r"(?<![A-Za-z])(?:sections?|secs?\.?|ss?\.|u/ss?\.?|§)"
+_NUMS = r"(\d+[A-Za-z]?(?:\s*(?:,|and|&|/|or|r/w|read\s+with)\s*\d+[A-Za-z]?)*)"
+
+
+def _section_refs(query: str) -> List[Tuple[str, str]]:
+    """(code, section) pairs written with an explicit Act name, e.g. 'Sections 302 and 34 IPC', 'IPC s. 302'."""
+    refs: List[Tuple[str, str]] = []
+    for code, act in _ACT_PATTERNS.items():
+        act_re = rf"(?<![A-Za-z])(?:{act})(?![A-Za-z])"
+        patterns = [
+            rf"{_SEC}\s*{_NUMS}\s*,?\s*(?:of\s+(?:the\s+)?)?{act_re}",   # Section 302 IPC / s. 302 of the IPC
+            rf"{act_re}\s*,?\s*{_SEC}\s*{_NUMS}",                         # IPC Section 302
+        ]
+        for pat in patterns:
+            for m in re.finditer(pat, query, flags=re.IGNORECASE):
+                for num in re.findall(r"\d+[A-Za-z]?", m.group(1)):
+                    refs.append((code, num.upper()))
+    return list(dict.fromkeys(refs))
+
+
 class StatutoryConcordance:
     """Provides bidirectional statutory mapping and query expansion."""
 
     @classmethod
     def expand_query(cls, query: str) -> str:
-        """Analyze query for statutory references and inject concordance equivalents.
+        """Append the old/new code equivalents of every section cited WITH its Act name.
 
         Example:
-            'Can stay be extended under Section 482 CrPC?'
-            -> 'Can stay be extended under Section 482 CrPC (concordance: Section 528 BNSS)?'
+            'Can proceedings be quashed under Section 482 CrPC?'
+            -> 'Can proceedings be quashed under Section 482 CrPC? (statutory concordance: Section 528 BNSS)'
         """
-        expanded = query
         additions: List[str] = []
-
-        # 1. Match CrPC -> BNSS
-        crpc_matches = re.findall(r"(?:section|sec\.?|§)\s*(\d+[A-Z]?)\s*(?:of\s+the\s+)?(?:cr\.?p\.?c\.?|code of criminal procedure)?", query, flags=re.IGNORECASE)
-        for sec in crpc_matches:
-            sec_clean = sec.upper()
-            if sec_clean in CRPC_TO_BNSS and "bnss" not in query.lower():
-                bnss_sec = CRPC_TO_BNSS[sec_clean]
-                additions.append(f"Section {bnss_sec} BNSS")
-
-        # 2. Match BNSS -> CrPC
-        bnss_matches = re.findall(r"(?:section|sec\.?|§)\s*(\d+[A-Z]?)\s*(?:of\s+the\s+)?(?:b\.?n\.?s\.?s\.?|bharatiya nagarik suraksha sanhita)", query, flags=re.IGNORECASE)
-        for sec in bnss_matches:
-            sec_clean = sec.upper()
-            if sec_clean in BNSS_TO_CRPC and "crpc" not in query.lower():
-                crpc_sec = BNSS_TO_CRPC[sec_clean]
-                additions.append(f"Section {crpc_sec} CrPC")
-
-        # 3. Match IPC -> BNS
-        ipc_matches = re.findall(r"(?:section|sec\.?|§)\s*(\d+[A-Z]?)\s*(?:of\s+the\s+)?(?:i\.?p\.?c\.?|indian penal code)?", query, flags=re.IGNORECASE)
-        for sec in ipc_matches:
-            sec_clean = sec.upper()
-            if sec_clean in IPC_TO_BNS and "bns" not in query.lower():
-                bns_sec = IPC_TO_BNS[sec_clean]
-                additions.append(f"Section {bns_sec} BNS")
-
-        # 4. Match BNS -> IPC
-        bns_matches = re.findall(r"(?:section|sec\.?|§)\s*(\d+[A-Z]?)\s*(?:of\s+the\s+)?(?:b\.?n\.?s\.?|bharatiya nyaya sanhita)", query, flags=re.IGNORECASE)
-        for sec in bns_matches:
-            sec_clean = sec.upper()
-            if sec_clean in BNS_TO_IPC and "ipc" not in query.lower():
-                ipc_sec = BNS_TO_IPC[sec_clean]
-                additions.append(f"Section {ipc_sec} IPC")
-
-        # 5. Match Evidence Act -> BSA
-        iea_matches = re.findall(r"(?:section|sec\.?|§)\s*(\d+[A-Z]?)\s*(?:of\s+the\s+)?(?:evidence act|i\.?e\.?a\.?)", query, flags=re.IGNORECASE)
-        for sec in iea_matches:
-            sec_clean = sec.upper()
-            if sec_clean in IEA_TO_BSA and "bsa" not in query.lower():
-                bsa_sec = IEA_TO_BSA[sec_clean]
-                additions.append(f"Section {bsa_sec} BSA")
-
-        # Also check common standalone sections like "65B" or "482"
-        if re.search(r"\b65B\b", query, flags=re.IGNORECASE) and "63 bsa" not in query.lower():
-            additions.append("Section 63 BSA")
-
-        if additions:
-            unique_additions = list(dict.fromkeys(additions))
-            expanded = f"{query} (statutory concordance: {', '.join(unique_additions)})"
-
-        return expanded
+        lower = query.lower()
+        for code, sec in _section_refs(query):
+            mapping, target = _MAPPINGS[code]
+            target_sec = mapping.get(sec)
+            if not target_sec:
+                continue
+            addition = f"Section {target_sec} {target}"
+            if addition.lower() not in lower:
+                additions.append(addition)
+        if not additions:
+            return query
+        return f"{query} (statutory concordance: {', '.join(dict.fromkeys(additions))})"
 

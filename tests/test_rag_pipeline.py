@@ -193,7 +193,7 @@ class TestIndianLegalRAGPipeline(unittest.TestCase):
             collection_name=self.test_col,
         )
 
-        self.assertIn("Insufficient authoritative precedent", result["answer"])
+        self.assertIn("Insufficient precedent in the indexed corpus", result["answer"])
         self.assertEqual(len(result["retrieved_parents"]), 0)
         self.assertIn("total_latency_sec", result["timings"])
 

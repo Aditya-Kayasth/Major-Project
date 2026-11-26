@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
-"""Show what the system stores and how a query moves through the retrieval funnel.
+"""Inspect stored chunks and run questions through the retrieval funnel.
 
-    python scripts/explain_query.py --show-record
-        Prints one stored chunk exactly as ChromaDB holds it (id, embedded text, metadata,
-        embedding vector) and the parent section it points to in SQLite.
+    python scripts/explain_query.py --collection sc_criminal_cpu_test --show-record
+        One stored chunk exactly as Chroma holds it (id, embedded text, metadata, vector) and its parent.
 
-    python scripts/explain_query.py "Can a bail condition require sharing live GPS location?"
-        Traces the query stage by stage: concordance expansion, dense top hits, BM25 top hits,
-        Reciprocal Rank Fusion, cross-encoder reranking and the parent sections handed to the LLM.
-        No LLM call is made.
+    python scripts/explain_query.py --collection sc_criminal_cpu_test "question 1" "question 2"
+        Compact top-5 per question (title | citation | bench | author | role | score) and per-stage
+        latency in ms, including BM25 (to measure BM25 p50 on the full index).
+
+    ... --year-from 2020 --min-bench 3      filters (SQLite documents -> doc_ids -> Chroma $in + BM25)
+    ... --answer                            also a grounded LLM answer + citation check for the FIRST question
+    ... --trace                             the old stage-by-stage trace (dense / BM25 / RRF tops)
 """
 
 import argparse
 import json
+import statistics
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.concordance import StatutoryConcordance  # noqa: E402
 from src.config import get_settings  # noqa: E402
 from src.rag_pipeline import IndianLegalRAGPipeline  # noqa: E402
 from src.resource_guard import configure_torch_backends  # noqa: E402
@@ -27,18 +29,17 @@ from src.resource_guard import configure_torch_backends  # noqa: E402
 LINE = "-" * 100
 
 
-def _title(hit: Dict[str, Any]) -> str:
-    meta = hit.get("metadata") or {}
-    return str(hit.get("case_title") or meta.get("case_title", "?"))[:60]
+def _m(hit: Dict[str, Any], key: str, default: Any = "") -> Any:
+    v = hit.get(key)
+    return v if v not in (None, "") else (hit.get("metadata") or {}).get(key, default)
 
 
-def show_record(pipeline: IndianLegalRAGPipeline, offset: int) -> None:
+def show_record(pipeline: IndianLegalRAGPipeline, offset) -> None:
     collection = pipeline.vector_store.get_or_create_collection()
     print(LINE)
-    print(f"ChromaDB collection '{collection.name}': {collection.count():,} chunks | "
-          f"SQLite parent sections: {pipeline.sqlite_store.count_parents():,}")
+    print(f"Chroma collection '{collection.name}': {collection.count():,} chunks | SQLite parents: "
+          f"{pipeline.sqlite_store.count_parents():,} | documents: {pipeline.sqlite_store.count_documents():,}")
     print(LINE)
-
     if collection.count() == 0:
         print("collection is empty")
         return
@@ -48,76 +49,100 @@ def show_record(pipeline: IndianLegalRAGPipeline, offset: int) -> None:
     chunk_id, document, meta = rec["ids"][0], rec["documents"][0], dict(rec["metadatas"][0])
     vector = rec["embeddings"][0]
     raw_text = meta.pop("raw_text", "")
-
-    print(f"CHUNK ID  : {chunk_id}")
-    print("            = doc_id (sha1(cnr or path)[:16]) - p<parent index> - c<child index>  (deterministic)\n")
-    print("EMBEDDED TEXT (what the embedding model and BM25 actually see):")
-    print(f"  {document}\n")
-    print("METADATA (stored next to the vector; used for citations, filters and the authority prior):")
-    print(json.dumps(meta, indent=2, ensure_ascii=False))
-    print(f"\n  raw_text (snippet shown in the UI): {raw_text[:160]}...")
-    print(f"\nEMBEDDING: {len(vector)} numbers, first 8 = {[round(float(x), 4) for x in vector[:8]]}")
-
+    print(f"CHUNK ID : {chunk_id}   (= doc_id - p<parent> - c<child>, deterministic)")
+    print(f"EMBEDDED TEXT: {document[:400]}")
+    print("METADATA:")
+    print(json.dumps(meta, indent=1, ensure_ascii=False))
+    print(f"raw_text: {raw_text[:160]}...")
+    print(f"EMBEDDING: {len(vector)} dims, first 6 = {[round(float(x), 4) for x in vector[:6]]}")
     parent = pipeline.retrieve_parent_context(meta["parent_id"])
-    print(LINE)
-    print(f"PARENT SECTION in SQLite (parent_id = {meta['parent_id']}), sent to the LLM as context:")
     if parent:
-        print(json.dumps({k: v for k, v in parent["metadata"].items() if k != "source_path"}, indent=2, ensure_ascii=False))
-        print(f"\n  text ({len(parent['text'])} chars): {parent['text'][:500]}...")
+        print(f"PARENT {meta['parent_id']}: {len(parent['text'])} chars | role={parent['metadata'].get('role')} | "
+              f"section_kind={parent['metadata'].get('section_kind')}")
     print(LINE)
 
 
-def _print_hits(label: str, hits: List[Dict[str, Any]], score_key: str, n: int = 5) -> None:
-    print(f"\n{label}")
-    for rank, hit in enumerate(hits[:n], start=1):
-        print(f"  {rank:>2}. {_title(hit):<62} {score_key}={float(hit.get(score_key, 0.0)):.4f}")
+def compact(pipeline: IndianLegalRAGPipeline, query: str, top_k: int, filters) -> Dict[str, float]:
+    out = pipeline.retrieve_hybrid(query=query, top_k=top_k, candidate_pool_size=60, filters=filters)
+    print(LINE)
+    print(f"Q: {query}")
+    if out["expanded_query"] != query:
+        print(f"   expanded: {out['expanded_query'][len(query):].strip()}")
+    if filters:
+        print(f"   filters: {out['filters']['applied']} -> matching docs {out['filters']['matching_docs']}")
+    for rank, c in enumerate(out["reranked_candidates"], start=1):
+        bench = f"{_m(c, 'bench_type', '?')} ({_m(c, 'bench_strength', '?')})"
+        print(f"  {rank}. {str(_m(c, 'case_title'))[:52]:<52} | {_m(c, 'citation', '-'):<14} | {bench:<18} | "
+              f"{str(_m(c, 'author_judge', '-'))[:22]:<22} | {str(_m(c, 'role'))[:14]:<14} | "
+              f"score {c['rerank_score']:.4f} (rel {c['relevance']:.4f} x auth {c['authority_factor']:.4f})")
+    t = out["timings"]
+    print("   ms: " + ", ".join(f"{k.replace('_sec', '')}={v * 1000:.0f}" for k, v in t.items()))
+    return t
 
 
-def trace_query(pipeline: IndianLegalRAGPipeline, query: str, top_k: int) -> None:
+def trace(pipeline: IndianLegalRAGPipeline, query: str) -> None:
     vs = pipeline.vector_store
-    expanded = StatutoryConcordance.expand_query(query)
-    print(LINE)
-    print(f"QUERY    : {query}")
-    print(f"EXPANDED : {expanded}" if expanded != query else "EXPANDED : (no statute to map)")
-    print(LINE)
+    from src.concordance import StatutoryConcordance
 
+    expanded = StatutoryConcordance.expand_query(query)
     dense = vs.query_dense(expanded, top_k=60)
     bm25 = vs.query_bm25(expanded, top_k=60)
-    fused = pipeline.compute_rrf(dense, bm25, k=60, query=query)
-    _print_hits("STAGE 2a  Dense (meaning) search - top 5 of 60 by cosine similarity:", dense, "similarity_score")
-    _print_hits("STAGE 2b  BM25 (keyword) search - top 5 of 60 by BM25 score:", bm25, "bm25_score")
-    _print_hits(f"STAGE 3   Reciprocal Rank Fusion - {len(fused)} unique chunks, top 30 go to the reranker:", fused, "rrf_score")
-
-    out = pipeline.retrieve_hybrid(query=query, top_k=top_k, candidate_pool_size=60)
-    _print_hits(f"STAGE 4   Cross-encoder rerank (+ bounded authority prior) - final top {top_k}:",
-                out["reranked_candidates"], "rerank_score", n=top_k)
-
-    print(f"\nSTAGE 5   Parent sections handed to the LLM ({len(out['retrieved_parents'])} unique):")
-    for parent in out["retrieved_parents"]:
-        meta = parent.get("metadata", {})
-        print(f"  - {str(parent.get('case_title'))[:60]:<62} {meta.get('court', '')}, {meta.get('year', '')} "
-              f"({len(parent.get('text', ''))} chars)")
-    print("\nTIMINGS (ms): " + ", ".join(f"{k.replace('_sec', '')}={v * 1000:.0f}" for k, v in out["timings"].items()))
-    print(LINE)
+    fused = pipeline.compute_rrf(dense, bm25, k=60)
+    for label, hits, key in (("dense", dense, "similarity_score"), ("bm25", bm25, "bm25_score"), ("rrf", fused, "rrf_score")):
+        print(f"  {label}: " + " | ".join(f"{str(_m(h, 'case_title'))[:30]} {float(h.get(key, 0)):.3f}" for h in hits[:5]))
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Inspect stored chunks and trace the retrieval funnel")
-    parser.add_argument("query", nargs="?", help="Legal question to trace")
-    parser.add_argument("--show-record", action="store_true", help="Print one stored chunk and its parent")
-    parser.add_argument("--offset", type=int, default=None, help="Which stored chunk to show (default: middle)")
-    parser.add_argument("--collection", default=None, help="Chroma collection (default COLLECTION_NAME)")
+    parser = argparse.ArgumentParser(description="Inspect stored chunks and run questions through the funnel")
+    parser.add_argument("queries", nargs="*", help="Legal questions")
+    parser.add_argument("--collection", default=None)
+    parser.add_argument("--show-record", action="store_true")
+    parser.add_argument("--offset", type=int, default=None)
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--year-from", type=int, default=None)
+    parser.add_argument("--year-to", type=int, default=None)
+    parser.add_argument("--min-bench", type=int, default=None)
+    parser.add_argument("--answer", action="store_true", help="Grounded LLM answer for the first question")
+    parser.add_argument("--trace", action="store_true")
     args = parser.parse_args()
-    if not args.query and not args.show_record:
-        parser.error("give a query and/or --show-record")
+    if not args.queries and not args.show_record:
+        parser.error("give one or more questions and/or --show-record")
 
     configure_torch_backends()
     pipeline = IndianLegalRAGPipeline(settings=get_settings(), collection_name=args.collection)
+    filters = {k: v for k, v in {"year_from": args.year_from, "year_to": args.year_to,
+                                 "min_bench": args.min_bench}.items() if v is not None} or None
     if args.show_record:
         show_record(pipeline, args.offset)
-    if args.query:
-        trace_query(pipeline, args.query, args.top_k)
+    if args.queries:
+        pipeline.retrieve_hybrid(query="warm-up: bail under Section 439 CrPC", top_k=1)  # load models first
+        timings: List[Dict[str, float]] = []
+        for q in args.queries:
+            timings.append(compact(pipeline, q, args.top_k, filters))
+            if args.trace:
+                trace(pipeline, q)
+        if len(timings) > 1:
+            for key in ("bm25_retrieval_sec", "dense_retrieval_sec", "reranking_sec", "funnel_latency_sec"):
+                vals = [t[key] * 1000 for t in timings if key in t]
+                if vals:
+                    print(f"   {key.replace('_sec', '')}: p50 {statistics.median(vals):.0f} ms, max {max(vals):.0f} ms "
+                          f"(n={len(vals)})")
+    if args.answer and args.queries:
+        res = pipeline.generate_answer(query=args.queries[0], top_k=args.top_k, filters=filters)
+        print(LINE)
+        print("PRECEDENT HEADERS SENT TO THE LLM:")
+        for p in res["precedents"]:
+            print("  " + p["header"][:200])
+        print(LINE)
+        print("ANSWER:")
+        print(res["answer"])
+        print(LINE)
+        cc = res["citation_check"]
+        print(f"CITATION CHECK: precision={cc['citation_precision']} | cited={cc['cited_precedents']} of "
+              f"{cc['n_precedents']} | unknown numbers={cc['unknown_precedent_numbers']} | "
+              f"unknown external={cc['unknown_external_citations']} | refused={cc['refused']} | "
+              f"ends with verify={cc['ends_with_verify']} | llm {res['timings'].get('llm_generation_sec', 0):.1f}s")
+    print(LINE)
 
 
 if __name__ == "__main__":

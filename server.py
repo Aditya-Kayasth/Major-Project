@@ -17,7 +17,7 @@ import json
 import re
 import threading
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -52,6 +52,14 @@ class SearchRequest(BaseModel):
     top_k: int = Field(5, ge=1, le=10)
     generate_answer: bool = False
     one_per_case: bool = True
+    year_from: Optional[int] = None
+    year_to: Optional[int] = None
+    min_bench: Optional[int] = Field(None, ge=1, le=7)
+
+    def filters(self) -> Optional[Dict[str, Any]]:
+        f = {"year_from": self.year_from, "year_to": self.year_to, "min_bench": self.min_bench}
+        f = {k: v for k, v in f.items() if v is not None}
+        return f or None
 
 
 def _clean_title(title: Any) -> str:
@@ -74,19 +82,26 @@ def _doc_key(candidate: Dict[str, Any]) -> str:
 
 def _format_candidate(rank: int, c: Dict[str, Any]) -> Dict[str, Any]:
     meta = c.get("metadata") or {}
-    authority = (
-        float(c.get("court_tier_weight", 1.0)) * float(c.get("role_weight", 1.0)) * float(c.get("judge_affinity", 1.0))
-    )
+    authority = float(c.get("authority_multiplier", 1.0))
     return {
         "rank": rank,
         "case_title": _clean_title(c.get("case_title") or meta.get("case_title", "Unknown case")),
         "court": c.get("court") or meta.get("court", ""),
         "year": c.get("year") or meta.get("year", ""),
+        "decision_date": meta.get("decision_date", ""),
+        "citation": meta.get("citation", ""),
+        "bench_type": meta.get("bench_type", ""),
+        "bench_strength": meta.get("bench_strength"),
+        "judges": meta.get("judges", ""),
+        "author_judge": meta.get("author_judge", ""),
+        "disposal_nature": meta.get("disposal_nature", ""),
+        "statutes_cited": meta.get("statutes_cited", ""),
+        "section_kind": meta.get("section_kind", ""),
         "role": _display_role(c.get("role") or meta.get("role", "")),
         "rerank_score": round(float(c.get("rerank_score", 0.0)), 4),
         "cross_encoder_raw": round(float(c.get("raw_cross_encoder_score", 0.0)), 3),
         "authority_multiplier": round(authority, 3),
-        "authority_factor": round(pipeline._authority_factor(authority), 4),
+        "authority_factor": round(float(c.get("authority_factor", pipeline._authority_factor(authority))), 4),
         "dense_rank": c.get("dense_rank"),
         "bm25_rank": c.get("bm25_rank"),
         "document": _doc_key(c),
@@ -129,7 +144,7 @@ def search(req: SearchRequest) -> Dict[str, Any]:
         # All 30 fused candidates are cross-encoder scored; asking for all of them lets us
         # show the best chunk from each distinct judgment rather than 5 chunks of one case.
         retrieve_k = 30 if req.one_per_case else req.top_k
-        funnel = pipeline.retrieve_hybrid(query=query, top_k=retrieve_k, candidate_pool_size=60)
+        funnel = pipeline.retrieve_hybrid(query=query, top_k=retrieve_k, candidate_pool_size=60, filters=req.filters())
 
         candidates = funnel["reranked_candidates"]
         if req.one_per_case:
@@ -142,11 +157,13 @@ def search(req: SearchRequest) -> Dict[str, Any]:
             candidates = distinct
         candidates = candidates[: req.top_k]
 
-        answer = None
+        answer, citation_check, precedents = None, None, None
         llm_timings: Dict[str, Any] = {}
         if req.generate_answer:
-            result = pipeline.generate_answer(query=query, top_k=req.top_k, candidate_pool_size=60)
+            result = pipeline.generate_answer(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
             answer = result.get("answer")
+            citation_check = result.get("citation_check")
+            precedents = result.get("precedents")
             llm_timings = {"llm_generation_sec": result.get("timings", {}).get("llm_generation_sec")}
 
     return {
@@ -156,6 +173,9 @@ def search(req: SearchRequest) -> Dict[str, Any]:
         "timings": {**funnel["timings"], **{k: v for k, v in llm_timings.items() if v is not None}},
         "funnel_counts": {**funnel.get("funnel_counts", {}), "returned": len(candidates)},
         "answer": answer,
+        "citation_check": citation_check,
+        "precedents": precedents,
+        "filters": funnel.get("filters"),
         "gemini_requests_left_today": get_budget(settings).remaining_today(),
     }
 

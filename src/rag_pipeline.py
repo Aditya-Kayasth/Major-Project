@@ -1,26 +1,54 @@
-"""End-to-end production RAG Pipeline for Indian Legal Q&A and Precedent Search.
+"""Retrieval funnel and grounded synthesis for SC criminal precedents (Phase 4, minimal).
 
-Phase 3: Multi-Stage Hybrid Retrieval Funnel (Metadata Slicing + Dense Cosine +
-BM25Okapi + Reciprocal Rank Fusion + BGE Cross-Encoder Reranker + Parent Expansion)
-and Zero-Hallucination Grounded Legal Synthesis.
+query -> statutory concordance -> optional filters (SQLite documents -> doc_ids -> Chroma $in +
+BM25 allowed_ids) -> dense top-K + BM25 top-K -> Reciprocal Rank Fusion -> cross-encoder rerank
+of the top RERANK_TOP_N x bounded bench-strength authority prior -> parent expansion (SQLite)
+-> grounded answer with [Precedent N] headers -> citation check (no LLM).
+
+Authority prior (CLAUDE.md D6): Constitution Bench (>=5) > Full (3-4) > Division (2) > Single/unknown,
+applied only at the rerank stage as factor = 1 + clamp(AUTHORITY_STRENGTH * ln(multiplier), +/-
+AUTHORITY_MAX_BONUS). AUTHORITY_STRENGTH=0 (or use_authority=False) switches it off for the ablation.
+The old court-tier x role x judge-affinity weights are gone.
 """
 
 import json
 import logging
+import math
 import re
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
+from src.citation_check import REFUSAL_PHRASE, check_citations
 from src.config import Settings, get_settings
 from src.concordance import StatutoryConcordance
 from src.llm_budget import gen_config, get_budget, make_gemini_client
 from src.resource_guard import ResourceGuard
 from src.sqlite_store import SQLiteParentStore
-from src.vector_store import VectorStoreManager
+from src.vector_store import VectorStoreManager, normalize_chroma_filters
 
-# Configure logger
 logger = logging.getLogger("IndianLegalRAG.Pipeline")
+if not logger.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s", "%Y-%m-%d %H:%M:%S"))
+    logger.addHandler(_h)
+    logger.setLevel(logging.INFO)
+
+# Bench strength -> raw authority multiplier (bounded later by _authority_factor)
+BENCH_AUTHORITY = ((5, 1.25), (3, 1.15), (2, 1.05), (1, 1.0))
+FILTER_KEYS = ("year_from", "year_to", "min_bench")
+INSUFFICIENT_ANSWER = "Insufficient precedent in the indexed corpus.\n\nVerify on the official source."
+
+GROUNDED_LEGAL_SYSTEM_INSTRUCTION = """You are a legal research assistant for Indian criminal law. You answer ONLY from the numbered precedents provided to you ([Precedent 1] ... [Precedent N]); they are passages from judgments of the Supreme Court of India.
+
+Rules:
+1. Cite only as [Precedent N], using the numbers given. Never mention a case, citation, statutory section or judge that does not appear in the provided precedents.
+2. Separate the ratio decidendi (the holding on which the case was decided) from obiter dicta (passing remarks), and say which is which. Passages with role "Headnote" are editorial summaries: rely on the judgment text where both are given.
+3. Give more weight to larger benches (Constitution Bench > Full bench of 3-4 judges > Division bench of 2 > single judge) and say so when it matters.
+4. If the precedents conflict, say so explicitly, naming the precedents with their dates and bench sizes.
+5. IPC and BNS: offences committed before 1 July 2024 are governed by the IPC (and the CrPC / Evidence Act); offences on or after 1 July 2024 by the BNS (and the BNSS / BSA). When a precedent applies an old-code section, mention that the date of the offence decides which code applies.
+6. If the precedents do not answer the question, reply exactly "Insufficient precedent in the indexed corpus." and nothing else except rule 7.
+7. End every answer with the line: "Verify on the official source."
+"""
 
 
 def reranker_relevances(scores: List[float]) -> List[float]:
@@ -31,60 +59,49 @@ def reranker_relevances(scores: List[float]) -> List[float]:
     as-is. Only a batch of raw logits (any value outside [0,1]) gets one sigmoid, applied to the
     whole batch so the ordering stays consistent.
     """
-    import math
-
     vals = [float(s) for s in scores]
     if all(0.0 <= v <= 1.0 for v in vals):
         return vals
     return [1.0 / (1.0 + math.exp(-max(min(v, 20.0), -20.0))) for v in vals]
 
 
-def get_stare_decisis_weight(court_name: str, bench_type: Optional[str] = None) -> float:
-    """Compute Stare Decisis authoritative weight multiplier based on court tier and bench strength."""
-    c = (court_name or "").lower()
-    b = (bench_type or "").lower()
+def bench_authority_multiplier(bench_strength: Any) -> float:
+    """CLAUDE.md D6: Constitution (>=5) 1.25 > Full (3-4) 1.15 > Division (2) 1.05 > Single / unknown 1.0."""
+    try:
+        n = int(bench_strength)
+    except (TypeError, ValueError):
+        return 1.0
+    for minimum, mult in BENCH_AUTHORITY:
+        if n >= minimum:
+            return mult
+    return 1.0
 
-    # Court Tier Multiplier
-    court_weight = 1.0
-    if "supreme court" in c or "insc" in c:
-        court_weight = 1.25  # Apex authority binding across all jurisdictions (Art. 141)
-    elif "high court" in c:
-        court_weight = 1.10  # State-level constitutional precedent
-    elif "tribunal" in c or "central administrative" in c:
-        court_weight = 1.05
 
-    # Bench Strength Multiplier
-    bench_weight = 1.0
-    if "constitution bench" in b:
-        bench_weight = 1.25  # 5+ judges
-    elif "full bench" in b or "full bench" in c:
-        bench_weight = 1.15  # 3-4 judges
-    elif "division bench" in b:
-        bench_weight = 1.05  # 2 judges
+def _meta(c: Dict[str, Any]) -> Dict[str, Any]:
+    return c.get("metadata") or {}
 
-    return round(court_weight * bench_weight, 4)
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
 
-# Grounded Legal System Prompt for Gemini
-GROUNDED_LEGAL_SYSTEM_INSTRUCTION = """You are an expert Indian Legal Research Assistant aiding a Senior Advocate in High Court and Supreme Court litigation.
-Your analysis must strictly adhere to the following judicial standards:
-1. Zero-Hallucination Mandate: Do not fabricate citations, case law, statutory sections, or judge names. Answer relying strictly and exclusively on the provided retrieved precedent contexts.
-2. Binding Precedent Distinction: Differentiate explicitly between binding Ratio Decidendi (the legal principle on which the case was decided) and non-binding Obiter Dicta (incidental judicial observations).
-3. Statutory Concordance: Where relevant, provide statutory concordance between the Indian Penal Code (IPC) and the Bharatiya Nyaya Sanhita (BNS) (e.g., Section 302 IPC -> Section 103 BNS, Section 420 IPC -> Section 318 BNS, Section 304B IPC -> Section 80 BNS).
-4. Precise Judicial Citations: Always cite the exact case title, court, judgment year, and relevant sections from the context.
-5. Insufficient Context Handling: If the provided precedents do not contain sufficient authoritative legal backing to answer the query, clearly and concisely state: "Insufficient authoritative precedent found in the indexed corpus." """
+def _field(c: Dict[str, Any], key: str, default: Any = None) -> Any:
+    v = c.get(key)
+    return v if v not in (None, "") else _meta(c).get(key, default)
+
+
+def precedent_header(n: int, meta: Dict[str, Any]) -> str:
+    """[Precedent N] title | citation | date | bench_type: judges | author: ... | disposal: ... | role: ..."""
+    def val(key: str, default: str = "not recorded") -> str:
+        v = meta.get(key)
+        return str(v).strip() if v not in (None, "") else default
+
+    bench = val("bench_type", "bench not recorded")
+    if meta.get("bench_strength"):
+        bench = f"{bench} [{meta.get('bench_strength')} judges]"
+    return (f"[Precedent {n}] {val('case_title', 'untitled')} | {val('citation')} | {val('decision_date', str(meta.get('year') or 'date not recorded'))} | "
+            f"{bench}: {val('judges', 'judges not recorded')} | author: {val('author_judge')} | "
+            f"disposal: {val('disposal_nature')} | role: {val('role', 'Unclassified')}")
 
 
 class IndianLegalRAGPipeline:
-    """Orchestrates the 5-Stage Retrieval Funnel, Cross-Encoder Reranking, and Grounded Synthesis."""
+    """Hybrid retrieval funnel + grounded synthesis over one Chroma collection and its SQLite store."""
 
     def __init__(
         self,
@@ -99,6 +116,7 @@ class IndianLegalRAGPipeline:
         self.gemini_client = gemini_client or make_gemini_client(self.settings.gemini_api_key)
         # One SQLite file per collection (pilot and full index never share parents)
         self.sqlite_store = SQLiteParentStore(self.settings.sqlite_path_for(self.collection_name))
+        self._stores: Dict[str, SQLiteParentStore] = {self.collection_name: self.sqlite_store}
         self.guard = ResourceGuard(
             max_ram_gb=self.settings.max_ram_gb,
             warn_ram_gb=self.settings.warn_ram_gb,
@@ -107,8 +125,15 @@ class IndianLegalRAGPipeline:
         )
         self._reranker: Optional[Any] = None
 
+    # ------------------------------------------------------------------ helpers
+    def _store(self, collection_name: Optional[str]) -> SQLiteParentStore:
+        name = collection_name or self.collection_name
+        if name not in self._stores:
+            self._stores[name] = SQLiteParentStore(self.settings.sqlite_path_for(name))
+        return self._stores[name]
+
     def _get_reranker(self) -> Any:
-        """Lazy loader for sentence_transformers.CrossEncoder with hardware-throttled profile."""
+        """Lazy CrossEncoder (auto device; fp32 on CPU)."""
         if self._reranker is None:
             import torch
 
@@ -116,531 +141,232 @@ class IndianLegalRAGPipeline:
 
             configure_torch_backends()
             torch.set_num_threads(self.settings.num_threads)
-
             device = "cuda" if torch.cuda.is_available() else "cpu"
             if device == "cuda":
-                # Apply configured VRAM safety cap (e.g. 0.85 on B200 or 0.45 on RTX 2050)
                 try:
                     torch.cuda.set_per_process_memory_fraction(self.settings.vram_safety_fraction, 0)
-                    logger.info(
-                        f"Configured PyTorch CUDA memory fraction: {self.settings.vram_safety_fraction} on '{torch.cuda.get_device_name(0)}'"
-                    )
                 except Exception as e:
                     logger.warning(f"Could not set VRAM memory fraction: {e}")
-
-            logger.info(
-                f"Lazy-initializing CrossEncoder ('{self.settings.reranker_model}') on device '{device}' (threads: {self.settings.num_threads})..."
-            )
             from sentence_transformers import CrossEncoder
 
             # transformers 5 / sentence-transformers 6: `dtype` (was `torch_dtype`); fp32 on CPU
             model_kwargs = {"dtype": torch.float16} if device == "cuda" else {}
-            self._reranker = CrossEncoder(
-                self.settings.reranker_model,
-                device=device,
-                model_kwargs=model_kwargs,
-            )
-            if device == "cuda":
-                logger.info(f"Enabled FP16 half-precision on CrossEncoder model '{self.settings.reranker_model}'.")
-
+            logger.info(f"Loading CrossEncoder '{self.settings.reranker_model}' on {device} "
+                        f"(threads {self.settings.num_threads})")
+            self._reranker = CrossEncoder(self.settings.reranker_model, device=device, model_kwargs=model_kwargs)
         return self._reranker
 
-    def _authority_factor(self, authority_mult: float) -> float:
-        """Convert a raw authority multiplier (~0.8x to ~2.25x) into a bounded tie-breaking factor.
-
-        factor = 1 + clamp(strength * ln(mult), -max_bonus, +max_bonus)
-
-        Raw multipliers of that size swamp both RRF scores (rank 1 vs rank 30 differ by
-        only ~1.5x) and cross-encoder relevance, letting a weakly relevant Constitution
-        Bench chunk outrank the actually relevant one. The bounded form keeps the legal
-        hierarchy as a prior that only decides between near-equally relevant candidates.
-        """
-        import math
-
+    def _authority_factor(self, authority_mult: float, use_authority: Optional[bool] = None) -> float:
+        """factor = 1 + clamp(strength * ln(mult), -max_bonus, +max_bonus): a bounded tie-breaker (D6)."""
         strength = self.settings.authority_strength
-        if strength <= 0 or authority_mult <= 0:
+        if use_authority is False or strength <= 0 or authority_mult <= 0:
             return 1.0
         max_bonus = self.settings.authority_max_bonus
-        bonus = max(-max_bonus, min(max_bonus, strength * math.log(authority_mult)))
-        return 1.0 + bonus
+        return 1.0 + max(-max_bonus, min(max_bonus, strength * math.log(authority_mult)))
 
-    def retrieve_parent_context(self, parent_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch original parent chunk context from SQLite key-value store, falling back to JSON."""
-        # 1. First attempt: Fast O(1) SQLite query
+    def retrieve_parent_context(self, parent_id: str, collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Parent section from the collection's SQLite store (legacy JSON parent files as a fallback)."""
         try:
-            parent_doc = self.sqlite_store.get_parent(parent_id)
-            if parent_doc:
-                return parent_doc
+            parent = self._store(collection_name).get_parent(parent_id)
+            if parent:
+                return parent
         except Exception as err:
-            logger.debug(f"SQLite lookup skipped ({err}). Checking disk JSON files...")
-
-        # 2. Second attempt: Local disk parent store
+            logger.debug(f"SQLite lookup failed ({err})")
         parent_file = self.settings.parent_store_dir / f"{parent_id}.json"
         if parent_file.exists():
             try:
-                with open(parent_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                return json.loads(parent_file.read_text(encoding="utf-8"))
             except Exception as err:
                 logger.warning(f"Error reading parent document {parent_file}: {err}")
         return None
 
-    def compute_rrf(
-        self,
-        dense_results: List[Dict[str, Any]],
-        bm25_results: List[Dict[str, Any]],
-        k: int = 60,
-        query: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        """Perform Multi-Tier Weighted Reciprocal Rank Fusion (RRF).
+    def resolve_filters(self, filters: Optional[Dict[str, Any]], collection_name: Optional[str] = None
+                        ) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]], Dict[str, Any]]:
+        """Filters -> (Chroma where, BM25 allowed chunk ids, info).
 
-        Formula:
-            Final Score = (1.0 / (k + dense_rank) + 1.0 / (k + bm25_rank)) * Authority_Weight
-            where Authority_Weight = Stare_Decisis_Weight * Role_Weight * Judge_Affinity
+        year_from / year_to / min_bench go through the SQLite documents table -> doc_ids -> Chroma
+        {"doc_id": {"$in": [...]}}; any other key is an exact-match Chroma metadata filter.
+        info["empty"] is True when nothing can match.
         """
-        rrf_scores: Dict[str, float] = {}
-        candidate_map: Dict[str, Dict[str, Any]] = {}
+        info: Dict[str, Any] = {"applied": {}, "matching_docs": None, "empty": False}
+        if not filters:
+            return None, None, info
+        f = {k: v for k, v in filters.items() if v not in (None, "")}
+        doc_filters = {k: f.pop(k) for k in list(f) if k in FILTER_KEYS}
+        info["applied"] = {**doc_filters, **f}
+        clauses: List[Dict[str, Any]] = []
+        if doc_filters:
+            doc_ids = self._store(collection_name).doc_ids_where(**doc_filters)
+            info["matching_docs"] = len(doc_ids)
+            if not doc_ids:
+                info["empty"] = True
+                return None, [], info
+            clauses.append({"doc_id": {"$in": doc_ids}})
+        if f:
+            clauses.append(normalize_chroma_filters(f))
+        if not clauses:
+            return None, None, info
+        where = clauses[0] if len(clauses) == 1 else {"$and": clauses}
+        allowed = self.vector_store.filter_ids_by_metadata(where, collection_name=collection_name)
+        info["empty"] = not allowed
+        return where, allowed, info
 
-        # Extract target judge from query if present
-        target_judge = None
-        if query:
-            j_match = re.search(r"\b(?:justice|judge|hon'ble\s+justice)\s+([A-Za-z\s\.]+)", query, re.IGNORECASE)
-            if j_match:
-                target_judge = j_match.group(1).strip()
+    # ------------------------------------------------------------------ fusion
+    def compute_rrf(self, dense_results: List[Dict[str, Any]], bm25_results: List[Dict[str, Any]], k: int = 60,
+                    query: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Plain Reciprocal Rank Fusion: score = sum 1/(k + rank). The authority prior is NOT applied here."""
+        scores: Dict[str, float] = {}
+        cands: Dict[str, Dict[str, Any]] = {}
+        for label, results in (("dense_rank", dense_results), ("bm25_rank", bm25_results)):
+            for rank, item in enumerate(results, start=1):
+                cid = item["chunk_id"]
+                scores[cid] = scores.get(cid, 0.0) + 1.0 / (k + rank)
+                cands.setdefault(cid, dict(item))[label] = rank
+        fused = []
+        for cid, score in scores.items():
+            c = cands[cid]
+            c["raw_rrf_score"] = float(score)
+            c["rrf_score"] = float(score)
+            c["bench_strength"] = _field(c, "bench_strength")
+            c["authority_multiplier"] = bench_authority_multiplier(c["bench_strength"])
+            fused.append(c)
+        fused.sort(key=lambda x: x["rrf_score"], reverse=True)
+        return fused
 
-        # 1. Process Dense Ranking
-        for rank, item in enumerate(dense_results, start=1):
-            chunk_id = item["chunk_id"]
-            rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0.0) + (1.0 / (k + rank))
-            if chunk_id not in candidate_map:
-                candidate_map[chunk_id] = dict(item)
-            candidate_map[chunk_id]["dense_rank"] = rank
-
-        # 2. Process BM25 Ranking
-        for rank, item in enumerate(bm25_results, start=1):
-            chunk_id = item["chunk_id"]
-            rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0.0) + (1.0 / (k + rank))
-            if chunk_id not in candidate_map:
-                candidate_map[chunk_id] = dict(item)
-            candidate_map[chunk_id]["bm25_rank"] = rank
-
-        # 3. Build Fused List with Stare Decisis Multiplier
-        fused_candidates: List[Dict[str, Any]] = []
-        for chunk_id, score in rrf_scores.items():
-            candidate = candidate_map[chunk_id]
-            meta = candidate.get("metadata") or {}
-            court = candidate.get("court") or meta.get("court", "")
-            bench = candidate.get("bench_type") or meta.get("bench_type", "")
-            role = candidate.get("legal_role") or meta.get("legal_role") or meta.get("role", "")
-            author = candidate.get("author_judge") or meta.get("author_judge", "")
-            coram = candidate.get("judges") or meta.get("judges") or meta.get("coram", "")
-
-            # 1. Stare Decisis Precedent Multiplier (Court Tier + Bench Strength)
-            stare_weight = get_stare_decisis_weight(court, bench)
-
-            # 2. Binding Ratio Decidendi Authority Multiplier
-            role_l = str(role).lower()
-            role_weight = 1.0
-            if "ratio" in role_l or "holding" in role_l or "order" in role_l:
-                role_weight = 1.15  # Binding judicial holding gets +15% boost
-            elif "precedent" in role_l:
-                role_weight = 1.05  # Precedent citations get +5% boost
-            elif "submission" in role_l or "contention" in role_l:
-                role_weight = 0.85  # Non-binding counsel arguments penalized -15%
-            elif "obiter" in role_l or "dissent" in role_l:
-                role_weight = 0.80  # Non-binding dicta / dissent penalized -20%
-
-            # 3. Judicial Entity Affinity Multiplier
-            judge_affinity = 1.0
-            if target_judge:
-                clean_target = re.sub(r"\b(justice|hon'ble|dr\.|mr\.|mrs\.|ms\.)\b", "", target_judge, flags=re.IGNORECASE).strip().lower()
-                if clean_target and (clean_target in author.lower() or clean_target in coram.lower()):
-                    judge_affinity = 1.25  # +25% boost for target judge opinions
-
-            final_authority_weight = round(stare_weight * role_weight * judge_affinity, 4)
-
-            candidate["raw_rrf_score"] = float(score)
-            candidate["court_tier_weight"] = stare_weight
-            candidate["role_weight"] = role_weight
-            candidate["judge_affinity"] = judge_affinity
-            candidate["rrf_score"] = float(score) * self._authority_factor(final_authority_weight)
-            fused_candidates.append(candidate)
-
-        fused_candidates.sort(key=lambda x: x["rrf_score"], reverse=True)
-        return fused_candidates
-
-    def retrieve_hybrid(
-        self,
-        query: str,
-        top_k: int = 5,
-        candidate_pool_size: int = 60,
-        filters: Optional[Dict[str, Any]] = None,
-        collection_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Execute the Five-Stage Retrieval Funnel with granular timing instrumentation.
-
-        Stages:
-            1. Metadata Slicing (allowed IDs via ChromaDB)
-            2. Candidate Generation (Dense vector + BM25Okapi, top 60 each)
-            3. Reciprocal Rank Fusion (RRF k=60, top 30 candidates)
-            4. Cross-Encoder Reranking with Stare Decisis Weighting (BGE reranker)
-            5. Parent Document Expansion (local disk parent store)
-        """
+    # ------------------------------------------------------------------ retrieval
+    def retrieve_hybrid(self, query: str, top_k: int = 5, candidate_pool_size: int = 60,
+                        filters: Optional[Dict[str, Any]] = None, collection_name: Optional[str] = None,
+                        use_authority: Optional[bool] = None) -> Dict[str, Any]:
+        """Concordance -> filters -> dense + BM25 -> RRF -> rerank (x bounded bench prior) -> parents."""
         timings: Dict[str, float] = {}
-        funnel_start_t = time.perf_counter()
-
-        # ---------------------------------------------------------
-        # Stage 0: Statutory Concordance Query Expansion (IPC/CrPC <-> BNS/BNSS)
-        # ---------------------------------------------------------
+        t_all = time.perf_counter()
         search_query = StatutoryConcordance.expand_query(query)
 
-        # ---------------------------------------------------------
-        # Stage 1: Metadata Slicing
-        # ---------------------------------------------------------
-        s1_start = time.perf_counter()
-        allowed_ids: Optional[List[str]] = None
-        if filters:
-            allowed_ids = self.vector_store.filter_ids_by_metadata(
-                filters, collection_name=collection_name
-            )
-            logger.debug(f"Stage 1 Slicing: {len(allowed_ids)} candidate IDs match filters.")
-        timings["metadata_filtering_sec"] = round(time.perf_counter() - s1_start, 4)
+        t = time.perf_counter()
+        where, allowed_ids, finfo = self.resolve_filters(filters, collection_name)
+        timings["metadata_filtering_sec"] = round(time.perf_counter() - t, 4)
+        empty = {"retrieved_parents": [], "child_citations": [], "reranked_candidates": [], "expanded_query": search_query,
+                 "filters": finfo, "funnel_counts": {"dense": 0, "bm25": 0, "fused": 0, "reranked": 0, "returned": 0, "parents": 0}}
+        if finfo["empty"]:
+            timings["funnel_latency_sec"] = round(time.perf_counter() - t_all, 4)
+            return {**empty, "timings": timings}
 
-        # ---------------------------------------------------------
-        # Stage 2: Parallel Candidate Generation (Dense + Sparse)
-        # ---------------------------------------------------------
-        s2_dense_start = time.perf_counter()
+        t = time.perf_counter()
         try:
-            dense_candidates = self.vector_store.query_dense(
-                query=search_query,
-                top_k=candidate_pool_size,
-                filters=filters,
-                collection_name=collection_name,
-            )
-        except Exception as dense_err:
-            logger.warning(
-                f"Dense retrieval error ({dense_err}). Gracefully falling back to sparse BM25 candidates."
-            )
-            dense_candidates = []
-        timings["dense_retrieval_sec"] = round(time.perf_counter() - s2_dense_start, 4)
+            dense = self.vector_store.query_dense(query=search_query, top_k=candidate_pool_size, filters=where,
+                                                  collection_name=collection_name)
+        except Exception as err:
+            logger.warning(f"Dense retrieval failed ({err}); continuing with BM25 only.")
+            dense = []
+        timings["dense_retrieval_sec"] = round(time.perf_counter() - t, 4)
 
-        s2_bm25_start = time.perf_counter()
-        bm25_candidates = self.vector_store.query_bm25(
-            query=search_query,
-            top_k=candidate_pool_size,
-            allowed_ids=allowed_ids,
-            collection_name=collection_name,
-        )
-        timings["bm25_retrieval_sec"] = round(time.perf_counter() - s2_bm25_start, 4)
+        t = time.perf_counter()
+        bm25 = self.vector_store.query_bm25(query=search_query, top_k=candidate_pool_size, allowed_ids=allowed_ids,
+                                            collection_name=collection_name)
+        timings["bm25_retrieval_sec"] = round(time.perf_counter() - t, 4)
 
-        # ---------------------------------------------------------
-        # Stage 3: Reciprocal Rank Fusion
-        # ---------------------------------------------------------
-        s3_start = time.perf_counter()
-        fused_candidates = self.compute_rrf(dense_candidates, bm25_candidates, k=60, query=query)
-        # Select top 30 fused candidates for cross-encoder reranking
-        top_fused = fused_candidates[:30]
-        timings["rrf_fusion_sec"] = round(time.perf_counter() - s3_start, 4)
+        t = time.perf_counter()
+        fused = self.compute_rrf(dense, bm25, k=60, query=query)
+        top_fused = fused[: self.settings.rerank_top_n]
+        timings["rrf_fusion_sec"] = round(time.perf_counter() - t, 4)
 
-        # ---------------------------------------------------------
-        # Stage 4: Cross-Encoder Reranking (Authority & Stare Decisis Weighted)
-        # ---------------------------------------------------------
-        s4_start = time.perf_counter()
-        reranked_candidates: List[Dict[str, Any]] = []
-
+        t = time.perf_counter()
+        reranked: List[Dict[str, Any]] = []
         if top_fused:
-            reranker = self._get_reranker()
-            pairs = [[query, c["text"]] for c in top_fused]
-            raw_scores = reranker.predict(pairs)
+            raw = self._get_reranker().predict([[query, c["text"]] for c in top_fused])
+            for c, raw_s, rel in zip(top_fused, raw, reranker_relevances(raw)):
+                factor = self._authority_factor(c["authority_multiplier"], use_authority)
+                reranked.append({**c, "raw_cross_encoder_score": float(raw_s), "relevance": rel,
+                                 "authority_factor": factor, "rerank_score": round(rel * factor, 6)})
+            reranked.sort(key=lambda x: x["rerank_score"], reverse=True)
+            reranked = reranked[:top_k]
+        timings["reranking_sec"] = round(time.perf_counter() - t, 4)
 
-            relevances = reranker_relevances(raw_scores)
-            for c, raw_score, norm_score in zip(top_fused, raw_scores, relevances):
-                c_copy = dict(c)
-                raw_s = float(raw_score)
-
-                # Factor in Stare Decisis precedent multiplier, binding role boost, and judge affinity
-                stare_weight = float(c.get("court_tier_weight", 1.0))
-                role_weight = float(c.get("role_weight", 1.0))
-                judge_affinity = float(c.get("judge_affinity", 1.0))
-                final_authority_mult = stare_weight * role_weight * judge_affinity
-
-                # Composite score: Cross-Encoder semantic match with bounded legal-authority prior
-                composite_score = round(norm_score * self._authority_factor(final_authority_mult), 5)
-
-                c_copy["raw_cross_encoder_score"] = raw_s
-                c_copy["rerank_score"] = composite_score
-                reranked_candidates.append(c_copy)
-
-            reranked_candidates.sort(key=lambda x: x["rerank_score"], reverse=True)
-            reranked_candidates = reranked_candidates[:top_k]
-        timings["reranking_sec"] = round(time.perf_counter() - s4_start, 4)
-
-        # ---------------------------------------------------------
-        # Stage 5: Parent Document Expansion & Deduplication
-        # ---------------------------------------------------------
-        s5_start = time.perf_counter()
-        seen_parent_ids: Set[str] = set()
-        retrieved_parents: List[Dict[str, Any]] = []
-        child_citations: List[Dict[str, Any]] = []
-
-        for child in reranked_candidates:
-            # Metadata resolution
-            meta = child.get("metadata") or {}
-            parent_id = child.get("parent_id") or meta.get("parent_id")
-            case_title = child.get("case_title") or meta.get("case_title", "Unknown Case")
-            court = child.get("court") or meta.get("court", "Unknown Court")
-            year = child.get("year") or meta.get("year", "")
-            role = child.get("role") or meta.get("role", "Unclassified")
-
-            # Collect child citation snippet
-            child_citations.append(
-                {
-                    "chunk_id": child["chunk_id"],
-                    "parent_id": parent_id,
-                    "case_title": case_title,
-                    "court": court,
-                    "year": year,
-                    "role": role,
-                    "snippet": child["text"][:300],
-                    "rerank_score": child.get("rerank_score", 0.0),
-                }
-            )
-
-            # Load full parent context without duplicates
-            if parent_id and parent_id not in seen_parent_ids:
-                seen_parent_ids.add(parent_id)
-                parent_doc = self.retrieve_parent_context(parent_id)
-                if parent_doc:
-                    retrieved_parents.append(parent_doc)
-
-        timings["parent_expansion_sec"] = round(time.perf_counter() - s5_start, 4)
-        timings["funnel_latency_sec"] = round(time.perf_counter() - funnel_start_t, 4)
-
+        t = time.perf_counter()
+        seen: Set[str] = set()
+        parents: List[Dict[str, Any]] = []
+        citations: List[Dict[str, Any]] = []
+        for c in reranked:
+            parent_id = _field(c, "parent_id")
+            citations.append({
+                "chunk_id": c["chunk_id"], "parent_id": parent_id, "doc_id": _field(c, "doc_id"),
+                "case_title": _field(c, "case_title", "Unknown case"), "citation": _field(c, "citation"),
+                "court": _field(c, "court", ""), "year": _field(c, "year", ""), "role": _field(c, "role", "Unclassified"),
+                "snippet": (_field(c, "raw_text") or c.get("text", ""))[:300], "rerank_score": c.get("rerank_score", 0.0),
+            })
+            if parent_id and parent_id not in seen:
+                seen.add(parent_id)
+                parent = self.retrieve_parent_context(parent_id, collection_name)
+                if parent:
+                    parents.append(parent)
+        timings["parent_expansion_sec"] = round(time.perf_counter() - t, 4)
+        timings["funnel_latency_sec"] = round(time.perf_counter() - t_all, 4)
         return {
-            "retrieved_parents": retrieved_parents,
-            "child_citations": child_citations,
-            "reranked_candidates": reranked_candidates,
+            "retrieved_parents": parents,
+            "child_citations": citations,
+            "reranked_candidates": reranked,
             "timings": timings,
             "expanded_query": search_query,
-            "funnel_counts": {
-                "dense": len(dense_candidates),
-                "bm25": len(bm25_candidates),
-                "fused": len(fused_candidates),
-                "reranked": len(top_fused),
-                "returned": len(reranked_candidates),
-                "parents": len(retrieved_parents),
-            },
+            "filters": finfo,
+            "funnel_counts": {"dense": len(dense), "bm25": len(bm25), "fused": len(fused), "reranked": len(top_fused),
+                              "returned": len(reranked), "parents": len(parents)},
         }
 
-    def generate_answer(
-        self,
-        query: str,
-        top_k: int = 5,
-        candidate_pool_size: int = 25,
-        filters: Optional[Dict[str, Any]] = None,
-        collection_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Execute Full Pipeline: Hybrid Funnel + Grounded Legal Generation + Telemetry."""
-        total_start_t = time.perf_counter()
+    # ------------------------------------------------------------------ synthesis
+    def build_context(self, parents: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]]]:
+        """Numbered precedent blocks + the precedent list (for the citation check and the UI)."""
+        blocks, precedents = [], []
+        for n, parent in enumerate(parents, start=1):
+            meta = {**(parent.get("metadata") or {}), "case_title": parent.get("case_title") or
+                    (parent.get("metadata") or {}).get("case_title")}
+            blocks.append(f"{precedent_header(n, meta)}\n{parent.get('text', '')}")
+            precedents.append({
+                "n": n, "doc_id": meta.get("doc_id"), "parent_id": parent.get("parent_id"),
+                "case_title": meta.get("case_title"), "citation": meta.get("citation"), "case_id": meta.get("case_id"),
+                "decision_date": meta.get("decision_date"), "bench_type": meta.get("bench_type"),
+                "bench_strength": meta.get("bench_strength"), "judges": meta.get("judges"),
+                "author_judge": meta.get("author_judge"), "disposal_nature": meta.get("disposal_nature"),
+                "role": meta.get("role"), "section_kind": meta.get("section_kind"), "header": precedent_header(n, meta),
+            })
+        return "\n\n".join(blocks), precedents
 
-        # Intent Routing: Detect Judge Profile / Catalog / Listing Queries
-        is_catalog_query = bool(
-            re.search(
-                r"\b(list|all|cases\s+of|cases\s+by|profile|track\s+record|rulings\s+by|tell\s+me\s+about\s+(?:the\s+)?cases)\b",
-                query,
-                re.IGNORECASE,
-            )
-        )
-        judge_match = re.search(r"\b(?:justice|judge|hon'ble\s+justice)\s+([A-Za-z\s\.]+)", query, re.IGNORECASE)
-        if is_catalog_query and judge_match:
-            raw_judge = judge_match.group(1).strip()
-            target_judge = re.split(r"\b(how|what|and|list|all|in|the)\b", raw_judge, flags=re.IGNORECASE)[0].strip()
-            if len(target_judge) >= 3:
-                profile = self.get_judge_profile(target_judge)
-                if profile["total_cases"] > 0:
-                    logger.info(f"Routed query to Judicial Profile Registry for Justice '{target_judge}' ({profile['total_cases']} cases found).")
-                    return self._synthesize_judge_profile_answer(query, profile, total_start_t)
+    def generate_answer(self, query: str, top_k: int = 5, candidate_pool_size: int = 60,
+                        filters: Optional[Dict[str, Any]] = None, collection_name: Optional[str] = None,
+                        use_authority: Optional[bool] = None) -> Dict[str, Any]:
+        """Funnel + grounded answer + citation check."""
+        t_all = time.perf_counter()
+        funnel = self.retrieve_hybrid(query=query, top_k=top_k, candidate_pool_size=candidate_pool_size,
+                                      filters=filters, collection_name=collection_name, use_authority=use_authority)
+        timings = dict(funnel["timings"])
+        parents = funnel["retrieved_parents"]
 
-        # Run 5-stage retrieval funnel
-        funnel_output = self.retrieve_hybrid(
-            query=query,
-            top_k=top_k,
-            candidate_pool_size=candidate_pool_size,
-            filters=filters,
-            collection_name=collection_name,
-        )
-
-        timings = dict(funnel_output["timings"])
-        retrieved_parents = funnel_output["retrieved_parents"]
-        child_citations = funnel_output["child_citations"]
-
-        # ---------------------------------------------------------
-        # Grounded Legal Generation
-        # ---------------------------------------------------------
-        llm_start_t = time.perf_counter()
-
-        # Handle empty/insufficient retrieval
-        if not retrieved_parents and not child_citations:
-            answer = "Insufficient authoritative precedent found in the indexed corpus."
-            timings["llm_generation_sec"] = round(time.perf_counter() - llm_start_t, 4)
-            timings["total_latency_sec"] = round(time.perf_counter() - total_start_t, 4)
-            return {
-                "answer": answer,
-                "retrieved_parents": [],
-                "child_citations": [],
-                "timings": timings,
-                "query": query,
-            }
-
-        # Build context blocks from expanded parents and child role tags
-        context_blocks: List[str] = []
-        for idx, parent in enumerate(retrieved_parents, start=1):
-            p_title = parent.get("case_title", "Precedent")
-            p_meta = parent.get("metadata", {})
-            p_court = p_meta.get("court", "Court")
-            p_year = p_meta.get("year", "")
-            p_heading = p_meta.get("structural_heading", "Legal Section")
-            p_role = p_meta.get("role") or p_meta.get("legal_role", "Ratio Decidendi")
-            p_bench = p_meta.get("bench_type", "Bench")
-            p_author = p_meta.get("author_judge", "Judge")
-            if not str(p_meta.get("judges") or p_meta.get("coram") or "").strip() or p_meta.get("coram") == "Not Recorded":
-                # Bench type is only a fallback guess when the coram could not be parsed
-                p_bench, p_author = "bench not recorded", "not recorded"
-            p_disp = p_meta.get("disposal_nature") or p_meta.get("disposition", "Not Stated")
-            p_text = parent.get("text", "")
-            context_blocks.append(
-                f"### [Precedent {idx}] {p_title} ({p_court}, {p_year})\n"
-                f"- **Authority & Bench**: {p_court} | {p_bench} (Author: {p_author})\n"
-                f"- **Binding Status**: [{p_role}] | Outcome: `{p_disp}` | Section: {p_heading}\n"
-                f"{p_text}"
-            )
-
-        context_str = "\n\n".join(context_blocks)
-
-        prompt = f"""Legal Query:
-{query}
-
-Retrieved Judicial Context:
-{context_str}
-
-Analyze the legal query based exclusively on the provided judicial context. Provide authoritative findings, distinguishing Ratio Decidendi from Obiter Dicta, with statutory concordance:"""
-
-        answer = get_budget(self.settings).generate(
-            client=self.gemini_client,
-            models=[self.settings.gemini_model, "gemini-flash-latest"],
-            contents=prompt,
-            config=gen_config(
-                system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION,
-                temperature=0.1,
-            ),
-        ) or (
-            "Answer synthesis unavailable (no LLM provider reachable: check LLM_API_KEY / GEMINI_API_KEY "
-            "quota). The ranked precedents below were retrieved successfully."
-        )
-
-        timings["llm_generation_sec"] = round(time.perf_counter() - llm_start_t, 4)
-        timings["total_latency_sec"] = round(time.perf_counter() - total_start_t, 4)
-
+        t = time.perf_counter()
+        if not parents:
+            answer, precedents = INSUFFICIENT_ANSWER, []
+        else:
+            context, precedents = self.build_context(parents)
+            prompt = (f"Legal question:\n{query}\n\nPrecedents (the only sources you may use):\n\n{context}\n\n"
+                      f"Answer the question following the rules. Cite as [Precedent N].")
+            answer = get_budget(self.settings).generate(
+                client=self.gemini_client,
+                models=[self.settings.gemini_model, "gemini-flash-latest"],
+                contents=prompt,
+                config=gen_config(system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION, temperature=0.1),
+            ) or ("Answer synthesis unavailable (no LLM provider reachable: check LLM_API_KEY / GEMINI_API_KEY). "
+                  "The ranked precedents were retrieved successfully.")
+        timings["llm_generation_sec"] = round(time.perf_counter() - t, 4)
+        timings["total_latency_sec"] = round(time.perf_counter() - t_all, 4)
         return {
             "answer": answer,
-            "retrieved_parents": retrieved_parents,
-            "child_citations": child_citations,
-            "reranked_candidates": funnel_output["reranked_candidates"],
+            "precedents": precedents,
+            "citation_check": check_citations(answer, precedents),
+            "retrieved_parents": parents,
+            "child_citations": funnel["child_citations"],
+            "reranked_candidates": funnel["reranked_candidates"],
+            "expanded_query": funnel["expanded_query"],
+            "filters": funnel["filters"],
             "timings": timings,
             "query": query,
         }
 
-    def get_judge_profile(self, judge_query: str) -> Dict[str, Any]:
-        """Aggregate career statistics, behavioral metrics, and full case registry for a judge."""
-        clean_name = re.sub(
-            r"\b(justice|hon'ble|honourable|dr\.|mr\.|mrs\.|ms\.)\b",
-            "",
-            judge_query,
-            flags=re.IGNORECASE,
-        ).strip()
-        cases = self.sqlite_store.get_cases_by_judge(clean_name)
-
-        total_cases = len(cases)
-        dispositions = {"ALLOWED": 0, "DISMISSED": 0, "DISPOSED OF": 0, "PENDING/NOT_STATED": 0}
-        categories: Dict[str, int] = {}
-        courts: Dict[str, int] = {}
-        bench_types: Dict[str, int] = {}
-
-        for c in cases:
-            disp = str(c.get("disposition", "PENDING/NOT_STATED")).upper()
-            if disp in dispositions:
-                dispositions[disp] += 1
-            else:
-                dispositions["PENDING/NOT_STATED"] += 1
-
-            cat = c.get("case_category", "General")
-            categories[cat] = categories.get(cat, 0) + 1
-
-            court = c.get("court", "Court")
-            courts[court] = courts.get(court, 0) + 1
-
-            b_type = c.get("bench_type", "Single Bench")
-            bench_types[b_type] = bench_types.get(b_type, 0) + 1
-
-        decided = dispositions["ALLOWED"] + dispositions["DISMISSED"]
-        allowance_rate = round((dispositions["ALLOWED"] / decided) * 100.0, 1) if decided > 0 else 0.0
-
-        return {
-            "judge_query": judge_query,
-            "total_cases": total_cases,
-            "allowance_rate_pct": allowance_rate,
-            "dispositions": dispositions,
-            "categories": categories,
-            "courts": courts,
-            "bench_types": bench_types,
-            "cases": cases,
-        }
-
-    def _synthesize_judge_profile_answer(
-        self, query: str, profile: Dict[str, Any], total_start_t: float
-    ) -> Dict[str, Any]:
-        """Synthesize an exhaustive case registry and judicial behavioral profile."""
-        j_name = profile["judge_query"].strip().title()
-        total = profile["total_cases"]
-        rate = profile["allowance_rate_pct"]
-        disp = profile["dispositions"]
-        cases = profile["cases"]
-
-        lines = [
-            f"## Judicial Profile & Case Registry: Justice {j_name}\n",
-            f"### 1. Empirical Track Record & Behavioral Metrics",
-            f"- **Total Indexed Judgments in Corpus**: {total}",
-            f"- **Appeal / Petition Allowance Rate**: {rate}% ({disp.get('ALLOWED', 0)} Allowed vs {disp.get('DISMISSED', 0)} Dismissed)",
-            f"- **Case Dispositions**: Allowed: `{disp.get('ALLOWED', 0)}` | Dismissed: `{disp.get('DISMISSED', 0)}` | Disposed/Other: `{disp.get('DISPOSED OF', 0) + disp.get('PENDING/NOT_STATED', 0)}`",
-            f"- **Primary Benches**: " + ", ".join(f"{k} ({v})" for k, v in profile["bench_types"].items()),
-            f"- **Courts Presided**: " + ", ".join(f"{k} ({v})" for k, v in profile["courts"].items()),
-            "\n### 2. Complete Case Registry",
-            "| # | Case Title | Year | Court | Bench Strength | Disposition | Category |",
-            "|---|---|---|---|---|---|---|",
-        ]
-
-        for idx, c in enumerate(cases, start=1):
-            title = c.get("case_title", "Unknown Case")
-            year = c.get("year", "N/A")
-            court = c.get("court", "High Court / Supreme Court")
-            bench = c.get("bench_type", "Single Bench")
-            disposition = c.get("disposition", "Not Stated")
-            cat = c.get("case_category", "General")
-            lines.append(f"| {idx} | **{title}** | {year} | {court} | {bench} | `{disposition}` | {cat} |")
-
-        answer_text = "\n".join(lines)
-        total_latency = round(time.perf_counter() - total_start_t, 4)
-
-        return {
-            "answer": answer_text,
-            "retrieved_parents": [],
-            "child_citations": [],
-            "timings": {
-                "metadata_slicing_sec": total_latency,
-                "total_latency_sec": total_latency,
-            },
-            "query": query,
-            "judicial_profile": profile,
-        }
-
-    # Backward compatibility alias
     run = generate_answer
