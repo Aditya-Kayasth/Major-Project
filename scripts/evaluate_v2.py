@@ -162,7 +162,8 @@ def main() -> None:
 
     per_query: List[Dict[str, Any]] = []
     for i, q in enumerate(in_scope, start=1):
-        rec = {"query_id": q["query_id"], "type": q["type"], "year": q.get("year"), "targets": q["target_doc_ids"]}
+        rec = {"query_id": q["query_id"], "type": q["type"], "year": q.get("year"), "targets": q["target_doc_ids"],
+               "query": q["query"][:200], "target_title": q.get("target_title"), "target_citation": q.get("target_citation")}
         for cfg in CONFIGS:
             r = rank(pipe, cfg, q["query"])
             m = bv.query_metrics(r["ranking"], q["target_doc_ids"])
@@ -324,6 +325,29 @@ def main() -> None:
               f"OOS refusal rate {g['oos_refusal_rate']}")
     else:
         print(f"generation: {g['status']}")
+    # sanity check of the ground-truth matching: one legal-issue, one fact-pattern, one Full miss
+    samples = [next((p for p in per_query if p["type"] == "legal_issue"), None),
+               next((p for p in per_query if p["type"] == "fact_pattern"), None),
+               next((p for p in per_query if p["full"]["rank"] is None), None)]
+    titles = {}
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect(f"file:{pipe.sqlite_store.db_path}?mode=ro", uri=True)
+        ids = {d for p in samples if p for d in p["full"]["top3"][:1]}
+        titles = {r[0]: r[1] for r in conn.execute(
+            f"SELECT doc_id, case_title FROM documents WHERE doc_id IN ({','.join('?' * len(ids))})", list(ids))} if ids else {}
+        conn.close()
+    except Exception:
+        pass
+    for label, p in zip(("sample legal", "sample facts", "sample miss"), samples):
+        if p is None:
+            print(f"{label}: (none)")
+            continue
+        top1 = p["full"]["top3"][0] if p["full"]["top3"] else None
+        print(f"{label}: {p['query_id']} | Q: {p['query'][:110]}")
+        print(f"    target {p['targets'][0]} {str(p.get('target_title'))[:45]} ({p.get('target_citation')}) | Full rank "
+              f"{p['full']['rank']} | Full top1 {top1} {str(titles.get(top1, ''))[:40]} | BM25 rank {p['bm25']['rank']}")
     print(f"files: $BENCHMARKS_DIR/v2/results.json ({size_kb:.1f} KB), results.md, run_manifest.json, per_query.json")
 
 
