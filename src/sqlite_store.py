@@ -47,7 +47,7 @@ class SQLiteParentStore:
         ("disposal_nature", "TEXT"), ("disposition_pdf", "TEXT"), ("disposition_agrees", "INTEGER"),
         ("case_type", "TEXT"), ("case_no", "TEXT"), ("reportable", "INTEGER"), ("statutes_cited", "TEXT"),
         ("layout", "TEXT"), ("headnote", "TEXT"), ("headnote_split", "TEXT"), ("body_marker", "TEXT"),
-        ("pdf_judges", "TEXT"), ("pdf_author", "TEXT"), ("pdf_author_source", "TEXT"),
+        ("pdf_judges", "TEXT"), ("author_manifest", "TEXT"), ("pdf_author", "TEXT"), ("pdf_author_source", "TEXT"),
         ("author_pdf_agrees", "INTEGER"), ("n_pages", "INTEGER"), ("n_chars", "INTEGER"),
         ("n_parents", "INTEGER"), ("n_chunks", "INTEGER"), ("source_path", "TEXT"), ("indexed_at", "TEXT"),
     ]
@@ -80,6 +80,10 @@ class SQLiteParentStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_parent_doc ON parent_chunks(doc_id);")
             col_sql = ", ".join(f"{name} {kind}" for name, kind in self.DOCUMENT_COLUMNS)
             conn.execute(f"CREATE TABLE IF NOT EXISTS documents ({col_sql});")
+            have = {r[1] for r in conn.execute("PRAGMA table_info(documents);")}
+            for name, kind in self.DOCUMENT_COLUMNS:  # store files created by an older schema
+                if name not in have and "PRIMARY KEY" not in kind:
+                    conn.execute(f"ALTER TABLE documents ADD COLUMN {name} {kind};")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_year ON documents(year);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_bench ON documents(bench_strength);")
             conn.commit()

@@ -322,6 +322,53 @@ class TestSectionsAndAuthor(unittest.TestCase):
         self.assertEqual(jt.find_author(None, None, None, ["1. Leave granted."], False), (None, "unknown"))
 
 
+class TestAuthorPrecedence(unittest.TestCase):
+    """Real pairs from scripts/check_author_mismatch.py on sc_criminal_cpu_test (26 Nov)."""
+
+    def test_name_variants_map_onto_the_bench(self):
+        cases = [
+            ("DR. DHANANJAYA Y CHANDRACHUD", ["D.Y. CHANDRACHUD", "INDU MALHOTRA", "INDIRA BANERJEE"], "D.Y. CHANDRACHUD"),
+            ("NAGARATHNA", ["B.V. NAGARATHNA", "UJJAL BHUYAN"], "B.V. NAGARATHNA"),
+            ("B.R. GAVAI", ["BHUSHAN RAMKRISHNA GAVAI", "K.V. VISWANATHAN"], "BHUSHAN RAMKRISHNA GAVAI"),
+            ("MEHTA", ["VIKRAM NATH", "SANJAY KAROL", "SANDEEP MEHTA"], "SANDEEP MEHTA"),
+            ("ROHINTON FALI NARIMAN", ["R.F. NARIMAN", "NAVIN SINHA", "INDIRA BANERJEE"], "R.F. NARIMAN"),
+            ("J. B. PARDIWALA", ["S. ABDUL NAZEER", "J.B. PARDIWALA"], "J.B. PARDIWALA"),
+            ("K. M. JOSEPH", ["K.M. JOSEPH", "HRISHIKESH ROY"], "K.M. JOSEPH"),
+            ("SOMEONE ELSE", ["K.M. JOSEPH", "HRISHIKESH ROY"], None),
+        ]
+        for name, bench, expected in cases:
+            with self.subTest(name=name):
+                self.assertEqual(jt.match_bench(name, bench), expected)
+        self.assertEqual(jt.manifest_style("J. B.  Pardiwala"), "J.B. PARDIWALA")
+
+    def test_pdf_evidence_beats_the_presiding_judge_star(self):
+        bench = ["VIKRAM NATH", "SANJAY KAROL", "SANDEEP MEHTA"]  # 925945892f65ae15 (2025)
+        self.assertEqual(jt.resolve_final_author("VIKRAM NATH", "coram_star", bench, "MEHTA", "pdf_body_signature"),
+                         ("SANDEEP MEHTA", "pdf_body_signature", False))
+        bench = ["ABHAY S. OKA", "AHSANUDDIN AMANULLAH", "AUGUSTINE GEORGE MASIH"]  # a7294595ed3211fa (2025)
+        self.assertEqual(jt.resolve_final_author("ABHAY S. OKA", "coram_star", bench, "AHSANUDDIN AMANULLAH", "pdf_star"),
+                         ("AHSANUDDIN AMANULLAH", "pdf_star", False))
+        bench = ["R.F. NARIMAN", "NAVIN SINHA", "INDIRA BANERJEE"]  # c2b9f357e63f409e (2020, old SCR)
+        self.assertEqual(jt.resolve_final_author("R.F. NARIMAN", "coram_star", bench, "NAVIN SINHA", "pdf_running_header"),
+                         ("NAVIN SINHA", "pdf_running_header", False))
+
+    def test_formatting_only_counts_as_agreement(self):
+        bench = ["D.Y. CHANDRACHUD", "INDU MALHOTRA", "INDIRA BANERJEE"]  # 0ecde7d232e0525a (2020)
+        self.assertEqual(jt.resolve_final_author("D.Y. CHANDRACHUD", "coram_star", bench,
+                                                 "DR. DHANANJAYA Y CHANDRACHUD", "pdf_running_header"),
+                         ("D.Y. CHANDRACHUD", "pdf_running_header", True))
+
+    def test_fallbacks(self):
+        bench = ["J.B. PARDIWALA", "R MAHADEVAN"]
+        self.assertEqual(jt.resolve_final_author("J.B. PARDIWALA", "coram_star", bench, None, "unknown"),
+                         ("J.B. PARDIWALA", "coram_star", None))
+        self.assertEqual(jt.resolve_final_author(None, "unknown", bench, None, "unknown"), (None, "unknown", None))
+        self.assertEqual(jt.resolve_final_author("J.B. PARDIWALA", "coram_star", bench, "Per Curiam", "pdf_order"),
+                         ("Per Curiam", "pdf_order", None))
+        self.assertEqual(jt.resolve_final_author(None, "unknown", bench, "X. NOBODY", "pdf_running_header"),
+                         ("X. NOBODY", "pdf_running_header_unmatched", None))
+
+
 class TestStatutes(unittest.TestCase):
     def test_old_scr_headnote(self):
         text = "\n".join(jt.clean_pages(pages(P2019_1, P2019_2, P2019_LAST))["lines"])
@@ -373,13 +420,15 @@ class TestChunkingAndDocument(unittest.TestCase):
         again = jt.build_document("/x/2023_11_34_38_EN.pdf", dict(self.ROW_2023), pages=pages(P2023_1, P2023_2, P2023_LAST))
         self.assertEqual([c["chunk_id"] for c in res["children"]], [c["chunk_id"] for c in again["children"]])
 
-    def test_manifest_values_win_and_pdf_fills_missing_bench(self):
+    def test_pdf_fills_missing_bench_in_manifest_style_and_order_is_per_curiam(self):
         row = dict(self.ROW_2023, bench_strength=None, judges=None, bench_source="",
                    author_judge="J.B. PARDIWALA", author_source="judge_column")
         doc = jt.build_document("/x/a.pdf", row, pages=pages(P2023_1, P2023_2, P2023_LAST))["doc"]
         self.assertEqual((doc["bench_strength"], doc["bench_source"]), (2, "pdf"))
-        self.assertEqual(doc["judges"], "J. B. PARDIWALA; MANOJ MISRA")
-        self.assertEqual((doc["author_judge"], doc["author_source"]), ("J.B. PARDIWALA", "judge_column"))
+        self.assertEqual(doc["judges"], "J.B. PARDIWALA; MANOJ MISRA")  # "J. B." normalised to manifest style
+        # An ORDER of the bench: Per Curiam beats the manifest's single-judge column
+        self.assertEqual((doc["author_judge"], doc["author_source"]), ("Per Curiam", "pdf_order"))
+        self.assertEqual(doc["author_manifest"], "J.B. PARDIWALA")
 
     def test_scanned_pdf_is_an_error_not_an_exception(self):
         res = jt.build_document("/x/b.pdf", {"doc_id": "d"}, pages=["", " "])

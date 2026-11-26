@@ -209,9 +209,12 @@ def main() -> None:
         n_parents += sum(len(r["parents"]) for r in batch_results)
         logger.info(f"[batch] +{len(batch_results)} docs (+{len(children)} chunks) | total {n_indexed} docs | "
                     f"{guard.format_telemetry()}")
-        if n_indexed % 100 < len(batch_results):  # coarse progress on stdout as well
+        if n_indexed % 50 < len(batch_results):  # coarse progress on stdout as well
+            elapsed = time.perf_counter() - t_start
+            ram_now, _ = guard.get_ram_usage_gb()
             print(f"[progress] {n_indexed}/{len(pending)} docs | {n_chunks} chunks | "
-                  f"peak RAM {guard.peak_ram_gb:.1f} GB | {time.perf_counter() - t_start:.0f}s", flush=True)
+                  f"{n_indexed / (elapsed / 60):.1f} docs/min | RAM {ram_now:.1f} GB (peak {guard.peak_ram_gb:.1f}) | "
+                  f"{elapsed:.0f}s | failed {len(failures)}", flush=True)
 
     def record(res: Dict[str, Any]) -> None:
         nonlocal disp_found, docs_with_statute

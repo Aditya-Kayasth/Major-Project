@@ -236,6 +236,76 @@ def name_key(name: Optional[str]) -> str:
     return re.sub(r"[^A-Z]", "", (name or "").upper())
 
 
+_HONORIFIC_RE = re.compile(r"^(?:DR\.?|HON'?BLE|MR\.?|MRS\.?|MS\.?|JUSTICE)\s+")
+
+
+def manifest_style(name: Optional[str]) -> str:
+    """Manifest name style: UPPERCASE, single spaces, initials joined ('J. B. PARDIWALA' -> 'J.B. PARDIWALA')."""
+    n = _SPACES_RE.sub(" ", (name or "").upper()).strip()
+    return re.sub(r"\b([A-Z])\.\s+(?=[A-Z]\.)", r"\1.", n)
+
+
+def _name_tokens(name: Optional[str]) -> List[str]:
+    n = _HONORIFIC_RE.sub("", manifest_style(name))
+    return [t for t in re.split(r"[\s.]+", n) if t]
+
+
+def match_bench(name: Optional[str], bench: List[str]) -> Optional[str]:
+    """The bench judge (manifest spelling) that `name` refers to, or None.
+
+    Real variants seen on the server (26 Nov): 'DR. DHANANJAYA Y CHANDRACHUD' = 'D.Y. CHANDRACHUD',
+    'NAGARATHNA' = 'B.V. NAGARATHNA', 'B.R. GAVAI' = 'BHUSHAN RAMKRISHNA GAVAI', 'MEHTA' = 'SANDEEP MEHTA',
+    'ROHINTON FALI NARIMAN' = 'R.F. NARIMAN'. Same surname; initials decide when two judges share one.
+    """
+    if not name or not bench:
+        return None
+    key = name_key(_HONORIFIC_RE.sub("", manifest_style(name)))
+    for judge in bench:
+        if name_key(judge) == key:
+            return judge
+    toks = _name_tokens(name)
+    if not toks:
+        return None
+    cands = [j for j in bench if _name_tokens(j) and _name_tokens(j)[-1] == toks[-1]]
+    if len(cands) == 1:
+        return cands[0]
+    if len(cands) > 1 and len(toks) > 1:
+        initials = [t[0] for t in toks[:-1]]
+        for judge in cands:
+            if [t[0] for t in _name_tokens(judge)[:-1]] == initials:
+                return judge
+    return None
+
+
+STRONG_PDF_AUTHOR_SOURCES = ("pdf_star", "pdf_running_header", "pdf_delivered_by", "pdf_body_signature")
+
+
+def resolve_final_author(manifest_author: Optional[str], manifest_source: Optional[str], bench: List[str],
+                         pdf_author: Optional[str], pdf_source: str) -> Tuple[Optional[str], str, Optional[bool]]:
+    """Author precedence (server finding, 26 Nov): PDF evidence first, manifest only as a fallback.
+
+    In the 20-PDF test index, 8 of the 11 inspected disagreements named a different judge, and in all 8 the
+    manifest's '*' author was the first-listed (presiding) judge while the PDF ('* Author' footnote, running
+    header, 'delivered by', opening 'NAME, J.') named another bench member. Returns (author, source, agrees),
+    where agrees compares the manifest author with the PDF author after mapping both onto the bench.
+    """
+    mapped = match_bench(pdf_author, bench) if pdf_source in STRONG_PDF_AUTHOR_SOURCES else None
+    agrees = None
+    if manifest_author and mapped:
+        agrees = name_key(match_bench(manifest_author, bench) or manifest_author) == name_key(mapped)
+    if mapped:
+        return mapped, pdf_source, agrees
+    if pdf_source in STRONG_PDF_AUTHOR_SOURCES and pdf_author and not bench:
+        return manifest_style(pdf_author), pdf_source, agrees
+    if pdf_source == "pdf_order":
+        return "Per Curiam", "pdf_order", agrees
+    if manifest_author and (manifest_source or "unknown") != "unknown":
+        return manifest_author, manifest_source, agrees
+    if pdf_source in STRONG_PDF_AUTHOR_SOURCES and pdf_author:
+        return manifest_style(pdf_author), f"{pdf_source}_unmatched", agrees
+    return None, "unknown", agrees
+
+
 # =========================================================================== sections
 HEADNOTE_LABEL_RE = re.compile(r"^(?:HEADNOTES?†?|Headnotes†?|Issue for [Cc]onsideration\b)")
 CASE_DETAILS_LABEL_RE = re.compile(r"^CASE DETAILS$")
@@ -641,20 +711,17 @@ def build_document(pdf_path: str, row: Dict[str, Any], parent_size: int = 2000, 
         strength = _none(row.get("bench_strength"))
         bench_source = _none(row.get("bench_source")) or ""
         if not strength and bench_pdf["judges"]:
-            judges = "; ".join(bench_pdf["judges"])
+            judges = "; ".join(manifest_style(j) for j in bench_pdf["judges"])
             strength = len(bench_pdf["judges"])
             bench_source = "pdf"
         strength = int(strength) if strength else None
+        bench_list = [j.strip() for j in (judges or "").split(";") if j.strip()]
 
         pdf_author, pdf_author_source = find_author(bench_pdf["author"], cleaned["running_author"],
                                                     sec["delivered_by"], sec["body"], sec["is_order"])
-        author = _none(row.get("author_judge"))
-        author_source = _none(row.get("author_source")) or "unknown"
-        if not author or author_source == "unknown":
-            author, author_source = pdf_author, pdf_author_source
-        author_agrees = None
-        if _none(row.get("author_judge")) and pdf_author and pdf_author != "Per Curiam":
-            author_agrees = name_key(row.get("author_judge")) == name_key(pdf_author)
+        manifest_author = _none(row.get("author_judge"))
+        author, author_source, author_agrees = resolve_final_author(
+            manifest_author, _none(row.get("author_source")), bench_list, pdf_author, pdf_author_source)
 
         full_text = "\n".join(cleaned["lines"])
         disposal = _none(row.get("disposal_nature"))
@@ -696,7 +763,8 @@ def build_document(pdf_path: str, row: Dict[str, Any], parent_size: int = 2000, 
             "body_marker": sec["body_marker"] or "",
             "disposition_pdf": cleaned["disposition_pdf"],
             "disposition_agrees": (d_pdf == d_meta) if (d_pdf and d_meta) else None,
-            "pdf_judges": "; ".join(bench_pdf["judges"]),
+            "pdf_judges": "; ".join(manifest_style(j) for j in bench_pdf["judges"]),
+            "author_manifest": manifest_author,
             "pdf_author": pdf_author,
             "pdf_author_source": pdf_author_source,
             "author_pdf_agrees": author_agrees,

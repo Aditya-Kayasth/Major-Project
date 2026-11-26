@@ -41,12 +41,17 @@ Counts per year (CLAUDE.md D2, reproduced exactly by this run): 2018: 185, 2019:
    - `bench_source` = `coram` | `declared` | `pdf` (the last is set only by the Phase 3 PDF fallback).
    - Implemented in `src/sc_metadata.resolve_bench`.
 2. **No Coram (3 records).** These are flagged for a PDF page-1 fallback in Phase 3. If the declared count exists, it is used meanwhile.
-3. **Author.** Order of preference:
-   - the Coram name marked `*`
-   - otherwise the parquet `judge` column, if it holds exactly one name
-   - otherwise unknown
-
-   `author_source` = `coram_star` | `judge_column` | `unknown`; implemented in `src/sc_metadata.resolve_author`.
+3. **Author (revised after the Phase 3 test index).**
+   - **What we saw:** in the 20-PDF test index, the manifest author and the PDF author disagreed for 13 documents. Of the 11 shown by `scripts/check_author_mismatch.py`:
+     - 3 were formatting only (`D.Y. CHANDRACHUD` / `DR. DHANANJAYA Y CHANDRACHUD`, `B.V. NAGARATHNA` / `NAGARATHNA`, `BHUSHAN RAMKRISHNA GAVAI` / `B.R. GAVAI`).
+     - 8 named a different judge. In all 8 the raw_html `*` (and the parquet `judge` column) pointed at the **first-listed, presiding judge**. The PDF named another bench member, with explicit evidence: the e-SCR `* Author` footnote, the old-SCR `[NAME, J.]` running header on every body page, "The Judgment of the Court was delivered by …", or the opening `NAME, J.` line.
+   - **Rule now** (`src/judgment_text.resolve_final_author`):
+     1. PDF evidence, mapped onto the bench and written in manifest style (`match_bench`)
+     2. else `Per Curiam` for an ORDER
+     3. else the manifest's `*` / single-name `judge` column
+     4. else unknown
+   - `author_source` records which source was used (`pdf_star`, `pdf_running_header`, `pdf_delivered_by`, `pdf_body_signature`, `pdf_order`, `coram_star`, `judge_column`, `unknown`). The manifest value is kept as `author_manifest`.
+   - `src/sc_metadata.resolve_author` still produces the manifest-side value.
 4. **Headnotes.** `raw_html` carries labelled headnotes only from 2023, and cut short. The headnote role is taken from the PDFs in Phase 3. Earlier records keep only a `subject_hint` (for example `Code of Criminal Procedure, 1973`).
 5. **Citation.** `neutral_citation` is missing for 15 records. The display citation falls back to the SCR citation (`[YYYY] N S.C.R. P`).
 6. **Scope of "criminal".** Selection by case number includes matters that are not IPC offences, for example an Income Tax s.276C prosecution and maintenance/paternity disputes heard as criminal appeals. They are kept on purpose because the selection rule is the case number. This will be stated in `docs/DATA_CARD.md`.
