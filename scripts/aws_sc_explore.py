@@ -156,7 +156,7 @@ def main() -> None:
         n_case_no = n_crim = 0
         for row in df.to_dict("records"):
             raw = row.get("raw_html")
-            p = parse_record(raw, row.get("title"))
+            p = parse_record(raw, row.get("title"), judge_column=row.get("judge"))
             n_case_no += p["case_no"] is not None
             n_crim += p["is_criminal"]
             if not p["is_criminal"]:

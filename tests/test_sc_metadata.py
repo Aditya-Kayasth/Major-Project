@@ -19,6 +19,8 @@ from src.sc_metadata import (
     parse_coram,
     parse_record,
     raw_case_type,
+    resolve_author,
+    resolve_bench,
     strip_boilerplate,
 )
 
@@ -212,6 +214,46 @@ class TestParseRecord(unittest.TestCase):
         self.assertIsNone(r["bench_strength"])
         self.assertEqual(r["bench_check"], "no_coram")
         self.assertFalse(r["is_criminal"])
+
+
+class TestBenchAndAuthorRules(unittest.TestCase):
+    # Real mismatch pattern from aws_sc_explore.py (11 records): Coram lists 1 judge, 'Bench : 2 Judges'
+    MISMATCH_TEXT = "Coram : SANJAY KAROL * Issue for Consideration ... | Bench : 2 Judges"
+
+    def test_coram_one_declared_two_takes_max(self):
+        r = parse_record(self.MISMATCH_TEXT)
+        self.assertEqual(r["judges"], ["SANJAY KAROL"])
+        self.assertEqual(r["bench_coram_count"], 1)
+        self.assertEqual(r["bench_declared"], 2)
+        self.assertEqual(r["bench_check"], "mismatch")
+        self.assertEqual(r["bench_strength"], 2)
+        self.assertEqual(r["bench_source"], "declared")
+        self.assertEqual(r["bench_type"], "Division (2)")
+        self.assertEqual(r["author_judge"], "SANJAY KAROL")
+        self.assertEqual(r["author_source"], "coram_star")
+
+    def test_coram_wins_when_equal_or_larger(self):
+        r = parse_record(TEXT_2025_1, TITLE_2025_1)
+        self.assertEqual((r["bench_strength"], r["bench_source"]), (2, "coram"))
+        r = parse_record(TEXT_2019_1, TITLE_2019_1)  # no declared count in the fixture
+        self.assertEqual((r["bench_strength"], r["bench_source"]), (2, "coram"))
+
+    def test_resolve_bench(self):
+        self.assertEqual(resolve_bench(1, 2), {"bench_strength": 2, "bench_source": "declared"})
+        self.assertEqual(resolve_bench(0, 3), {"bench_strength": 3, "bench_source": "declared"})
+        self.assertEqual(resolve_bench(3, 2), {"bench_strength": 3, "bench_source": "coram"})
+        self.assertEqual(resolve_bench(0, None), {"bench_strength": None, "bench_source": ""})
+
+    def test_author_fallback_to_single_name_judge_column(self):
+        # Real parquet `judge` values from the peek output
+        self.assertEqual(resolve_author("R.F. NARIMAN", "R.F. NARIMAN")["author_source"], "coram_star")
+        self.assertEqual(resolve_author(None, "SURYA KANT"), {"author_judge": "SURYA KANT", "author_source": "judge_column"})
+        self.assertEqual(resolve_author(None, "L. NAGESWARA RAO, HEMANT GUPTA"),
+                         {"author_judge": None, "author_source": "unknown"})
+        self.assertEqual(resolve_author(None, None)["author_source"], "unknown")
+        r3 = parse_record(TEXT_2019_3, TITLE_2019_3, judge_column="L. NAGESWARA RAO, HEMANT GUPTA")
+        self.assertIsNone(r3["author_judge"])
+        self.assertEqual(r3["author_source"], "unknown")
 
 
 class TestSmallHelpers(unittest.TestCase):

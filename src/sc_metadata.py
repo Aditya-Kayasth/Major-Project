@@ -226,8 +226,40 @@ def parse_headnote(after_coram: str) -> Dict[str, Any]:
     }
 
 
-def parse_record(raw_html: Any, title: Optional[str] = None) -> Dict[str, Any]:
-    """Parse one metadata row's raw_html into the fields used by the selection and manifest."""
+def resolve_bench(coram_count: int, declared: Optional[int]) -> Dict[str, Any]:
+    """Bench strength rule (Phase 1 finding): max(Coram count, declared 'Bench : N Judges').
+
+    11 of 1,891 criminal records list 1 judge in Coram but declare 'Bench : 2 Judges', so the
+    larger number wins. bench_source: 'coram' | 'declared' | '' (unknown; Phase 3 tries the PDF).
+    """
+    coram_count = coram_count or 0
+    declared = declared or 0
+    strength = max(coram_count, declared)
+    if strength == 0:
+        return {"bench_strength": None, "bench_source": ""}
+    return {"bench_strength": strength, "bench_source": "coram" if coram_count >= declared else "declared"}
+
+
+def single_judge_name(judge_column: Any) -> Optional[str]:
+    """The parquet `judge` value if it holds exactly one name, else None."""
+    if not isinstance(judge_column, str):
+        return None
+    names = [n.strip() for part in judge_column.split(",") for n in AND_SPLIT_RE.split(part) if n.strip()]
+    return _norm(names[0]) if len(names) == 1 else None
+
+
+def resolve_author(coram_author: Optional[str], judge_column: Any = None) -> Dict[str, Any]:
+    """Author rule: the Coram name marked '*'; else the parquet `judge` column if it holds one name."""
+    if coram_author:
+        return {"author_judge": coram_author, "author_source": "coram_star"}
+    single = single_judge_name(judge_column)
+    if single:
+        return {"author_judge": single, "author_source": "judge_column"}
+    return {"author_judge": None, "author_source": "unknown"}
+
+
+def parse_record(raw_html: Any, title: Optional[str] = None, judge_column: Any = None) -> Dict[str, Any]:
+    """Parse one metadata row's raw_html (+ optional parquet `judge`) into selection/manifest fields."""
     text = strip_boilerplate(clean_html(raw_html), title)
     case_no = parse_case_no(raw_html)
     trailer = parse_trailer(text)
@@ -238,14 +270,16 @@ def parse_record(raw_html: Any, title: Optional[str] = None) -> Dict[str, Any]:
     body_start = coram["end"] if coram["end"] is not None else body_end
     head = parse_headnote(text[body_start:body_end]) if body_start < body_end else parse_headnote("")
 
-    strength = len(coram["judges"]) or None
+    coram_count = len(coram["judges"])
     declared = trailer["bench_declared"]
-    if not strength:
+    if not coram_count:
         bench_check = "no_coram"
     elif declared is None:
         bench_check = "no_declared"
     else:
-        bench_check = "match" if declared == strength else "mismatch"
+        bench_check = "match" if declared == coram_count else "mismatch"
+    bench = resolve_bench(coram_count, declared)
+    strength = bench["bench_strength"]
 
     scr = SCR_RE.search(text)
     neutral = NEUTRAL_RE.search(text)
@@ -256,7 +290,10 @@ def parse_record(raw_html: Any, title: Optional[str] = None) -> Dict[str, Any]:
         "is_criminal": is_criminal(case_no or trailer["case_no"]),
         "judges": coram["judges"],
         "author_judge_coram": coram["author_judge"],
+        **resolve_author(coram["author_judge"], judge_column),
+        "bench_coram_count": coram_count,
         "bench_strength": strength,
+        "bench_source": bench["bench_source"],
         "bench_type": bench_type(strength),
         "bench_declared": declared,
         "bench_check": bench_check,
