@@ -99,14 +99,27 @@
 
 ## 6. Decisions (already made, don't re-open)
 
-**D1. Data:** AWS Open Data bucket `indian-supreme-court-judgments` (public, ap-south-1, no account: use boto3 `UNSIGNED` or plain HTTPS `https://indian-supreme-court-judgments.s3.amazonaws.com/<key>`).
-- PDFs: `data/pdf/year=YYYY/english/<name>.pdf`. Tars: `data/tar/year=YYYY/english/` (`english.tar` or `part-*.tar`, with `*.index.json`).
-- Metadata: `metadata/parquet/year=YYYY/metadata.parquet`. Columns: `title, petitioner, respondent, description, judge, author_judge, citation, case_id, cnr, decision_date, disposal_nature, court, available_languages, raw_html, path, nc_display, scraped_at, year`.
+**D1. Data:** AWS Open Data bucket `indian-supreme-court-judgments` (public, ap-south-1, no account: boto3 `UNSIGNED` or HTTPS `https://indian-supreme-court-judgments.s3.amazonaws.com/<key>`).
+- **Verified facts (checked on the server, 26 Nov):**
+  - Metadata `metadata/parquet/year=YYYY/metadata.parquet` is already downloaded for 2010–2025 to `$METADATA_DIR/sc/year=YYYY/metadata.parquet` (14 MB). Reuse it; don't re-download.
+  - Columns: `title, petitioner, respondent, description, judge, author_judge, citation, case_id, cnr, decision_date, disposal_nature, court, available_languages, raw_html, path, nc_display, scraped_at, year`.
+  - **PDF key = `data/pdf/year=YYYY/english/{path}_EN.pdf`** (e.g. `path=2019_16_971_992` → `.../2019_16_971_992_EN.pdf`).
+  - `case_id` is the **neutral citation** (`2019 INSC 1193`), NOT the case type. `nc_display` = `2019INSC1193`. `citation` = SCR citation (`[2019] 16 S.C.R. 971`). These are reported (SCR) judgments.
+  - `decision_date` format is `DD-MM-YYYY`. `description` is often empty. `author_judge` is often `<NA>`.
+  - **`judge` usually holds ONE name** (only 14% have several). Don't use it for bench strength.
+  - **`raw_html` is the rich field.** It is mostly web-page boilerplate, but it contains:
+    - `| Case No :</span><font color='green'> CRIMINAL APPEAL No. 645/2019</font>`, the **case type and number**
+    - the SCR header, e.g. `MISS XYZ v. STATE OF GUJARAT & ANR (Criminal Appeal No.1619 of 2019) OCTOBER 25, 2019 [UDAY UMESH LALIT, INDU MALHOTRA AND R...]`, the **full bench in square brackets**
+    - possibly headnote text
+  - Parse `raw_html` with regex/BeautifulSoup to get `case_no`, `case_type` and the bench list. Fallback for the bench: the PDF's first page (same `[NAME, NAME AND NAME, JJ.]` header).
+  - English PDF sizes 2018–2025: 6,674 files, ~2.56 GB in total, avg ~200–525 KB per file.
 - English only.
 
-**D2. Scope:** Supreme Court **criminal** judgments, years **2018–2025**.
-- The **pilot decides the size**. Target 1,500–2,500, hard cap 3,000.
-- If 2018–2025 has fewer than 1,500 criminal judgments, extend back a year at a time (not before 2010).
+**D2. Scope (LOCKED):** **all Supreme Court criminal judgments 2018–2025 — about 1,970 judgments, ~0.75 GB of PDFs.**
+- Criminal = the `Case No` value in `raw_html` matches `CRIMINAL|CRL|Crl\.` (e.g. CRIMINAL APPEAL, SLP (CRL.), REVIEW PETITION (CRIMINAL), WRIT PETITION (CRIMINAL)).
+- A loose "criminal anywhere in raw_html" match gives 1,973 for 2018–2025 (per year: 193 / 272 / 144 / 207 / 260 / 259 / 283 / 355). The strict Case No filter may give slightly fewer. Report both.
+- No sampling: index all of them. Extend to 2015–2017 (+~600) only if I ask.
+- Domain: IPC/BNS, CrPC/BNSS, Evidence Act/BSA, NDPS, POCSO, etc. Typical issues: murder, attempt, culpable homicide, dowry death, rape, bail, quashing, evidence, sentencing.
 - High Court data is out of scope (stretch only).
 
 **D3. Vector DB:** keep **ChromaDB**. No Qdrant (future scope for full-corpus scale).
@@ -122,7 +135,7 @@
 **D5. Chunking:** parent 2,000 chars, child 800 chars, overlap 120. Keep the rhetorical-marker flushing, role tags and the `[role | title]` prefix. Add a `Headnote` role when an e-SCR headnote block ("Issue for Consideration" / "Headnotes") appears before the judgment body.
 
 **D6. Hierarchy from metadata:**
-- `bench_strength` = number of judges in `judge`.
+- `bench_strength` = number of judges in the bench list parsed from `raw_html` (SCR header in square brackets), else from PDF page 1. NOT from the `judge` column.
 - `bench_type`: 1 Single, 2 Division (2), 3–4 Full (3+), ≥5 Constitution Bench.
 - Authority order: Constitution > 3-judge > 2-judge.
 - Stays a **bounded ±5% tie-breaker**; `AUTHORITY_STRENGTH=0` switches it off for the ablation.
@@ -166,16 +179,18 @@ SQLite gets a `documents` table (one row per judgment) next to the parent table.
 ### Phase 0: Orient (PC, no code changes)
 - Read the whole repo. Report in under 15 bullets: the architecture in your own words, every GPU-only assumption (bf16, `.cuda()`, zembed-specific code, cuDNN switch), every hard-coded path, and anything that contradicts this file.
 
-### Phase 1: Explore the data source (PC writes, server runs)
-- Write `scripts/aws_sc_explore.py`. On the server, it downloads the metadata parquet files for 2010–2025 into `$METADATA_DIR/sc/` (small files).
-- Print counts per year, 3 sample rows (truncate `raw_html`), and the real formats of `judge`, `case_id`, `title`, `description`, `citation`, `nc_display`, `path`, `decision_date`, `disposal_nature`, `available_languages`.
-- Propose a **criminal filter** (e.g. `CRIMINAL APPEAL|Crl\.|SLP\s*\(Crl|CRIMINAL` on `case_id`/`title`/`description`). Show 10 matched and 10 unmatched titles, and counts per year.
-- Verify that `path` maps to an English PDF key by downloading 5 sample PDFs on the server.
+### Phase 1: Parse raw_html and build the selection (PC writes, server runs)
+- The metadata is already downloaded (D1). Write `src/sc_metadata.py` with a parser for `raw_html` → `case_no`, `case_type`, `bench` (list), `bench_strength`, plus headnote text if present. Add unit tests built on real snippets I paste.
+- Write `scripts/aws_sc_explore.py`:
+  - apply the parser to 2018–2025
+  - print, per year: total, loose criminal count, strict Case No criminal count, the distribution of `case_type` values, the share with a parsed bench, and the `bench_strength` distribution
+  - show 5 parsed examples and 5 failures
+  - HEAD-check 5 PDF keys (`{path}_EN.pdf`)
 - The script prints a ≤60-line summary for me to paste back, and writes the full report to `$METADATA_DIR/sc_explore_report.md`. After I paste the summary, you save it as `docs/data_exploration.md` in the repo. **Stop and wait for my paste.**
 
 ### Phase 2: Download script and manifest (PC writes, server runs)
-- `scripts/download_aws_sc.py --years 2018-2025 --criminal-only --max-docs 3000 --seed 42 --workers 8`
-  - Dedupe on `(cnr, decision_date)`. Over the cap, sample stratified by year (seeded).
+- `scripts/download_aws_sc.py --years 2018-2025 --criminal-only --workers 8` (plus `--max-docs N` for tests only)
+  - Select with the strict Case No filter from Phase 1. Dedupe on `(cnr, decision_date)`. No sampling: all selected judgments.
   - Resumable HTTPS/boto3 downloads with retries; check the `%PDF` header.
   - Save to `$RAW_DATA_DIR/sc_aws/year=YYYY/`.
   - Write `$METADATA_DIR/manifest.parquet` (and `.csv`) with all metadata, `local_path` and `doc_id`.
@@ -204,7 +219,7 @@ SQLite gets a `documents` table (one row per judgment) next to the parent table.
 ### Phase 5: Pilot, then full indexing (server)
 - Give me one command: download a 100-judgment pilot if it isn't already there, then index it into `sc_criminal_cpu_pilot`.
 - Print docs/min, chunks/doc, peak RAM (process tree) and p50/p95 latency of 10 test queries (both rerankers).
-- From that, project the time and RAM for 1,500 / 2,000 / 2,500 / 3,000 judgments. **I choose the size and the reranker.**
+- From that, project the time and RAM for the full ~1,970 judgments. **I choose the reranker.**
 - Then the full run with nohup, and a status command (progress + RAM).
 
 ### Phase 6: Evaluation (PC writes, server runs)
