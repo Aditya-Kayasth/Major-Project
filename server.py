@@ -12,6 +12,7 @@ Usage (server; never at the same time as indexing):
 
 import argparse
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -21,10 +22,35 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from src.citation_check import check_citations
 from src.config import get_settings
 from src.llm_budget import get_budget
 from src.rag_pipeline import IndianLegalRAGPipeline, _field, bench_label
 from src.resource_guard import ResourceGuard
+
+# Presentation-layer citation normalisation. The answer model sometimes writes 【Precedent 1†Passage 2】
+# (full-width brackets, dagger, passage number) instead of [Precedent 1]. Display form: "[Precedent N, passage M]"
+# or "[Precedent N]". The existing citation check (src/citation_check.py, unchanged) only knows "[Precedent N]",
+# so it is run on the same text with the ", passage M" part removed.
+CITATION_FORM_RE = re.compile(
+    r"[【\[]\s*(Precedents?)\s+(\d+(?:\s*(?:,|and|&|-)\s*\d+)*)\s*(?:†\s*Passage\s*(\d+))?\s*[】\]]",
+    re.IGNORECASE)
+PASSAGE_SUFFIX_RE = re.compile(r"(\[Precedents? [^\]]*?), passage \d+\]", re.IGNORECASE)
+
+
+def normalize_answer_citations(text: str) -> str:
+    """【Precedent N†Passage M】, 【Precedent N】, [Precedent N†Passage M] -> "[Precedent N, passage M]" / "[Precedent N]"."""
+    def repl(m: "re.Match") -> str:
+        word = "Precedents" if m.group(1).lower() == "precedents" else "Precedent"
+        return f"[{word} {m.group(2)}, passage {m.group(3)}]" if m.group(3) else f"[{word} {m.group(2)}]"
+
+    return CITATION_FORM_RE.sub(repl, text or "")
+
+
+def citations_for_check(text: str) -> str:
+    """Normalised answer -> the "[Precedent N]" form the existing citation check understands."""
+    return PASSAGE_SUFFIX_RE.sub(r"\1]", text or "")
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 WEB_DIR = PROJECT_ROOT / "web"
@@ -127,8 +153,10 @@ def search(req: SearchRequest) -> Dict[str, Any]:
             res = pipeline.generate_answer(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
             groups, timings = res["judgment_groups"], res["timings"]
             expanded, finfo = res["expanded_query"], res["filters"]
-            answer, citation_check, low_confidence = res["answer"], res["citation_check"], res["low_confidence"]
-            best_relevance = res["best_relevance"]
+            low_confidence, best_relevance = res["low_confidence"], res["best_relevance"]
+            # normalise citation forms for display, then re-run the existing check on the normalised text
+            answer = normalize_answer_citations(res["answer"])
+            citation_check = check_citations(citations_for_check(answer), res["precedents"])
         else:
             funnel = pipeline.retrieve_hybrid(query=query, top_k=req.top_k, candidate_pool_size=60, filters=req.filters())
             groups, timings = funnel["judgments"], funnel["timings"]
