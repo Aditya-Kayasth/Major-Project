@@ -96,6 +96,14 @@ The ground truth is the target judgment's `doc_id`, and ranking is at judgment l
 - **Refusal calibration** (`MIN_RELEVANCE` sweep on out-of-scope vs in-scope queries): TODO.
 - **Answer quality** (Gemini judge, 15 queries; citation precision; out-of-scope refusal rate): TODO.
 
+**Benchmark v3 (held-out citations)** checks retrieval against the Court's own citations:
+- **Query:** the court-written issue of an **unseen 2026 judgment**, which is not in the index.
+- **Relevant judgments:** the precedents that the 2026 Court itself cited, mapped to our corpus by SCR or neutral citation.
+- **Scores are lower bounds:** the labels are incomplete, because relevant judgments the Court did not cite count as misses.
+- Construction details are in [docs/data_exploration.md](docs/data_exploration.md).
+
+Results: TODO, from `results/v3/results.json`.
+
 The web UI has an **Evaluation** page that draws these charts in the browser from the same `results.json`.
 
 ## 5. Demo

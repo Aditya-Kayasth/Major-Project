@@ -47,6 +47,33 @@ Counts per year (CLAUDE.md D2, reproduced exactly by this run): 2018: 185, 2019:
 | Disposition (PDF end text vs `disposal_nature`) | agrees 1,667 / 1,690 |
 | Judgments with ≥ 1 statute section found | 1,751 / 1,889 |
 
+## Benchmark v3: held-out citation benchmark (unseen 2026 judgments)
+
+- **Idea:** the query is the court-written "Issue for Consideration" of an **unseen 2026 judgment**; the relevant documents are **the precedents the Court itself cited** in that judgment.
+- **Build:** `scripts/build_citation_benchmark.py`; queries go to `$BENCHMARKS_DIR/v3/citation_queries_v3.json`.
+- **Source judgments:** 2026 Supreme Court criminal judgments, selected with the same case-number rule (CRIMINAL / CRL), read from the S3 2026 metadata and English PDFs.
+  - They are kept apart from the corpus: stored in `$RAW_DATA_DIR/sc_aws_2026/` with their own `manifest_2026.parquet`, and **never indexed** into `sc_criminal_cpu`.
+- **Query:**
+  - The "Issue for Consideration" block, or the first headnote paragraph if that block is missing.
+  - It is scrubbed of case names ("A v. B"), SCR / neutral / SCC / AIR citations, case numbers, dates, years (except Act years such as "Act, 1881"), and the 2026 case's own party and judge names.
+  - A query is dropped if the leakage filter still fires afterwards or fewer than 8 words remain.
+- **Targets:** cited judgments that are in our 1,889-judgment corpus. They are matched in three ways:
+  1. by SCR citation (`[2019] 4 SCR 208` or `[2019] 4 S.C.R. 208`), using year + volume + start page against the manifest's SCR citation
+  2. by neutral citation (`2019 INSC 386`)
+  3. optionally, by a conservative case-name match (both party keys + the same year 2018–2025 + exactly one corpus hit), flagged `match_type=name`
+
+  SCC and AIR citations are counted but cannot be mapped (the corpus has no SCC/AIR metadata). A query is kept if it has at least 1 target.
+- **Evaluation:** `scripts/evaluate_v2.py --queries citation_queries_v3.json --tag v3 --skip-llm`. It runs the same 5 configs, retrieval only, with multi-target metrics:
+  - Hit@k = any target in the top k
+  - MRR@10 on the first target found
+  - Recall@10
+  - nDCG@10
+  - all with 95% bootstrap CIs
+
+  Output goes to `$BENCHMARKS_DIR/v3/`.
+- **Limitation:** the labels are **incomplete**. A relevant judgment that the 2026 Court did not cite, or cited only by SCC/AIR, counts as a miss. Absolute v3 scores are therefore **lower bounds**; comparisons between configs on the same labels remain fair.
+- Build report and results: *to be filled from `build_report_v3.json` and `results/v3/results.json` after the run.*
+
 ## Findings and rules adopted
 
 1. **Bench data gap.** In 11 records the `Coram :` list names 1 judge while the trailing block declares `Bench : 2 Judges`.

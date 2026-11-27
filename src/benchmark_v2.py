@@ -37,6 +37,15 @@ LEAK_PATTERNS = {
                        re.IGNORECASE),
 }
 
+YEAR_RE = re.compile(r"\b(?:18|19|20)\d{2}\b")
+_ACT_CONTEXT_RE = re.compile(r"(?:Act|Code|Sanhita|Adhiniyam|Rules|Constitution)\s*,?\s*(?:of\s+)?$", re.IGNORECASE)
+
+
+def is_act_year(text: str, m: "re.Match") -> bool:
+    """A year that names a statute ('Negotiable Instruments Act, 1881') is not a leak."""
+    return m.group(0) in ACT_YEARS or bool(_ACT_CONTEXT_RE.search(text[max(0, m.start() - 30): m.start()]))
+
+
 OUT_OF_SCOPE_QUERIES = [
     "What is the limitation period for filing a suit for specific performance of an agreement to sell immovable property?",
     "Can a landlord evict a tenant for non-payment of rent under the Maharashtra Rent Control Act?",
@@ -100,7 +109,7 @@ def leakage_reasons(query: str, parties: Sequence[str] = (), judges: Sequence[st
     for name, rx in LEAK_PATTERNS.items():
         if rx.search(q):
             reasons.append(name)
-    years = [y for y in re.findall(r"\b(?:18|19|20)\d{2}\b", q) if y not in ACT_YEARS]
+    years = [m.group(0) for m in YEAR_RE.finditer(q) if not is_act_year(q, m)]
     if years:
         reasons.append("year:" + ",".join(years[:3]))
     return reasons

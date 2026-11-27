@@ -85,10 +85,15 @@ def write_json(path: Path, data: Any, compact: bool = False) -> None:
     tmp.replace(path)
 
 
-def load_queries(out_dir: Path, db_path: Path) -> List[Dict[str, Any]]:
-    path = out_dir / "queries_v2.json"
+def queries_path(out_dir: Path, name: str) -> Path:
+    p = Path(name)
+    return p if p.is_absolute() else out_dir / p
+
+
+def load_queries(out_dir: Path, db_path: Path, name: str = "queries_v2.json") -> List[Dict[str, Any]]:
+    path = queries_path(out_dir, name)
     if not path.exists():
-        sys.exit("[ERROR] queries_v2.json not found: run scripts/generate_benchmark_v2.py first.")
+        sys.exit(f"[ERROR] {path.name} not found in the benchmark folder (run the generator / builder first).")
     queries = json.loads(path.read_text(encoding="utf-8"))
     human = out_dir / "human_queries.json"
     if human.exists():
@@ -159,7 +164,7 @@ def run_retrieval(args, settings, out_dir: Path) -> None:
     guard = ResourceGuard(max_ram_gb=settings.max_ram_gb, warn_ram_gb=settings.warn_ram_gb,
                           num_cpu_threads=settings.num_threads)
     pipe = IndianLegalRAGPipeline(settings=settings, collection_name=args.collection)
-    queries = load_queries(out_dir, pipe.sqlite_store.db_path)
+    queries = load_queries(out_dir, pipe.sqlite_store.db_path, args.queries)
     if args.max_queries:
         queries = queries[: args.max_queries] + [q for q in queries if q["type"] == "out_of_scope"][:2]
     in_scope = [q for q in queries if q["type"] != "out_of_scope"]
@@ -206,7 +211,7 @@ def run_retrieval(args, settings, out_dir: Path) -> None:
                       "authority_strength": settings.authority_strength, "authority_max_bonus": settings.authority_max_bonus,
                       "min_relevance": settings.min_relevance, "candidate_pool": 60, "k": 10},
         "seed": SEED, "bootstrap_resamples": 1000,
-        "queries": {"file_sha1": hashlib.sha1((out_dir / "queries_v2.json").read_bytes()).hexdigest()[:12],
+        "queries": {"file_sha1": hashlib.sha1(queries_path(out_dir, args.queries).read_bytes()).hexdigest()[:12],
                     "counts": {t: sum(1 for q in queries if q["type"] == t) for t in sorted({q["type"] for q in queries})}},
         "retrieval_elapsed_sec": round(time.perf_counter() - t0, 1),
     }
@@ -224,7 +229,7 @@ def run_generation(args, settings, out_dir: Path) -> None:
     rows: List[Dict[str, Any]] = read_json(path, [])
     done = {r["query_id"] for r in rows}
     pipe = IndianLegalRAGPipeline(settings=settings, collection_name=args.collection)
-    queries = load_queries(out_dir, pipe.sqlite_store.db_path)
+    queries = load_queries(out_dir, pipe.sqlite_store.db_path, args.queries)
     oos = [q for q in queries if q["type"] == "out_of_scope"]
     legal = [q for q in queries if q["type"] == "legal_issue"]
     facts = [q for q in queries if q["type"] == "fact_pattern"]
@@ -373,11 +378,11 @@ def print_summary(agg: Dict[str, Any], out_dir: Path) -> None:
     print("=" * 100)
     print(f"EVAL v2 | {manifest.get('timestamp')} | commit {manifest.get('git_commit')} | {manifest.get('collection')} | "
           f"{(manifest.get('corpus') or {}).get('judgments')} judgments | queries {(manifest.get('queries') or {}).get('counts')}")
-    print(f"{'config':<30} {'Hit@1':>7} {'Hit@3':>7} {'Hit@5':>7} {'Hit@10':>7} {'MRR@10':>7} {'nDCG@10':>8}  {'MRR 95% CI':>16} {'p50 ms':>7} {'p95 ms':>7}")
+    print(f"{'config':<30} {'Hit@1':>7} {'Hit@3':>7} {'Hit@5':>7} {'Hit@10':>7} {'MRR@10':>7} {'nDCG@10':>8} {'R@10':>6}  {'MRR 95% CI':>16} {'p50 ms':>7} {'p95 ms':>7}")
     for cfg in CONFIGS:
         o, lat = cfgs[cfg]["overall"], cfgs[cfg]["latency_ms"]
         print(f"{LABELS[cfg]:<30} {o['hit@1']['value']:>7.3f} {o['hit@3']['value']:>7.3f} {o['hit@5']['value']:>7.3f} "
-              f"{o['hit@10']['value']:>7.3f} {o['mrr@10']['value']:>7.3f} {o['ndcg@10']['value']:>8.3f}  "
+              f"{o['hit@10']['value']:>7.3f} {o['mrr@10']['value']:>7.3f} {o['ndcg@10']['value']:>8.3f} {o['recall@10']['value']:>6.3f}  "
               f"[{o['mrr@10']['ci'][0]:.3f}, {o['mrr@10']['ci'][1]:.3f}] {lat['p50']:>7.0f} {lat['p95']:>7.0f}")
     for t in types:
         print(f"-- {t}: " + " | ".join(f"{LABELS[c]} H@5 {cfgs[c]['by_type'][t]['hit@5']:.3f} MRR {cfgs[c]['by_type'][t]['mrr@10']:.3f}"
@@ -400,19 +405,20 @@ def print_summary(agg: Dict[str, Any], out_dir: Path) -> None:
               f"{g['oos_low_confidence']}) | judge: {g['judge']} n={g['n_judged']} means {g['judge_means']}")
     else:
         print("generation: not run")
-    samples = [next((p for p in per_query if p["type"] == "legal_issue"), None),
-               next((p for p in per_query if p["type"] == "fact_pattern"), None),
-               next((p for p in per_query if p["full"]["rank"] is None), None)]
-    for label, p in zip(("sample legal", "sample facts", "sample miss"), samples):
+    # sanity check of the ground-truth matching: first query of each type + first Full miss
+    samples = [(f"sample {t}", next(p for p in per_query if p["type"] == t)) for t in types]
+    samples.append(("sample miss", next((p for p in per_query if p["full"]["rank"] is None), None)))
+    for label, p in samples:
         if p is None:
             print(f"{label}: (none)")
             continue
         top1 = p["full"]["top3"][0] if p["full"]["top3"] else None
         print(f"{label}: {p['query_id']} | Q: {str(p.get('query'))[:110]}")
-        print(f"    target {p['targets'][0]} {str(p.get('target_title'))[:45]} ({p.get('target_citation')}) | Full rank "
-              f"{p['full']['rank']} | Full top1 {top1} | BM25 rank {p['bm25']['rank']}")
+        print(f"    targets {len(p['targets'])} (first {p['targets'][0]} {str(p.get('target_title'))[:40]}, "
+              f"{p.get('target_citation')}) | Full rank {p['full']['rank']} recall@10 {p['full']['recall@10']:.2f} | "
+              f"Full top1 {top1} | BM25 rank {p['bm25']['rank']}")
     size_kb = (out_dir / "results.json").stat().st_size / 1024
-    print(f"files: $BENCHMARKS_DIR/v2/results.json ({size_kb:.1f} KB), results.md, run_manifest.json, per_query.json")
+    print(f"files: $BENCHMARKS_DIR/{out_dir.name}/results.json ({size_kb:.1f} KB), results.md, run_manifest.json, per_query.json")
 
 
 def write_markdown(path: Path, results: Dict[str, Any], manifest: Dict[str, Any]) -> None:
@@ -422,13 +428,13 @@ def write_markdown(path: Path, results: Dict[str, Any], manifest: Dict[str, Any]
          f"`{manifest.get('collection')}` ({corpus.get('judgments')} judgments, {corpus.get('chunks')} chunks). "
          f"Queries: {(manifest.get('queries') or {}).get('counts')}. Judgment-level ranking, k = 10, 95% bootstrap CIs "
          f"(1,000 resamples, seed 42).", "",
-         "| Config | Hit@1 | Hit@3 | Hit@5 | Hit@10 | MRR@10 [95% CI] | nDCG@10 | p50 ms | p95 ms |",
-         "|---|---|---|---|---|---|---|---|---|"]
+         "| Config | Hit@1 | Hit@3 | Hit@5 | Hit@10 | MRR@10 [95% CI] | nDCG@10 | Recall@10 | p50 ms | p95 ms |",
+         "|---|---|---|---|---|---|---|---|---|---|"]
     for c in results["configs"].values():
         o, lat = c["overall"], c["latency_ms"]
         L.append(f"| {c['label']} | {o['hit@1']['value']:.3f} | {o['hit@3']['value']:.3f} | {o['hit@5']['value']:.3f} | "
                  f"{o['hit@10']['value']:.3f} | {o['mrr@10']['value']:.3f} [{o['mrr@10']['ci'][0]:.3f}, {o['mrr@10']['ci'][1]:.3f}] | "
-                 f"{o['ndcg@10']['value']:.3f} | {lat['p50']:.0f} | {lat['p95']:.0f} |")
+                 f"{o['ndcg@10']['value']:.3f} | {o['recall@10']['value']:.3f} | {lat['p50']:.0f} | {lat['p95']:.0f} |")
     types = list(next(iter(results["configs"].values()))["by_type"].keys())
     L += ["", "## By query type (Hit@5 / MRR@10)", "", "| Type | n | " + " | ".join(c["label"] for c in results["configs"].values()) + " |",
           "|---|---|" + "---|" * len(results["configs"])]
@@ -450,6 +456,8 @@ def write_markdown(path: Path, results: Dict[str, Any], manifest: Dict[str, Any]
 def main() -> None:
     ap = argparse.ArgumentParser(description="Evaluate benchmark v2 (resumable steps)")
     ap.add_argument("--collection", default="sc_criminal_cpu")
+    ap.add_argument("--queries", default="queries_v2.json", help="Queries file in the benchmark folder (v3: citation_queries_v3.json)")
+    ap.add_argument("--tag", default="v2", help="Benchmark folder under BENCHMARKS_DIR (v2, v3)")
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--skip-llm", action="store_true", help="Step 1 only: retrieval metrics")
     mode.add_argument("--llm-only", action="store_true", help="Step 2 only: answers, reusing per_query.json")
@@ -463,7 +471,7 @@ def main() -> None:
     args = ap.parse_args()
 
     settings = get_settings()
-    out_dir = settings.benchmarks_dir / "v2"
+    out_dir = settings.benchmarks_dir / args.tag
     out_dir.mkdir(parents=True, exist_ok=True)
     if args.llm_only:
         run_generation(args, settings, out_dir)
