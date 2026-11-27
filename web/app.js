@@ -14,7 +14,9 @@ function renderMarkdown(md) {
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, "$1<em>$2</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\[Precedents? (\d+(?:\s*(?:,|and|-)\s*\d+)*)\]/g, '<span class="cite">[Precedent $1]</span>');
+    // [Precedent N] / [Precedents 1 and 3] / [Precedents 1, 2]: each number links to its card (rank N = Precedent N)
+    .replace(/\[(Precedents?) (\d+(?:\s*(?:,|and|&amp;|-)\s*\d+)*)\]/g, (_, word, nums) =>
+      `<span class="cite">[${word} ${nums.replace(/\d+/g, (n) => `<a href="#judgment-${n}">${n}</a>`)}]</span>`);
   const lines = escapeHtml(md).split(/\r?\n/);
   let html = "", inList = false, para = [], table = [];
   const flushPara = () => { if (para.length) { html += `<p>${inline(para.join(" "))}</p>`; para = []; } };
@@ -147,15 +149,20 @@ function renderResults(results) {
     const statutes = (r.statutes_cited || "").split("; ").filter(Boolean);
     const shown = statutes.slice(0, 6).join("; ") + (statutes.length > 6 ? ` +${statutes.length - 6}` : "");
     const prior = `${r.authority_factor >= 1 ? "+" : ""}${((r.authority_factor - 1) * 100).toFixed(1)}%`;
+    const url = safePdfUrl(r.pdf_url);
+    const title = url
+      ? `<a class="title-link" href="${url}" target="_blank" rel="noopener">${escapeHtml(r.case_title)}</a>`
+      : escapeHtml(r.case_title);
     return `
-    <article class="card judgment">
+    <article class="card judgment" id="judgment-${r.rank}">
       <div class="rank">${r.rank}</div>
       <div>
-        <div class="result-title">${escapeHtml(r.case_title)}</div>
+        <div class="result-title">${title}</div>
         <div class="mchips">
           ${chip("Citation", r.citation)}${chip("Date", r.decision_date)}
           ${chip("Bench", r.bench_label, r.judges)}${chip("Author", r.author_judge, r.author_source ? `source: ${r.author_source}` : "")}
           ${chip("Disposal", r.disposal_nature)}${chip("Statutes", shown, statutes.join("; "))}
+          ${url ? `<a class="pdf-btn" href="${url}" target="_blank" rel="noopener">Open official PDF</a>` : ""}
         </div>
         <div class="note">relevance ${r.relevance.toFixed(3)} · authority prior ${prior} · score ${r.score.toFixed(3)} · judges: ${escapeHtml(r.judges)}</div>
         ${r.passages.map((p, i) => `
@@ -167,6 +174,23 @@ function renderResults(results) {
       </div>
     </article>`;
   }).join("");
+}
+
+/* Official PDF links: only URLs in the public AWS Open Data bucket are rendered (always via escapeHtml). */
+const PDF_PREFIX = "https://indian-supreme-court-judgments.s3.amazonaws.com/";
+const safePdfUrl = (u) => (typeof u === "string" && u.startsWith(PDF_PREFIX) ? escapeHtml(u) : "");
+
+/* Sources under the answer: one line per cited precedent (rank N = Precedent N). */
+function renderSources(cc, results) {
+  const nums = (cc && cc.valid_precedents) || [];
+  const rows = nums.map((n) => {
+    const r = results.find((x) => x.rank === n);
+    if (!r) return "";
+    const href = safePdfUrl(r.pdf_url);
+    const pdf = href ? ` · <a href="${href}" target="_blank" rel="noopener">Open PDF</a>` : "";
+    return `<li><a href="#judgment-${n}">[${n}]</a> ${escapeHtml(r.case_title)}${r.citation ? `, ${escapeHtml(r.citation)}` : ""}${pdf}</li>`;
+  }).filter(Boolean);
+  return rows.length ? `<div class="sources"><h4>Sources</h4><ul class="sources-list">${rows.join("")}</ul></div>` : "";
 }
 
 $("#search-form").addEventListener("submit", async (e) => {
@@ -190,7 +214,7 @@ $("#search-form").addEventListener("submit", async (e) => {
     renderTimingLine(data.timings || {});
     renderResults(data.results || []);
     if (data.answer) {
-      $("#answer").innerHTML = renderMarkdown(data.answer);
+      $("#answer").innerHTML = renderMarkdown(data.answer) + renderSources(data.citation_check, data.results || []);
       $("#answer-card").classList.remove("hidden");
     } else { $("#answer-card").classList.add("hidden"); }
     $("#results-area").classList.remove("hidden");

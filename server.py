@@ -62,7 +62,15 @@ class SearchRequest(BaseModel):
 
 def judgment_card(g: Dict[str, Any]) -> Dict[str, Any]:
     """One card per judgment: metadata chips + up to 2 passages with role labels."""
+    import re
+
     meta = pipeline.judgment_meta(g)
+    # Official PDF in the public AWS Open Data bucket, same key format as scripts/download_aws_sc.py
+    # (local_pdf_path: <root>/year=YYYY/<path>_EN.pdf; s3_key: data/pdf/year=YYYY/english/<path>_EN.pdf).
+    # The full relative <path> after year=YYYY/ is kept, so a nested path still maps correctly ("" if not parseable).
+    m = re.search(r"year=(\d{4})/(.+_EN\.pdf)$", str(meta.get("source_path") or "").replace("\\", "/"))
+    pdf_url = (f"https://indian-supreme-court-judgments.s3.amazonaws.com/data/pdf/year={m.group(1)}/english/{m.group(2)}"
+               if m else "")
     return {
         "rank": g["rank"],
         "doc_id": g["doc_id"],
@@ -77,6 +85,7 @@ def judgment_card(g: Dict[str, Any]) -> Dict[str, Any]:
         "author_source": meta.get("author_source") or "",
         "disposal_nature": meta.get("disposal_nature") or "",
         "statutes_cited": meta.get("statutes_cited") or "",
+        "pdf_url": pdf_url,
         "score": round(float(g["score"]), 4),
         "relevance": round(float(g["relevance"]), 4),
         "authority_factor": round(float(g["authority_factor"]), 4),

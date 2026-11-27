@@ -183,6 +183,23 @@ input[type="number"] {
 .role { font-size: 12px; padding: 2px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .role.headnote { background: var(--bg); color: var(--ink-soft); border: 1px dashed var(--line); }
 .answer .cite { color: var(--accent); font-weight: 600; font-family: var(--sans); font-size: 0.92em; }
+.answer .cite a { color: inherit; }
+
+/* Source links */
+.title-link { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+.title-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.pdf-btn {
+  font-size: 12.5px; padding: 2px 8px; border-radius: 4px; text-decoration: none;
+  border: 1px solid var(--accent); color: var(--accent); background: var(--surface);
+}
+.pdf-btn:hover { background: var(--accent-soft); }
+.judgment { scroll-margin-top: 16px; }
+.judgment:target { outline: 2px solid var(--accent); }
+.sources { font-family: var(--sans); font-size: 13.5px; border-top: 1px solid var(--line); margin-top: 14px; padding-top: 8px; }
+.sources h4 { margin: 4px 0 6px; font-size: 14px; }
+.sources-list { list-style: none; padding-left: 0; margin: 0; }
+.sources-list li { margin: 3px 0; }
+.sources a { color: var(--accent); }
 
 /* Evaluation charts: categorical slots 1-5 of the reference palette, light and dark steps */
 .viz-root {
