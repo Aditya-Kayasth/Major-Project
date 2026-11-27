@@ -75,6 +75,28 @@ class GeminiBudget:
         self.usage_path = self.settings.benchmarks_dir / "gemini_usage.json"
         self._cache: Optional[Dict[str, str]] = None
         self._daily_quota_hit = False
+        # Which model actually produced the last answer (fallbacks included); persisted per cache key
+        self.meta_path = self.settings.benchmarks_dir / "llm_cache_meta.json"
+        self._meta: Optional[Dict[str, Dict[str, Any]]] = None
+        self._answered_by: Optional[str] = None
+        self.last_model: Optional[str] = None
+        self.last_from_cache = False
+
+    def _load_meta(self) -> Dict[str, Dict[str, Any]]:
+        if self._meta is None:
+            try:
+                self._meta = json.loads(self.meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                self._meta = {}
+        return self._meta
+
+    def _save_meta(self) -> None:
+        try:
+            tmp = self.meta_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self._meta, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(self.meta_path)
+        except Exception as err:
+            logger.warning(f"Could not persist LLM cache metadata: {err}")
 
     # ------------------------------------------------------------------ cache
     def _load_cache(self) -> Dict[str, str]:
@@ -189,9 +211,12 @@ class GeminiBudget:
             engine = "compat-only:" + ",".join(compat_models)
         key_src = json.dumps([engine, str(system), str(contents)], ensure_ascii=False)
         cache_key = hashlib.sha256(key_src.encode("utf-8")).hexdigest()
+        self.last_model, self.last_from_cache, self._answered_by = None, False, None
         if use_cache:
             cached = self._load_cache().get(cache_key)
             if cached is not None:
+                self.last_from_cache = True
+                self.last_model = self._load_meta().get(cache_key, {}).get("model")  # None = cached before tracking
                 return cached
 
         text: Optional[str] = None
@@ -208,9 +233,13 @@ class GeminiBudget:
             if text:
                 break
 
+        if text:
+            self.last_model = self._answered_by
         if text and use_cache:
             self._load_cache()[cache_key] = text
             self._save_cache()
+            self._load_meta()[cache_key] = {"model": self._answered_by}
+            self._save_meta()
         return text
 
     def _generate_compat(
@@ -268,12 +297,14 @@ class GeminiBudget:
                     try:
                         text = resp.json()["choices"][0]["message"]["content"] or ""
                     except Exception as err:
-                        logger.warning(f"Unexpected LLM API response shape: {err} :: {resp.text[:200]}")
+                        logger.warning(f"Unexpected LLM API response shape from '{model_name}': {err} :: {resp.text[:200]}")
                         break
                     # Reasoning models may emit their scratchpad inline; keep only the final answer
                     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
                     if not text:
+                        logger.warning(f"'{model_name}' returned an empty answer; trying the next model.")
                         break
+                    self._answered_by = model_name
                     return LocalLLM._extract_json(text) if json_mode else text
 
                 body = resp.text[:300]
@@ -296,7 +327,7 @@ class GeminiBudget:
                         logger.warning(f"'{model_name}' rate-limited ({resp.status_code}); trying the next model.")
                         break
                     if wait > 120:
-                        logger.error(f"LLM API asked to wait {wait:.0f}s (quota likely exhausted): {body}")
+                        logger.error(f"LLM API asked '{model_name}' to wait {wait:.0f}s (quota likely exhausted): {body}")
                         break
                     logger.warning(f"LLM API {resp.status_code}; retrying in {wait:.0f}s ... {body[:120]}")
                     time.sleep(wait)
@@ -311,10 +342,13 @@ class GeminiBudget:
         from src.local_llm import get_local_llm
 
         try:
-            return get_local_llm(self.settings.local_llm_model).generate(
+            out = get_local_llm(self.settings.local_llm_model).generate(
                 str(contents), system=system, json_mode=json_mode,
                 temperature=0.1 if temperature is None else float(temperature),
             )
+            if out:
+                self._answered_by = f"local:{self.settings.local_llm_model}"
+            return out
         except Exception as err:
             logger.error(f"Local LLM generation failed: {err}")
             return None
@@ -343,6 +377,7 @@ class GeminiBudget:
                     response = client.models.generate_content(model=model_name, contents=contents, config=config)
                     text = (response.text or "") if response else ""
                     if text:
+                        self._answered_by = f"gemini:{model_name}"
                         return text
                     break
                 except Exception as err:

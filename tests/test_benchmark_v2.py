@@ -167,6 +167,63 @@ class TestGroqJudgeRoute(unittest.TestCase):
             tmp.cleanup()
 
 
+class TestGeneratorAttribution(unittest.TestCase):
+    CHAIN = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
+
+    def test_log_trace(self):
+        log = [
+            "[gen] 20 queries (5 out-of-scope, 10 legal, 5 facts); 0 already done; route ...",
+            "[gen] OOS-01 out_of_scope | low_conf True | precision None | refused True | llm 0.0s | wall 1.2s",
+            "[gen] LQ-001 legal_issue | low_conf False | precision 1.0 | refused False | llm 3.1s | wall 5.0s",
+            "'openai/gpt-oss-120b' rate-limited (429); trying the next model.",
+            "[gen] LQ-002 legal_issue | low_conf False | precision 1.0 | refused False | llm 9.0s | wall 11.0s",
+            "'openai/gpt-oss-120b' rate-limited (429); trying the next model.",
+            "LLM API error 400 on 'qwen/qwen3.8-27b': bad request",
+            "[gen] LQ-003 legal_issue | low_conf False | precision 1.0 | refused False | llm 9.0s | wall 11.0s",
+            "LLM API asked to wait 300s (quota likely exhausted): ...",
+            "[gen] LQ-004 legal_issue | low_conf False | precision 1.0 | refused False | llm 9.0s | wall 11.0s",
+        ]
+        out = bv.attribute_generators_from_log(log, self.CHAIN)
+        self.assertEqual(out["OOS-01"]["model"], None)
+        self.assertEqual(out["LQ-001"]["model"], "openai/gpt-oss-120b")
+        self.assertEqual(out["LQ-002"]["model"], "qwen/qwen3.8-27b")
+        self.assertEqual(out["LQ-003"]["model"], "openai/gpt-oss-20b")
+        self.assertEqual(out["LQ-004"]["model"], "unknown")  # old message without a model name
+
+    def test_judge_exclusion(self):
+        answers = {"A": {"generator_model": "openai/gpt-oss-120b"}, "B": {"generator_model": "qwen/qwen3.8-27b"},
+                   "C": {"generator_model": "unknown"}}
+        rows = [{"query_id": q, "judge_model": "qwen/qwen3.8-27b", "scores": {"groundedness": 8}} for q in "ABC"] + \
+               [{"query_id": "D", "judge_model": "qwen/qwen3.8-27b", "scores": None}]
+        split = bv.judge_exclusion(rows, answers)
+        self.assertEqual([r["query_id"] for r in split["excluded"]], ["B"])
+        self.assertEqual([r["query_id"] for r in split["unknown"]], ["C"])
+        self.assertEqual(sorted(r["query_id"] for r in split["included"]), ["A", "C"])
+
+    def test_llm_budget_records_the_fallback_model(self):
+        from unittest.mock import MagicMock, patch
+
+        from src.llm_budget import GeminiBudget
+        from tests._isolated import isolated_settings
+
+        tmp, s = isolated_settings(llm_api_key="dummy", llm_model="openai/gpt-oss-120b",
+                                   llm_fallback_models=["qwen/qwen3.8-27b"], llm_rpm=1000.0)
+        try:
+            b = GeminiBudget(s)
+            limited = MagicMock(status_code=429, headers={"retry-after": "60"}, text="rate limit")
+            ok = MagicMock(status_code=200, headers={})
+            ok.json.return_value = {"choices": [{"message": {"content": "answer"}}]}
+            with patch("httpx.post", side_effect=[limited, ok]):
+                self.assertEqual(b.generate(client=None, models=[], contents="q", providers=["openai"]), "answer")
+            self.assertEqual(b.last_model, "qwen/qwen3.8-27b")
+            self.assertFalse(b.last_from_cache)
+            b2 = GeminiBudget(s)  # new process: the cache meta file still knows who answered
+            self.assertEqual(b2.generate(client=None, models=[], contents="q", providers=["openai"]), "answer")
+            self.assertEqual((b2.last_model, b2.last_from_cache), ("qwen/qwen3.8-27b", True))
+        finally:
+            tmp.cleanup()
+
+
 class TestJudgeProviderSwitch(unittest.TestCase):
     def test_providers_restricts_chain(self):
         from src.llm_budget import GeminiBudget

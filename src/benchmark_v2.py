@@ -178,6 +178,69 @@ def summarize(per_query: List[Dict[str, float]], with_ci: bool = True, seed: int
     return out
 
 
+# ---------------------------------------------------------------------------- generator attribution
+GEN_LINE_RE = re.compile(r"^\[gen\] (?P<qid>\S+) \S+ \| low_conf (?P<lc>True|False)")
+ABANDON_RES = [  # llm_budget messages that name the model being abandoned for the NEXT one
+    re.compile(r"'(?P<m>[^']+)' rate-limited \(\d+\); trying the next model"),
+    re.compile(r"LLM API error \d+ on '(?P<m>[^']+)'"),
+    re.compile(r"LLM API asked '(?P<m>[^']+)' to wait"),
+    re.compile(r"Unexpected LLM API response shape from '(?P<m>[^']+)'"),
+    re.compile(r"'(?P<m>[^']+)' returned an empty answer"),
+]
+AMBIGUOUS_RES = [  # model switches whose model cannot be read from the message
+    re.compile(r"LLM API asked to wait"), re.compile(r"Unexpected LLM API response shape:"),
+    re.compile(r"Gemini|Falling back", re.IGNORECASE),
+]
+
+
+def attribute_generators_from_log(lines: Sequence[str], chain: Sequence[str]) -> Dict[str, Dict[str, Any]]:
+    """Reconstruct which model answered each [gen] line from llm_budget's fallback warnings.
+
+    chain = LLM_MODEL + LLM_FALLBACK_MODELS in order. The answering model is the first model in the chain
+    that was not abandoned since the previous [gen] line. Limits: a cache hit or a silent empty answer
+    (code before this change) leaves no trace, so attribution from a log is 'probable', not recorded.
+    """
+    out: Dict[str, Dict[str, Any]] = {}
+    abandoned: List[str] = []
+    ambiguous = False
+    for line in lines:
+        g = GEN_LINE_RE.match(line.strip())
+        if g:
+            if g.group("lc") == "True":
+                out[g.group("qid")] = {"model": None, "source": "log:no_llm_call"}
+            elif ambiguous:
+                out[g.group("qid")] = {"model": "unknown", "source": "log:ambiguous", "abandoned": abandoned}
+            else:
+                left = [m for m in chain if m not in abandoned]
+                out[g.group("qid")] = {"model": left[0] if left else "unknown", "source": "log:fallback_trace",
+                                       "abandoned": abandoned}
+            abandoned, ambiguous = [], False
+            continue
+        for rx in ABANDON_RES:
+            m = rx.search(line)
+            if m:
+                abandoned.append(m.group("m"))
+                break
+        else:
+            if any(rx.search(line) for rx in AMBIGUOUS_RES):
+                ambiguous = True
+    return out
+
+
+def judge_exclusion(judge_rows: Sequence[Dict[str, Any]], answers_by_id: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Split successfully judged rows into: included, excluded (generator model == judge model), unknown generator."""
+    included, excluded, unknown = [], [], []
+    for r in judge_rows:
+        if not r.get("scores"):
+            continue
+        gen = (answers_by_id.get(r["query_id"]) or {}).get("generator_model")
+        if gen and gen == r.get("judge_model"):
+            excluded.append(r)
+        else:
+            (unknown if gen in (None, "unknown") else included).append(r)
+    return {"included": included + unknown, "excluded": excluded, "unknown": unknown}
+
+
 PRECEDENT_HEADER_RE = re.compile(r"^\[Precedent (\d+)\]", re.MULTILINE)
 
 

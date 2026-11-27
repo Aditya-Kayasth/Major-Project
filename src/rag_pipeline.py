@@ -430,6 +430,7 @@ class IndianLegalRAGPipeline:
         t = time.perf_counter()
         if not judgments or low_confidence:
             answer, precedents, context = INSUFFICIENT_ANSWER, [], ""
+            llm_model = None  # no LLM call
         else:
             context, precedents = self.build_context(judgments)
             prompt = (f"Legal question:\n{query}\n\nPrecedents (the only sources you may use):\n\n{context}\n\n"
@@ -441,10 +442,13 @@ class IndianLegalRAGPipeline:
                 config=gen_config(system_instruction=GROUNDED_LEGAL_SYSTEM_INSTRUCTION, temperature=0.1),
             ) or ("Answer synthesis unavailable (no LLM provider reachable: check LLM_API_KEY / GEMINI_API_KEY). "
                   "The ranked precedents were retrieved successfully.")
+            # the model that actually answered (fallbacks included); None if cached before tracking existed
+            llm_model = get_budget(self.settings).last_model
         timings["llm_generation_sec"] = round(time.perf_counter() - t, 4)
         timings["total_latency_sec"] = round(time.perf_counter() - t_all, 4)
         return {
             "answer": answer,
+            "llm_model": llm_model,
             "context": context,
             "low_confidence": low_confidence,
             "best_relevance": best_relevance,

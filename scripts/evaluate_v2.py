@@ -276,6 +276,9 @@ def run_generation(args, settings, out_dir: Path) -> None:
         rows.append({
             "query_id": q["query_id"], "type": q["type"], "query": q["query"], "answer": res["answer"],
             "context": res["context"], "low_confidence": res["low_confidence"], "best_relevance": res["best_relevance"],
+            "generator_model": res.get("llm_model"),
+            "generator_attribution": "no_llm_call" if res["low_confidence"] or not res["context"] else
+                                     ("recorded" if res.get("llm_model") else "unknown (cache hit before tracking)"),
             "citation_check": cc,
             "target_in_precedents": any(p["doc_id"] in (q.get("target_doc_ids") or []) for p in res["precedents"]),
             "llm_sec": res["timings"].get("llm_generation_sec"), "wall_sec": round(time.perf_counter() - t0, 1),
@@ -340,6 +343,32 @@ def run_judge(args, settings, out_dir: Path) -> None:
         flag = "" if n_gen == jp["n_precedents"] else "  MISMATCH"
         print(f"[judge] {a['query_id']} | precedents generator={n_gen} judge={jp['n_precedents']}{flag} | "
               f"shortened={jp['shortened']} -> {score if score else 'FAILED (no valid JSON / quota)'}", flush=True)
+
+
+def attribute_from_log(out_dir: Path, settings, log_path: Path) -> None:
+    """Fill generator_model for saved answers that lack a recorded one, from the --llm-only log's fallback trace."""
+    path = out_dir / "generation_answers.json"
+    rows = read_json(path, [])
+    if not rows or not log_path.exists():
+        print(f"[attr] nothing to do (answers: {len(rows)}, log exists: {log_path.exists()})")
+        return
+    chain = [settings.llm_model] + [m for m in settings.llm_fallback_models if m != settings.llm_model]
+    found = bv.attribute_generators_from_log(log_path.read_text(encoding="utf-8", errors="replace").splitlines(), chain)
+    n = 0
+    for r in rows:
+        if r.get("generator_attribution") == "recorded":
+            continue
+        a = found.get(r["query_id"])
+        if a is None:
+            r["generator_model"], r["generator_attribution"] = "unknown", "unknown (no [gen] line in the log)"
+        else:
+            r["generator_model"], r["generator_attribution"] = a["model"], f"{a['source']} (probable)"
+            n += 1
+    write_json(path, rows)
+    counts = {}
+    for r in rows:
+        counts[str(r.get("generator_model"))] = counts.get(str(r.get("generator_model")), 0) + 1
+    print(f"[attr] chain {chain} | attributed {n} from {log_path.name} | generator models: {counts}", flush=True)
 
 
 def print_oos(answers: List[Dict[str, Any]]) -> None:
@@ -407,9 +436,18 @@ def generation_summary(out_dir: Path, settings) -> Dict[str, Any]:
     ins = [a for a in answers if a["type"] != "out_of_scope"]
     oos = [a for a in answers if a["type"] == "out_of_scope"]
     prec = [a["citation_check"]["citation_precision"] for a in ins if a["citation_check"]["citation_precision"] is not None]
+    split = bv.judge_exclusion(judge_rows, {a["query_id"]: a for a in answers})
+    used = split["included"]
+    gen_models: Dict[str, int] = {}
+    for a in answers:
+        k = str(a.get("generator_model")) if "generator_model" in a else "not recorded"
+        gen_models[k] = gen_models.get(k, 0) + 1
+    attributions = sorted({str(a.get("generator_attribution", "not recorded")) for a in answers})
     return {
         "status": "run",
         "answer_model": settings.llm_model,
+        "generator_models": gen_models,
+        "generator_attribution": attributions,
         "n_answers": len(ins),
         "n_low_confidence": sum(a["low_confidence"] for a in ins),
         "citation_precision_mean": round(statistics.mean(prec), 4) if prec else None,
@@ -427,7 +465,11 @@ def generation_summary(out_dir: Path, settings) -> Dict[str, Any]:
         "judge_model": sorted({r.get("judge_model", settings.gemini_model) for r in judged}) or None,
         "n_judge_attempted": len(judge_rows),
         "n_judged": len(judged),
-        "judge_means": {d: round(statistics.mean(r["scores"][d] for r in judged), 2) for d in JUDGE_DIMS} if judged else None,
+        "n_judge_excluded_same_model": len(split["excluded"]),
+        "n_judge_unknown_generator": len(split["unknown"]),
+        "n_judge_in_means": len(used),
+        # means EXCLUDE answers whose generator model == judge model (unknown-generator answers stay in, flagged)
+        "judge_means": {d: round(statistics.mean(r["scores"][d] for r in used), 2) for d in JUDGE_DIMS} if used else None,
     }
 
 
@@ -474,7 +516,10 @@ def print_summary(agg: Dict[str, Any], out_dir: Path) -> None:
               f"target among precedents {g['target_in_precedents']}/{g['n_answers']}")
         print(f"out-of-scope via answer path: refusal rate {g['oos_refusal_rate']} (n={g['oos_n']}, low-confidence "
               f"{g['oos_low_confidence']})")
-        print(f"judge: n judged = {g['n_judged']} of {g['n_judge_attempted']}, judge = {g['judge']} | means over judged rows: {g['judge_means']}")
+        print(f"judge: judged {g['n_judged']}, excluded {g['n_judge_excluded_same_model']} (same model as judge), "
+              f"unknown generator {g['n_judge_unknown_generator']} (kept, flagged) | n judged = {g['n_judged']} of "
+              f"{g['n_judge_attempted']}, judge = {g['judge']} | means over {g['n_judge_in_means']}: {g['judge_means']}")
+        print(f"generator models: {g['generator_models']} | attribution: {g['generator_attribution']}")
     else:
         print("generation: not run")
     # sanity check of the ground-truth matching: first query of each type + first Full miss
@@ -521,7 +566,21 @@ def write_markdown(path: Path, results: Dict[str, Any], manifest: Dict[str, Any]
           f"Out-of-scope best relevance: {cal['oos_best_relevance']}; current MIN_RELEVANCE {cal['current_min_relevance']}.", "",
           "| Threshold | OOS refused | In-scope refused | Refused among Hit@1 queries |", "|---|---|---|---|"]
     L += [f"| {s['threshold']} | {s['oos_refused']} | {s['in_scope_refused']} | {s['hit1_refused']} |" for s in cal["sweep"]]
-    L += ["", "## Generation", "", "```json", json.dumps(results["generation"], indent=1), "```", ""]
+    g = results["generation"]
+    L += ["", "## Generation", ""]
+    if g.get("status") == "run":
+        attr = g.get("generator_attribution") or []
+        if any(a.startswith("unknown") or a == "not recorded" for a in attr) or g.get("n_judge_unknown_generator"):
+            L.append("**Generator-model attribution is incomplete.** For some answers the model that produced them "
+                     "(gpt-oss-120b or one of its fallbacks) could not be determined; those answers are kept in the "
+                     "judge means and flagged (`n_judge_unknown_generator`). Attribution sources: " + ", ".join(attr) + ".")
+        elif any("probable" in a for a in attr):
+            L.append("Generator models were reconstructed from the fallback warnings in the generation log (probable, not "
+                     "recorded at call time). Attribution sources: " + ", ".join(attr) + ".")
+        L.append(f"Judge means exclude {g.get('n_judge_excluded_same_model', 0)} answer(s) whose generator model is the "
+                 f"judge model; means are over {g.get('n_judge_in_means')} of {g.get('n_judged')} judged answers.")
+        L.append("")
+    L += ["```json", json.dumps(g, indent=1), "```", ""]
     path.write_text("\n".join(L), encoding="utf-8")
 
 
@@ -549,11 +608,16 @@ def main() -> None:
                     help="groq = the OpenAI-compatible LLM_BASE_URL route with ONLY --judge-model (no fallbacks)")
     ap.add_argument("--judge-model", default=None, help="Judge model (gemini: default GEMINI_MODEL; groq: required)")
     ap.add_argument("--max-queries", type=int, default=None, help="Smoke test only")
+    ap.add_argument("--attribute-from-log", default=None,
+                    help="With --results-only: fill generator_model for saved answers from this --llm-only log "
+                         "(fallback-warning trace; probable, not recorded)")
     args = ap.parse_args()
 
     settings = get_settings()
     out_dir = settings.benchmarks_dir / args.tag
     out_dir.mkdir(parents=True, exist_ok=True)
+    if args.attribute_from_log:
+        attribute_from_log(out_dir, settings, Path(args.attribute_from_log).expanduser())
     if args.llm_only:
         run_generation(args, settings, out_dir)
     elif args.judge_only:
