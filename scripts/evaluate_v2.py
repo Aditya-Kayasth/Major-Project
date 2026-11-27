@@ -150,12 +150,18 @@ def judge_prompt(question: str, context: str, answer: str, max_chars: int = 2400
     return {"prompt": prompt, "n_precedents": n, "shortened": fit["shortened"]}
 
 
-def judge(client, settings, question: str, context: str, answer: str) -> Optional[Dict[str, Any]]:
+def judge(client, settings, question: str, context: str, answer: str, provider: str = "gemini",
+          model: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Score one answer. provider 'gemini' (GEMINI_MODEL) or 'groq' (exactly `model` on the OpenAI-compatible
+    route, never the generator or its fallbacks)."""
     prompt = judge_prompt(question, context, answer)["prompt"]
-    raw = get_budget(settings).generate(client=client, models=[settings.gemini_model, "gemini-flash-latest"],
-                                        contents=prompt, providers=["gemini"],
-                                        config=gen_config(system_instruction=JUDGE_SYSTEM, temperature=0.0,
-                                                          response_mime_type="application/json"))
+    cfg = gen_config(system_instruction=JUDGE_SYSTEM, temperature=0.0, response_mime_type="application/json")
+    if provider == "groq":
+        raw = get_budget(settings).generate(client=None, models=[], contents=prompt, providers=["openai"],
+                                            compat_models=[model], config=cfg)
+    else:
+        raw = get_budget(settings).generate(client=client, models=[model or settings.gemini_model, "gemini-flash-latest"],
+                                            contents=prompt, providers=["gemini"], config=cfg)
     try:
         data = json.loads(raw.strip()) if raw else None
     except Exception:
@@ -285,22 +291,37 @@ def run_judge(args, settings, out_dir: Path) -> None:
     answers = read_json(out_dir / "generation_answers.json", [])
     if not answers:
         sys.exit("[ERROR] generation_answers.json missing or empty: run --llm-only first.")
-    client = make_gemini_client(settings.gemini_api_key)
-    if client is None:
-        sys.exit("[ERROR] Gemini is not configured (GEMINI_API_KEY): the judge cannot run.")
+    provider = args.judge_provider
+    client = None
+    if provider == "gemini":
+        model = args.judge_model or settings.gemini_model
+        client = make_gemini_client(settings.gemini_api_key)
+        if client is None:
+            sys.exit("[ERROR] Gemini is not configured (GEMINI_API_KEY): the judge cannot run.")
+    else:
+        model = args.judge_model
+        if not model:
+            sys.exit("[ERROR] --judge-provider groq needs --judge-model (e.g. qwen/qwen3.8-27b).")
+        if model == settings.llm_model:
+            sys.exit(f"[ERROR] judge model {model} is the answer generator; pick a different model.")
+        if not settings.llm_api_key:
+            sys.exit("[ERROR] LLM_API_KEY (Groq) is not configured: the judge cannot run.")
     path = out_dir / "judge_rows.json"
     rows: List[Dict[str, Any]] = read_json(path, [])
     if args.redo:  # --judge-only --redo all | <types> | <ids>: drop those judge rows and judge again
         redo = set(args.redo)
         rows = [] if "all" in redo else [r for r in rows if r["type"] not in redo and r["query_id"] not in redo]
-        write_json(path, rows)
-        print(f"[judge] --redo {sorted(redo)}: {len(rows)} judge rows kept", flush=True)
+    failed = [r for r in rows if not r.get("scores")]
+    rows = [r for r in rows if r.get("scores")]  # FAILED rows are always retried
+    write_json(path, rows)
+    print(f"[judge] kept {len(rows)} judged rows | retrying {len(failed)} FAILED | provider {provider} | model {model}",
+          flush=True)
     print_oos(answers)
     done = {r["query_id"] for r in rows}
     todo = [a for a in answers if a["type"] != "out_of_scope" and not a["low_confidence"] and a["context"]
             and not a["citation_check"]["refused"]][: args.judge_n]
     print(f"[judge] {len(todo)} answers to judge (max {args.judge_n}); {len(done)} already done; delay "
-          f"{args.judge_delay}s; model {settings.gemini_model}", flush=True)
+          f"{args.judge_delay}s", flush=True)
     first = True
     for a in todo:
         if a["query_id"] in done:
@@ -310,8 +331,9 @@ def run_judge(args, settings, out_dir: Path) -> None:
         first = False
         n_gen = a["citation_check"]["n_precedents"]
         jp = judge_prompt(a["query"], a["context"], a["answer"])
-        score = judge(client, settings, a["query"], a["context"], a["answer"])
+        score = judge(client, settings, a["query"], a["context"], a["answer"], provider=provider, model=model)
         rows.append({"query_id": a["query_id"], "type": a["type"], "scores": score,
+                     "judge_provider": provider, "judge_model": model,
                      "n_precedents_generator": n_gen, "n_precedents_judge": jp["n_precedents"],
                      "passages_shortened": jp["shortened"]})
         write_json(path, rows)  # after EVERY call
@@ -377,7 +399,9 @@ def aggregate(out_dir: Path, settings) -> Optional[Dict[str, Any]]:
 
 def generation_summary(out_dir: Path, settings) -> Dict[str, Any]:
     answers = read_json(out_dir / "generation_answers.json", [])
-    judged = [r for r in read_json(out_dir / "judge_rows.json", []) if r.get("scores")]
+    judge_rows = read_json(out_dir / "judge_rows.json", [])
+    judged = [r for r in judge_rows if r.get("scores")]
+    judges = sorted({f"{r.get('judge_provider', 'gemini')}:{r.get('judge_model', settings.gemini_model)}" for r in judged})
     if not answers:
         return {"status": "not run"}
     ins = [a for a in answers if a["type"] != "out_of_scope"]
@@ -398,7 +422,10 @@ def generation_summary(out_dir: Path, settings) -> Dict[str, Any]:
         "oos_n": len(oos),
         "oos_refusal_rate": round(sum(a["citation_check"]["refused"] for a in oos) / len(oos), 4) if oos else None,
         "oos_low_confidence": sum(a["low_confidence"] for a in oos),
-        "judge": f"gemini ({settings.gemini_model})" if judged else "not run",
+        "judge": ", ".join(judges) if judges else "not run",
+        "judge_provider": sorted({r.get("judge_provider", "gemini") for r in judged}) or None,
+        "judge_model": sorted({r.get("judge_model", settings.gemini_model) for r in judged}) or None,
+        "n_judge_attempted": len(judge_rows),
         "n_judged": len(judged),
         "judge_means": {d: round(statistics.mean(r["scores"][d] for r in judged), 2) for d in JUDGE_DIMS} if judged else None,
     }
@@ -446,7 +473,8 @@ def print_summary(agg: Dict[str, Any], out_dir: Path) -> None:
               f"citations in {g['answers_with_unknown_citations']} | ends with verify {g['ends_with_verify']}/{g['n_answers']} | "
               f"target among precedents {g['target_in_precedents']}/{g['n_answers']}")
         print(f"out-of-scope via answer path: refusal rate {g['oos_refusal_rate']} (n={g['oos_n']}, low-confidence "
-              f"{g['oos_low_confidence']}) | judge: {g['judge']} n={g['n_judged']} means {g['judge_means']}")
+              f"{g['oos_low_confidence']})")
+        print(f"judge: n judged = {g['n_judged']} of {g['n_judge_attempted']}, judge = {g['judge']} | means over judged rows: {g['judge_means']}")
     else:
         print("generation: not run")
     # sanity check of the ground-truth matching: first query of each type + first Full miss
@@ -517,6 +545,9 @@ def main() -> None:
                          "(e.g. --redo out_of_scope, or --redo out_of_scope legal_issue fact_pattern for all)")
     ap.add_argument("--judge-n", type=int, default=10, help="Max answers to judge (step 3)")
     ap.add_argument("--judge-delay", type=float, default=20.0, help="Seconds between judge calls")
+    ap.add_argument("--judge-provider", choices=["gemini", "groq"], default="gemini",
+                    help="groq = the OpenAI-compatible LLM_BASE_URL route with ONLY --judge-model (no fallbacks)")
+    ap.add_argument("--judge-model", default=None, help="Judge model (gemini: default GEMINI_MODEL; groq: required)")
     ap.add_argument("--max-queries", type=int, default=None, help="Smoke test only")
     args = ap.parse_args()
 

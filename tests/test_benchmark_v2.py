@@ -124,6 +124,49 @@ class TestJudgeContext(unittest.TestCase):
         self.assertIn("[Precedent 5] Case 5 |", jp["prompt"])
 
 
+class TestGroqJudgeRoute(unittest.TestCase):
+    """Gemini free tier exhausted: the judge runs on Groq with ONLY --judge-model (never the generator)."""
+
+    def test_only_the_judge_model_is_called(self):
+        from unittest.mock import MagicMock, patch
+
+        from src.llm_budget import GeminiBudget
+        from tests._isolated import isolated_settings
+
+        tmp, s = isolated_settings(llm_api_key="dummy", llm_model="openai/gpt-oss-120b",
+                                   llm_fallback_models=["openai/gpt-oss-20b"], llm_rpm=1000.0)
+        try:
+            b = GeminiBudget(s)
+            ok = MagicMock(status_code=200, headers={})
+            ok.json.return_value = {"choices": [{"message": {"content": '{"groundedness": 9}'}}]}
+            with patch("httpx.post", return_value=ok) as post:
+                out = b.generate(client=object(), models=[], contents="judge this", use_cache=False,
+                                 providers=["openai"], compat_models=["qwen/qwen3.8-27b"])
+            self.assertEqual(out, '{"groundedness": 9}')
+            self.assertEqual([c.kwargs["json"]["model"] for c in post.call_args_list], ["qwen/qwen3.8-27b"])
+        finally:
+            tmp.cleanup()
+
+    def test_rate_limited_judge_does_not_fall_back_to_generator(self):
+        from unittest.mock import MagicMock, patch
+
+        from src.llm_budget import GeminiBudget
+        from tests._isolated import isolated_settings
+
+        tmp, s = isolated_settings(llm_api_key="dummy", llm_model="openai/gpt-oss-120b",
+                                   llm_fallback_models=["openai/gpt-oss-20b"], llm_rpm=1000.0)
+        try:
+            b = GeminiBudget(s)
+            bad = MagicMock(status_code=400, headers={}, text="bad request")
+            with patch("httpx.post", return_value=bad) as post:
+                out = b.generate(client=None, models=[], contents="judge this", use_cache=False,
+                                 providers=["openai"], compat_models=["qwen/qwen3.8-27b"], max_retries=0)
+            self.assertIsNone(out)
+            self.assertTrue(all(c.kwargs["json"]["model"] == "qwen/qwen3.8-27b" for c in post.call_args_list))
+        finally:
+            tmp.cleanup()
+
+
 class TestJudgeProviderSwitch(unittest.TestCase):
     def test_providers_restricts_chain(self):
         from src.llm_budget import GeminiBudget

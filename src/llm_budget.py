@@ -165,6 +165,7 @@ class GeminiBudget:
         use_cache: bool = True,
         max_retries: int = 3,
         providers: Optional[List[str]] = None,
+        compat_models: Optional[List[str]] = None,
     ) -> Optional[str]:
         """Generate text via the provider chain with caching. None if every provider fails.
 
@@ -173,6 +174,8 @@ class GeminiBudget:
         out-of-quota provider transparently hands over to the next one.
         ``providers`` restricts the chain (e.g. ["gemini"] for the LLM judge, so the judge is
         never the same model family as the answer generator).
+        ``compat_models`` replaces LLM_MODEL + LLM_FALLBACK_MODELS on the OpenAI-compatible route with
+        exactly these models (e.g. a Groq judge model, with no fallback to the generator model).
         """
         system = getattr(config, "system_instruction", None) if config else None
         json_mode = getattr(config, "response_mime_type", None) == "application/json" if config else False
@@ -182,6 +185,8 @@ class GeminiBudget:
         if providers is not None:
             chain = [p for p in chain if p in providers]
         engine = self._engine_label(chain[0]) if chain else ""
+        if compat_models and chain and chain[0] == "openai":
+            engine = "compat-only:" + ",".join(compat_models)
         key_src = json.dumps([engine, str(system), str(contents)], ensure_ascii=False)
         cache_key = hashlib.sha256(key_src.encode("utf-8")).hexdigest()
         if use_cache:
@@ -194,7 +199,8 @@ class GeminiBudget:
             if i > 0:
                 logger.info(f"Falling back to {self._engine_label(provider)} for this call.")
             if provider == "openai":
-                text = self._generate_compat(contents, system, json_mode, temperature, max_retries)
+                text = self._generate_compat(contents, system, json_mode, temperature, max_retries,
+                                             models_override=compat_models)
             elif provider == "gemini":
                 text = self._generate_gemini(client, models, contents, config, max_retries)
             else:
@@ -214,6 +220,7 @@ class GeminiBudget:
         json_mode: bool,
         temperature: Optional[float],
         max_retries: int,
+        models_override: Optional[List[str]] = None,
     ) -> Optional[str]:
         """Call any OpenAI-compatible /chat/completions endpoint (Groq, Cerebras, OpenRouter, ...)."""
         import httpx
@@ -239,7 +246,7 @@ class GeminiBudget:
 
         # Providers such as Groq rate-limit each model separately, so a rate-limited primary
         # model hands over to LLM_FALLBACK_MODELS instead of stalling (important for a live demo).
-        models = [self.settings.llm_model] + [
+        models = list(models_override) if models_override else [self.settings.llm_model] + [
             m for m in self.settings.llm_fallback_models if m and m != self.settings.llm_model
         ]
         for m_idx, model_name in enumerate(models):
