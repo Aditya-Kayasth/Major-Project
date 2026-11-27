@@ -112,26 +112,28 @@ def load_queries(out_dir: Path, db_path: Path, name: str = "queries_v2.json") ->
     return queries
 
 
-def rank(pipe, cfg: str, query: str, k: int = 10) -> Dict[str, Any]:
+def rank(pipe, cfg: str, query: str, k: int = 10, exclude=()) -> Dict[str, Any]:
     from src.rag_pipeline import dedupe_by_judgment, judgment_key
 
     vs = pipe.vector_store
+    ex = set(exclude)
+    kk = k + len(ex)  # fetch extra so that removing the excluded judgment still leaves k
     t0 = time.perf_counter()
     extra: Dict[str, Any] = {}
     if cfg == "dense":
-        ranking = [judgment_key(h) for h in dedupe_by_judgment(vs.query_dense(query, top_k=100))][:k]
+        ranking = [judgment_key(h) for h in dedupe_by_judgment(vs.query_dense(query, top_k=100))][:kk]
     elif cfg == "bm25":
-        ranking = [judgment_key(h) for h in dedupe_by_judgment(vs.query_bm25(query, top_k=100))][:k]
+        ranking = [judgment_key(h) for h in dedupe_by_judgment(vs.query_bm25(query, top_k=100))][:kk]
     elif cfg == "hybrid_rrf":
         fused = pipe.compute_rrf(vs.query_dense(query, top_k=60), vs.query_bm25(query, top_k=60), k=60)
-        ranking = [judgment_key(h) for h in dedupe_by_judgment(fused)][:k]
+        ranking = [judgment_key(h) for h in dedupe_by_judgment(fused)][:kk]
     else:
-        out = pipe.retrieve_hybrid(query=query, top_k=k, candidate_pool_size=60,
+        out = pipe.retrieve_hybrid(query=query, top_k=kk, candidate_pool_size=60,
                                    use_authority=False if cfg == "full_no_prior" else None)
-        ranking = bv.full_ranking([g["doc_id"] for g in out["judgments"]], out["fused_doc_order"], k)
-        extra["best_relevance"] = max((g["relevance"] for g in out["judgments"]), default=0.0)
+        ranking = bv.full_ranking([g["doc_id"] for g in out["judgments"]], out["fused_doc_order"], kk)
+        extra["best_relevance"] = max((g["relevance"] for g in out["judgments"] if g["doc_id"] not in ex), default=0.0)
     extra["ms"] = (time.perf_counter() - t0) * 1000.0
-    extra["ranking"] = ranking
+    extra["ranking"] = bv.exclude_and_cut(ranking, ex, k)
     return extra
 
 
@@ -178,7 +180,7 @@ def run_retrieval(args, settings, out_dir: Path) -> None:
         rec = {"query_id": q["query_id"], "type": q["type"], "year": q.get("year"), "targets": q["target_doc_ids"],
                "query": q["query"][:200], "target_title": q.get("target_title"), "target_citation": q.get("target_citation")}
         for cfg in CONFIGS:
-            r = rank(pipe, cfg, q["query"])
+            r = rank(pipe, cfg, q["query"], exclude=q.get("exclude_doc_ids") or () if args.exclude_self else ())
             m = bv.query_metrics(r["ranking"], q["target_doc_ids"])
             rec[cfg] = {**m, "ms": round(r["ms"], 1), "top3": r["ranking"][:3],
                         **({"best_relevance": round(r["best_relevance"], 4)} if "best_relevance" in r else {})}
@@ -209,7 +211,8 @@ def run_retrieval(args, settings, out_dir: Path) -> None:
         "chunking": {"parent": settings.parent_chunk_size, "child": settings.child_chunk_size, "overlap": settings.chunk_overlap},
         "retrieval": {"rerank_top_n": settings.rerank_top_n, "passages_per_judgment": settings.passages_per_judgment,
                       "authority_strength": settings.authority_strength, "authority_max_bonus": settings.authority_max_bonus,
-                      "min_relevance": settings.min_relevance, "candidate_pool": 60, "k": 10},
+                      "min_relevance": settings.min_relevance, "candidate_pool": 60, "k": 10,
+                      "exclude_self": bool(args.exclude_self)},
         "seed": SEED, "bootstrap_resamples": 1000,
         "queries": {"file_sha1": hashlib.sha1(queries_path(out_dir, args.queries).read_bytes()).hexdigest()[:12],
                     "counts": {t: sum(1 for q in queries if q["type"] == t) for t in sorted({q["type"] for q in queries})}},
@@ -466,7 +469,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Evaluate benchmark v2 (resumable steps)")
     ap.add_argument("--collection", default="sc_criminal_cpu")
     ap.add_argument("--queries", default="queries_v2.json", help="Queries file in the benchmark folder (v3: citation_queries_v3.json)")
-    ap.add_argument("--tag", default="v2", help="Benchmark folder under BENCHMARKS_DIR (v2, v3)")
+    ap.add_argument("--tag", default="v2", help="Benchmark folder under BENCHMARKS_DIR (v2, v3a, v3b)")
+    ap.add_argument("--exclude-self", action="store_true",
+                    help="Remove each query's exclude_doc_ids (v3b: the citing judgment) from every ranking before scoring")
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--skip-llm", action="store_true", help="Step 1 only: retrieval metrics")
     mode.add_argument("--llm-only", action="store_true", help="Step 2 only: answers, reusing per_query.json")

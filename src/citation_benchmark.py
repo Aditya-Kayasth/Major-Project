@@ -20,8 +20,17 @@ INSC_RE = re.compile(r"\b((?:19|20)\d{2})\s*INSC\s*(\d{1,5})\b")
 SCC_RE = re.compile(r"\(\d{4}\)\s*\d{1,2}\s*SCC\s*\d{1,4}")
 AIR_RE = re.compile(r"\bAIR\s*\d{4}\s*SC\s*\d{1,5}\b")
 CASE_NAME_RE = re.compile(
-    r"([A-Z][A-Za-z.&'@\-]*(?:\s+[A-Za-z.&'@\-]+){0,8}?)\s+(?:v\.|vs\.?|versus)\s+"
-    r"([A-Z][A-Za-z.&'@\-]*(?:\s+[A-Za-z.&'@\-]+){0,8}?)(?=\s*[,;:(\[]|\s*$|\s+\d|\s+(?:and|where|in|it|the|this)\b)")
+    r"([A-Z][A-Za-z.&'@\-]*(?:\s+[A-Za-z.&'@\-()]+){0,10}?)\s+(?:v\.?|vs\.?|versus)\s+"
+    r"([A-Z][A-Za-z.&'@\-]*(?:\s+[A-Za-z.&'@\-()]+){0,10}?)(?=\s*[,;:\[]|\s*\(\d|\s*$|\s+\d|\s+(?:and|where|in|it|the|this|was|is)\b)")
+# Suffixes that are not part of a party's identity
+_PARTY_NOISE = [
+    re.compile(r"\(\s*(?:dead|d)\s*\)", re.IGNORECASE),
+    re.compile(r"\b(?:thr(?:ough)?\.?)\s+(?:(?:his|her|their)\s+)?(?:l\.?\s?r\.?s?\.?|legal\s+(?:heirs?|representatives?))", re.IGNORECASE),
+    re.compile(r"\s*(?:&|and)\s+(?:ors|anr|others|another|connected\s+matters?)\b\.?", re.IGNORECASE),
+    re.compile(r"\betc\.?", re.IGNORECASE),
+]
+_LEAD_WORDS = {"in", "see", "also", "similarly", "held", "cf", "vide", "and", "as", "of", "the", "judgment", "decision",
+               "case", "reliance", "relied", "placed", "on", "upon", "per", "while", "where", "this", "court"}
 ISSUE_RE = re.compile(r"Issue\s+for\s+[Cc]onsideration\s*:?\s*(.*?)(?=\n\s*(?:Headnotes?|HEADNOTES?)\b|\Z)", re.DOTALL)
 CORPUS_YEARS = range(2018, 2026)
 
@@ -36,8 +45,24 @@ def insc_key(text: Optional[str]) -> Optional[str]:
     return f"{int(m.group(1))} INSC {int(m.group(2))}" if m else None
 
 
-def _party_key(name: Optional[str]) -> frozenset:
-    return frozenset(bv.party_tokens(name))
+def normalize_party(name: Optional[str], cited: bool = False) -> str:
+    """'Mehboob-ur-Rehman (Dead) through LRs & Ors.' -> 'Mehboob-ur-Rehman'. For a cited first party,
+    leading sentence words are dropped ('Reliance was placed on Sugreev Kumar' -> 'Sugreev Kumar')."""
+    s = name or ""
+    for rx in _PARTY_NOISE:
+        s = rx.sub(" ", s)
+    toks = s.split()
+    if cited:
+        last_lower = max((i for i, t in enumerate(toks) if t[:1].islower() and t.lower() not in ("ur", "bin", "binti")),
+                         default=-1)
+        toks = toks[last_lower + 1:] if last_lower < len(toks) - 1 else toks
+        while toks and toks[0].lower().strip(".,") in _LEAD_WORDS:
+            toks = toks[1:]
+    return " ".join(toks).strip(" ,.&")
+
+
+def _party_key(name: Optional[str], cited: bool = False) -> frozenset:
+    return frozenset(bv.party_tokens(normalize_party(name, cited)))
 
 
 def build_corpus_index(rows: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
@@ -81,12 +106,18 @@ def name_match(a: str, b: str, year: Optional[int], index: Dict[str, Any]) -> Op
     """Conservative: both party keys contained in the corpus parties, same year (2018-2025), exactly one hit."""
     if year not in CORPUS_YEARS:
         return None
-    ka, kb = _party_key(a), _party_key(b)
+    ka, kb = _party_key(a, cited=True), _party_key(b)
     if not ka:
         return None
     hits = {doc for pk, rk, y, doc in index["names"]
             if y == year and pk and ka <= pk and ((kb and rk and kb <= rk) or (not kb and not rk))}
     return next(iter(hits)) if len(hits) == 1 else None
+
+
+def unmatched_names(cites: Dict[str, Any], index: Dict[str, Any]) -> List[str]:
+    """Cited case names with a corpus year (2018-2025) that did NOT match (for the build log)."""
+    return [f"{normalize_party(a, cited=True)} v. {normalize_party(b)} ({y})" for a, b, y in cites["names"]
+            if y in CORPUS_YEARS and name_match(a, b, y, index) is None]
 
 
 def map_targets(cites: Dict[str, Any], index: Dict[str, Any], use_names: bool = True,

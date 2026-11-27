@@ -47,10 +47,24 @@ Counts per year (CLAUDE.md D2, reproduced exactly by this run): 2018: 185, 2019:
 | Disposition (PDF end text vs `disposal_nature`) | agrees 1,667 / 1,690 |
 | Judgments with ≥ 1 statute section found | 1,751 / 1,889 |
 
-## Benchmark v3: held-out citation benchmark (unseen 2026 judgments)
+## Benchmark v3: citation benchmarks (v3a held-out 2026, v3b in-corpus)
 
-- **Idea:** the query is the court-written "Issue for Consideration" of an **unseen 2026 judgment**; the relevant documents are **the precedents the Court itself cited** in that judgment.
-- **Build:** `scripts/build_citation_benchmark.py`; queries go to `$BENCHMARKS_DIR/v3/citation_queries_v3.json`.
+- **Idea:** the query is the court-written "Issue for Consideration" of a judgment; the relevant documents are **the precedents the Court itself cited** in that judgment.
+- **v3a, held-out:** the citing judgments are **unseen 2026 judgments**.
+  - The first build gave 77 criminal 2026 judgments, all with an issue text. They contained 4 SCR, 33 neutral, 371 SCC and 46 AIR citations, plus 453 case names.
+  - Of these, 14 neutral citations and 11 name matches mapped to the corpus, leaving **13 queries kept** (mean 1.92 targets). That is too small alone.
+- **v3b, in-corpus:** the citing judgments are **our own indexed 2023–2025 judgments** that have an "Issue for Consideration" headnote.
+  - Sampling: seed 42, capped at 150 queries.
+  - The citing judgment is removed from its own targets, and with `--exclude-self` from **every config's ranking before scoring**. Its own headnote chunk would otherwise sit at rank 1.
+  - The removal happens after retrieval. Its chunks can still take some of the reranked slots (top 30 passages), which slightly handicaps the Full configs; we accept that.
+- **Name matching** (both variants):
+  - normalised separators: v / v. / vs / vs. / versus
+  - stripped suffixes: "& Ors.", "and another", "(Dead) through LRs"
+  - leading sentence words dropped ("Reliance was placed on …")
+  - both party keys, plus the same year 2018–2025, plus exactly one corpus hit
+
+  The build log prints 5 unmatched corpus-year names.
+- **Build:** `scripts/build_citation_benchmark.py --mode both`. It writes `$BENCHMARKS_DIR/v3a/citation_queries_v3a.json` and `$BENCHMARKS_DIR/v3b/citation_queries_v3b.json`, each with a build report.
 - **Source judgments:** 2026 Supreme Court criminal judgments, selected with the same case-number rule (CRIMINAL / CRL), read from the S3 2026 metadata and English PDFs.
   - They are kept apart from the corpus: stored in `$RAW_DATA_DIR/sc_aws_2026/` with their own `manifest_2026.parquet`, and **never indexed** into `sc_criminal_cpu`.
 - **Query:**
@@ -63,16 +77,16 @@ Counts per year (CLAUDE.md D2, reproduced exactly by this run): 2018: 185, 2019:
   3. optionally, by a conservative case-name match (both party keys + the same year 2018–2025 + exactly one corpus hit), flagged `match_type=name`
 
   SCC and AIR citations are counted but cannot be mapped (the corpus has no SCC/AIR metadata). A query is kept if it has at least 1 target.
-- **Evaluation:** `scripts/evaluate_v2.py --queries citation_queries_v3.json --tag v3 --skip-llm`. It runs the same 5 configs, retrieval only, with multi-target metrics:
+- **Evaluation:** `scripts/evaluate_v2.py --queries citation_queries_v3a.json --tag v3a --skip-llm`, and for v3b `--queries citation_queries_v3b.json --tag v3b --exclude-self --skip-llm`. Both run the same 5 configs, retrieval only, with multi-target metrics:
   - Hit@k = any target in the top k
   - MRR@10 on the first target found
   - Recall@10
   - nDCG@10
   - all with 95% bootstrap CIs
 
-  Output goes to `$BENCHMARKS_DIR/v3/`.
+  Output goes to `$BENCHMARKS_DIR/v3a/` and `$BENCHMARKS_DIR/v3b/`.
 - **Limitation:** the labels are **incomplete**. A relevant judgment that the 2026 Court did not cite, or cited only by SCC/AIR, counts as a miss. Absolute v3 scores are therefore **lower bounds**; comparisons between configs on the same labels remain fair.
-- Build report and results: *to be filled from `build_report_v3.json` and `results/v3/results.json` after the run.*
+- Build reports and results: *to be filled from `build_report_v3a.json` / `build_report_v3b.json` and `results/v3a/`, `results/v3b/` after the run.*
 
 ## Findings and rules adopted
 

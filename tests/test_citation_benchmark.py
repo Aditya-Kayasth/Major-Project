@@ -45,6 +45,27 @@ class TestCitations(unittest.TestCase):
         self.assertEqual(cb.map_targets(cb.extract_citations("Sugreev Kumar v. State of Punjab, decided"), self.index), [])
         self.assertEqual(cb.map_targets(cites, self.index, use_names=False), [])
 
+    def test_party_normalisation(self):
+        self.assertEqual(cb.normalize_party("MEHBOOB-UR-REHMAN (D) THR. LRS. & ORS."), "MEHBOOB-UR-REHMAN")
+        self.assertEqual(cb.normalize_party("Mehboob-ur-Rehman (Dead) through LRs and another"), "Mehboob-ur-Rehman")
+        self.assertEqual(cb.normalize_party("Reliance was placed on Sugreev Kumar", cited=True), "Sugreev Kumar")
+        self.assertEqual(cb.normalize_party("In Sugreev Kumar", cited=True), "Sugreev Kumar")
+
+    def test_separators_and_suffixes_still_match(self):
+        index = cb.build_corpus_index(CORPUS + [
+            {"doc_id": "d_mehboob", "year": 2019, "petitioner": "MEHBOOB-UR-REHMAN (D) THR. LRS.",
+             "respondent": "SUDHA SEETHARAM & ANR", "scr_citation": "[2019] 2 S.C.R. 185"}])
+        for text in ("Sugreev Kumar vs State of Punjab (2019) 4 SCC 1", "Sugreev Kumar versus State of Punjab (2019)",
+                     "Sugreev Kumar v State of Punjab (2019)"):
+            with self.subTest(text=text):
+                self.assertEqual([t["doc_id"] for t in cb.map_targets(cb.extract_citations(text), index)], ["d_sugreev"])
+        text = "as held in Mehboob-ur-Rehman (Dead) through LRs v. Sudha Seetharam & Anr. (2019) 13 SCC 234"
+        self.assertEqual([t["doc_id"] for t in cb.map_targets(cb.extract_citations(text), index)], ["d_mehboob"])
+
+    def test_unmatched_names_are_reported(self):
+        cites = cb.extract_citations("See Ramesh Chand v. Suresh Lal (2020) 5 SCC 1.")
+        self.assertEqual(cb.unmatched_names(cites, self.index), ["Ramesh Chand v. Suresh Lal (2020)"])
+
     def test_excluded_self_citation(self):
         cites = cb.extract_citations("[2019] 4 SCR 208")
         self.assertEqual(cb.map_targets(cites, self.index, exclude=["d_sugreev"]), [])

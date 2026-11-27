@@ -178,6 +178,12 @@ def summarize(per_query: List[Dict[str, float]], with_ci: bool = True, seed: int
     return out
 
 
+def exclude_and_cut(ranking: Sequence[str], exclude: Sequence[str], k: int = 10) -> List[str]:
+    """Remove excluded judgments (e.g. the citing judgment itself in v3b) BEFORE scoring, then keep the top k."""
+    ex = set(exclude)
+    return [d for d in ranking if d not in ex][:k]
+
+
 def full_ranking(reranked_doc_ids: Sequence[str], fused_doc_order: Sequence[str], k: int = 10) -> List[str]:
     """Reranked judgments first, then the remaining fused (RRF) judgments in fused order, up to k."""
     seen = []

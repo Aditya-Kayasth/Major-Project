@@ -102,7 +102,7 @@ The ground truth is the target judgment's `doc_id`, and ranking is at judgment l
 - **Scores are lower bounds:** the labels are incomplete, because relevant judgments the Court did not cite count as misses.
 - Construction details are in [docs/data_exploration.md](docs/data_exploration.md).
 
-Results: TODO, from `results/v3/results.json`.
+Results: TODO, from `results/v3a/results.json` (held-out 2026) and `results/v3b/results.json` (in-corpus 2023–2025, citing judgment excluded).
 
 The web UI has an **Evaluation** page that draws these charts in the browser from the same `results.json`.
 

@@ -40,6 +40,11 @@ class TestMetrics(unittest.TestCase):
         self.assertEqual(s["n"], 2)
         self.assertEqual(bv.latency_stats([10, 20, 30])["p50"], 20.0)
 
+    def test_exclude_self_before_scoring(self):
+        ranking = bv.exclude_and_cut(["self", "a", "b"], ["self"], k=2)
+        self.assertEqual(ranking, ["a", "b"])
+        self.assertEqual(bv.query_metrics(ranking, ["a"])["hit@1"], 1.0)  # self no longer occupies rank 1
+
     def test_full_ranking_fills_from_fused(self):
         self.assertEqual(bv.full_ranking(["c", "a"], ["a", "b", "c", "d"], k=3), ["c", "a", "b"])
 
