@@ -14,10 +14,11 @@ function renderMarkdown(md) {
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, "$1<em>$2</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    // [Precedent N] / [Precedents 1 and 3] / [Precedents 1, 2] / [Precedent N, passage M] (server-normalised):
-    // each precedent number links to its card (rank N = Precedent N); the passage number is shown, not linked
-    .replace(/\[(Precedents?) (\d+(?:\s*(?:,|and|&amp;|-)\s*\d+)*)(, passage \d+)?\]/gi, (_, word, nums, psg) =>
-      `<span class="cite">[${word} ${nums.replace(/\d+/g, (n) => `<a href="#judgment-${n}">${n}</a>`)}${psg || ""}]</span>`);
+    // [Precedent N] / [Precedents 1 and 3] / [Precedents 1, 2] / [Precedent N, <any label>] (server-normalised,
+    // e.g. "Para 55-56", "Headnote"): each precedent number links to its card (rank N = Precedent N); the label
+    // is shown as written, not linked
+    .replace(/\[(Precedents?) (\d+(?:\s*(?:,|and|&amp;|-)\s*\d+)*)(, [^\]<\n]*)?\]/gi, (_, word, nums, label) =>
+      `<span class="cite">[${word} ${nums.replace(/\d+/g, (n) => `<a href="#judgment-${n}">${n}</a>`)}${label || ""}]</span>`);
   const lines = escapeHtml(md).split(/\r?\n/);
   let html = "", inList = false, para = [], table = [];
   const flushPara = () => { if (para.length) { html += `<p>${inline(para.join(" "))}</p>`; para = []; } };
