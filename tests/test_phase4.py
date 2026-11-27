@@ -111,6 +111,15 @@ class TestAuthorityAndPrompt(unittest.TestCase):
         self.assertNotIn("Full Bench", GROUNDED_LEGAL_SYSTEM_INSTRUCTION)
         self.assertNotIn("Full", precedent_header(1, {"bench_strength": 3, "bench_type": "Full (3+)"}))
 
+    def test_prompt_scope_rule_for_out_of_scope_questions(self):
+        # OOS-02 (a civil question) was answered from criminal judgments: the prompt must state the corpus scope
+        p = GROUNDED_LEGAL_SYSTEM_INSTRUCTION
+        self.assertIn("The indexed corpus contains only Supreme Court of India CRIMINAL judgments (2018-2025).", p)
+        self.assertIn("If the question is about civil, family, tax, commercial or foreign law and the precedents do not "
+                      "decide that issue, answer exactly: Insufficient precedent in the indexed corpus.", p)
+        # the exact refusal is what the citation check recognises
+        self.assertTrue(check_citations("Insufficient precedent in the indexed corpus.", [])["refused"])
+
     def test_prompt_rules(self):
         p = GROUNDED_LEGAL_SYSTEM_INSTRUCTION
         for rule in ("[Precedent N]", "ratio decidendi", "obiter dicta", "larger bench outweighs a smaller one",

@@ -227,6 +227,15 @@ def run_generation(args, settings, out_dir: Path) -> None:
         sys.exit("[ERROR] per_query.json missing: run the retrieval step first (--skip-llm).")
     path = out_dir / "generation_answers.json"
     rows: List[Dict[str, Any]] = read_json(path, [])
+    if args.redo:  # e.g. --redo out_of_scope: drop those saved rows (and their judge rows) and generate them again
+        redo = set(args.redo)
+        dropped = {r["query_id"] for r in rows if r["type"] in redo or r["query_id"] in redo}
+        rows = [r for r in rows if r["query_id"] not in dropped]
+        write_json(path, rows)
+        jpath = out_dir / "judge_rows.json"
+        if jpath.exists():
+            write_json(jpath, [j for j in read_json(jpath, []) if j["query_id"] not in dropped])
+        print(f"[gen] --redo {sorted(redo)}: dropped {len(dropped)} saved answers", flush=True)
     done = {r["query_id"] for r in rows}
     pipe = IndianLegalRAGPipeline(settings=settings, collection_name=args.collection)
     queries = load_queries(out_dir, pipe.sqlite_store.db_path, args.queries)
@@ -465,6 +474,9 @@ def main() -> None:
     mode.add_argument("--results-only", action="store_true", help="Rebuild results.json/.md from saved files")
     ap.add_argument("--gen-n", type=int, default=15, help="In-scope answers to generate (step 2)")
     ap.add_argument("--gen-top-k", type=int, default=5, help="Judgments given to the LLM per answer")
+    ap.add_argument("--redo", nargs="+", default=None,
+                    help="With --llm-only: query types or ids whose saved answers are dropped and regenerated "
+                         "(e.g. --redo out_of_scope, or --redo out_of_scope legal_issue fact_pattern for all)")
     ap.add_argument("--judge-n", type=int, default=10, help="Max answers to judge (step 3)")
     ap.add_argument("--judge-delay", type=float, default=20.0, help="Seconds between judge calls")
     ap.add_argument("--max-queries", type=int, default=None, help="Smoke test only")
