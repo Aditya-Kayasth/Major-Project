@@ -178,6 +178,31 @@ def summarize(per_query: List[Dict[str, float]], with_ci: bool = True, seed: int
     return out
 
 
+PRECEDENT_HEADER_RE = re.compile(r"^\[Precedent (\d+)\]", re.MULTILINE)
+
+
+def split_precedent_blocks(context: str) -> List[str]:
+    """The generator context ('[Precedent 1] header\\nPassage 1 ...\\n\\n[Precedent 2] ...') as one block per precedent."""
+    starts = [m.start() for m in PRECEDENT_HEADER_RE.finditer(context or "")]
+    return [context[s:e].strip() for s, e in zip(starts, starts[1:] + [len(context)])]
+
+
+def fit_context(context: str, max_chars: int = 24000, min_body: int = 300) -> Dict[str, Any]:
+    """Shorten PASSAGES (never drop a precedent) so the judge sees all N headers within max_chars."""
+    blocks = split_precedent_blocks(context)
+    if not blocks:
+        return {"text": context or "", "n_precedents": 0, "shortened": False}
+    if len(context) <= max_chars:
+        return {"text": context, "n_precedents": len(blocks), "shortened": False}
+    budget = max(min_body, max_chars // len(blocks))
+    out = []
+    for b in blocks:
+        header, _, body = b.partition("\n")
+        room = max(min_body, budget - len(header) - 1)
+        out.append(header + "\n" + (body if len(body) <= room else body[:room].rstrip() + " [...]"))
+    return {"text": "\n\n".join(out), "n_precedents": len(blocks), "shortened": True}
+
+
 def exclude_and_cut(ranking: Sequence[str], exclude: Sequence[str], k: int = 10) -> List[str]:
     """Remove excluded judgments (e.g. the citing judgment itself in v3b) BEFORE scoring, then keep the top k."""
     ex = set(exclude)

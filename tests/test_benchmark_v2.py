@@ -87,6 +87,43 @@ class TestAllocationAndTemplates(unittest.TestCase):
         self.assertEqual(tpl[0]["query"], "")
 
 
+def _context(n=5, passage_len=3000):
+    """Same shape as rag_pipeline.build_context: one block per judgment, header + passages."""
+    return "\n\n".join(f"[Precedent {i}] Case {i} | {2019 + i} INSC {i} | 2020 | Division Bench (2 judges): A; B | "
+                       f"author: A | disposal: Dismissed | role: Ratio/Analysis\nPassage 1 (role: Ratio/Analysis):\n"
+                       + ("text " * (passage_len // 5)) for i in range(1, n + 1))
+
+
+class TestJudgeContext(unittest.TestCase):
+    """Bug seen on the server: the judge got context[:6000] and called [Precedent 4]/[Precedent 5] non-existent."""
+
+    def test_all_precedents_survive_shortening(self):
+        ctx = _context(5, 3000)  # ~16,000 chars
+        fit = bv.fit_context(ctx, max_chars=6000)
+        self.assertEqual(fit["n_precedents"], 5)
+        self.assertTrue(fit["shortened"])
+        for i in range(1, 6):
+            self.assertIn(f"[Precedent {i}] Case {i} |", fit["text"])  # every header kept in full
+        self.assertLess(len(fit["text"]), len(ctx))
+
+    def test_short_context_is_unchanged(self):
+        ctx = _context(3, 200)
+        self.assertEqual(bv.fit_context(ctx, max_chars=24000), {"text": ctx, "n_precedents": 3, "shortened": False})
+
+    def test_judge_prompt_states_valid_range(self):
+        import importlib.util
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location("evaluate_v2", root / "scripts" / "evaluate_v2.py")
+        ev = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ev)
+        jp = ev.judge_prompt("Q?", _context(5, 3000), "Answer citing [Precedent 5].")
+        self.assertEqual(jp["n_precedents"], 5)
+        self.assertIn("Precedents 1..5", jp["prompt"])
+        self.assertIn("[Precedent 5] Case 5 |", jp["prompt"])
+
+
 class TestJudgeProviderSwitch(unittest.TestCase):
     def test_providers_restricts_chain(self):
         from src.llm_budget import GeminiBudget

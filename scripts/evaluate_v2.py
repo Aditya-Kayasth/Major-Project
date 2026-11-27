@@ -137,9 +137,21 @@ def rank(pipe, cfg: str, query: str, k: int = 10, exclude=()) -> Dict[str, Any]:
     return extra
 
 
-def judge(client, settings, question: str, context: str, answer: str) -> Optional[Dict[str, Any]]:
-    prompt = (f"Question:\n{question}\n\nPrecedents given to the system:\n{context[:6000]}\n\n"
+def judge_prompt(question: str, context: str, answer: str, max_chars: int = 24000) -> Dict[str, Any]:
+    """The judge sees EXACTLY the generator's precedent blocks (all N; passages shortened only if needed)."""
+    fit = bv.fit_context(context, max_chars=max_chars)
+    n = fit["n_precedents"]
+    prompt = (f"Question:\n{question}\n\n"
+              f"The answering system was given exactly {n} precedents, numbered [Precedent 1] to [Precedent {n}]. "
+              f"Any citation [Precedent k] with 1 <= k <= {n} refers to a precedent shown below and is NOT invented"
+              f"{' (passages are shortened for length; all precedents are present)' if fit['shortened'] else ''}.\n\n"
+              f"Precedents (valid range: Precedents 1..{n}):\n{fit['text']}\n\n"
               f"Answer to score:\n{answer}\n\nReturn the JSON scores.")
+    return {"prompt": prompt, "n_precedents": n, "shortened": fit["shortened"]}
+
+
+def judge(client, settings, question: str, context: str, answer: str) -> Optional[Dict[str, Any]]:
+    prompt = judge_prompt(question, context, answer)["prompt"]
     raw = get_budget(settings).generate(client=client, models=[settings.gemini_model, "gemini-flash-latest"],
                                         contents=prompt, providers=["gemini"],
                                         config=gen_config(system_instruction=JUDGE_SYSTEM, temperature=0.0,
@@ -232,7 +244,7 @@ def run_generation(args, settings, out_dir: Path) -> None:
     rows: List[Dict[str, Any]] = read_json(path, [])
     if args.redo:  # e.g. --redo out_of_scope: drop those saved rows (and their judge rows) and generate them again
         redo = set(args.redo)
-        dropped = {r["query_id"] for r in rows if r["type"] in redo or r["query_id"] in redo}
+        dropped = {r["query_id"] for r in rows if "all" in redo or r["type"] in redo or r["query_id"] in redo}
         rows = [r for r in rows if r["query_id"] not in dropped]
         write_json(path, rows)
         jpath = out_dir / "judge_rows.json"
@@ -278,6 +290,12 @@ def run_judge(args, settings, out_dir: Path) -> None:
         sys.exit("[ERROR] Gemini is not configured (GEMINI_API_KEY): the judge cannot run.")
     path = out_dir / "judge_rows.json"
     rows: List[Dict[str, Any]] = read_json(path, [])
+    if args.redo:  # --judge-only --redo all | <types> | <ids>: drop those judge rows and judge again
+        redo = set(args.redo)
+        rows = [] if "all" in redo else [r for r in rows if r["type"] not in redo and r["query_id"] not in redo]
+        write_json(path, rows)
+        print(f"[judge] --redo {sorted(redo)}: {len(rows)} judge rows kept", flush=True)
+    print_oos(answers)
     done = {r["query_id"] for r in rows}
     todo = [a for a in answers if a["type"] != "out_of_scope" and not a["low_confidence"] and a["context"]
             and not a["citation_check"]["refused"]][: args.judge_n]
@@ -290,10 +308,24 @@ def run_judge(args, settings, out_dir: Path) -> None:
         if not first:
             time.sleep(args.judge_delay)
         first = False
+        n_gen = a["citation_check"]["n_precedents"]
+        jp = judge_prompt(a["query"], a["context"], a["answer"])
         score = judge(client, settings, a["query"], a["context"], a["answer"])
-        rows.append({"query_id": a["query_id"], "type": a["type"], "scores": score})
+        rows.append({"query_id": a["query_id"], "type": a["type"], "scores": score,
+                     "n_precedents_generator": n_gen, "n_precedents_judge": jp["n_precedents"],
+                     "passages_shortened": jp["shortened"]})
         write_json(path, rows)  # after EVERY call
-        print(f"[judge] {a['query_id']} -> {score if score else 'FAILED (no valid JSON / quota)'}", flush=True)
+        flag = "" if n_gen == jp["n_precedents"] else "  MISMATCH"
+        print(f"[judge] {a['query_id']} | precedents generator={n_gen} judge={jp['n_precedents']}{flag} | "
+              f"shortened={jp['shortened']} -> {score if score else 'FAILED (no valid JSON / quota)'}", flush=True)
+
+
+def print_oos(answers: List[Dict[str, Any]]) -> None:
+    """The out-of-scope queries, as answered: id, refused, low_confidence, query text."""
+    for a in [a for a in answers if a["type"] == "out_of_scope"]:
+        print(f"[oos] {a['query_id']} | refused {a['citation_check']['refused']} | low_conf {a['low_confidence']} | "
+              f"best_rel {a['best_relevance'] if a['best_relevance'] is None else round(a['best_relevance'], 3)} | "
+              f"Q: {a['query']}", flush=True)
 
 
 # --------------------------------------------------------------------------- results (from saved files)
@@ -430,6 +462,7 @@ def print_summary(agg: Dict[str, Any], out_dir: Path) -> None:
               f"{p.get('target_citation')}) | Full rank {p['full']['rank']} recall@10 {p['full']['recall@10']:.2f} | "
               f"Full top1 {top1} | BM25 rank {p['bm25']['rank']}")
     size_kb = (out_dir / "results.json").stat().st_size / 1024
+    print_oos(read_json(out_dir / "generation_answers.json", []))
     print(f"files: $BENCHMARKS_DIR/{out_dir.name}/results.json ({size_kb:.1f} KB), results.md, run_manifest.json, per_query.json")
 
 
@@ -480,7 +513,7 @@ def main() -> None:
     ap.add_argument("--gen-n", type=int, default=15, help="In-scope answers to generate (step 2)")
     ap.add_argument("--gen-top-k", type=int, default=5, help="Judgments given to the LLM per answer")
     ap.add_argument("--redo", nargs="+", default=None,
-                    help="With --llm-only: query types or ids whose saved answers are dropped and regenerated "
+                    help="With --llm-only or --judge-only: 'all', query types or ids whose saved answers / judge rows are dropped and redone "
                          "(e.g. --redo out_of_scope, or --redo out_of_scope legal_issue fact_pattern for all)")
     ap.add_argument("--judge-n", type=int, default=10, help="Max answers to judge (step 3)")
     ap.add_argument("--judge-delay", type=float, default=20.0, help="Seconds between judge calls")
