@@ -68,7 +68,7 @@ document.querySelectorAll(".tab").forEach((btn) => {
   });
 });
 
-/* ---------------------------------------------------------------- status + examples */
+/* ---------------------------------------------------------------- status */
 async function loadStatus() {
   try {
     const s = await api("api/status");
@@ -85,22 +85,6 @@ async function loadStatus() {
   } catch (err) {
     $("#status").innerHTML = `<span class="chip warn">Backend offline: ${escapeHtml(err.message)}</span>`;
   }
-}
-
-async function loadExamples() {
-  try {
-    const demos = await api("api/examples");
-    $("#examples").innerHTML = demos.map((d, i) =>
-      `<button type="button" class="example" data-i="${i}" title="${escapeHtml(d.query)}">${escapeHtml(d.label)}</button>`).join("");
-    document.querySelectorAll(".example").forEach((b) => b.addEventListener("click", () => {
-      const d = demos[Number(b.dataset.i)], f = d.filters || {};
-      $("#query").value = d.query;
-      $("#year-from").value = f.year_from ?? "";
-      $("#year-to").value = f.year_to ?? "";
-      $("#min-bench").value = f.min_bench ?? "";
-      $("#query").focus();
-    }));
-  } catch (_) { /* examples are optional */ }
 }
 
 /* ---------------------------------------------------------------- search */
@@ -150,7 +134,6 @@ function renderResults(results) {
   $("#results").innerHTML = results.map((r) => {
     const statutes = (r.statutes_cited || "").split("; ").filter(Boolean);
     const shown = statutes.slice(0, 6).join("; ") + (statutes.length > 6 ? ` +${statutes.length - 6}` : "");
-    const prior = `${r.authority_factor >= 1 ? "+" : ""}${((r.authority_factor - 1) * 100).toFixed(1)}%`;
     const url = safePdfUrl(r.pdf_url);
     const title = url
       ? `<a class="title-link" href="${url}" target="_blank" rel="noopener">${escapeHtml(r.case_title)}</a>`
@@ -166,7 +149,7 @@ function renderResults(results) {
           ${chip("Disposal", r.disposal_nature)}${chip("Statutes", shown, statutes.join("; "))}
           ${url ? `<a class="pdf-btn" href="${url}" target="_blank" rel="noopener">Open official PDF</a>` : ""}
         </div>
-        <div class="note">relevance ${r.relevance.toFixed(3)} · authority prior ${prior} · score ${r.score.toFixed(3)} · judges: ${escapeHtml(r.judges)}</div>
+        <div class="note">Relevance ${r.relevance.toFixed(3)} · Judges: ${escapeHtml(r.judges)}</div>
         ${r.passages.map((p, i) => `
           <div class="passage">
             <span class="role ${p.section_kind === "headnote" ? "headnote" : ""}">${escapeHtml(p.role)}${p.section_kind === "headnote" ? " (editorial)" : ""}</span>
@@ -399,4 +382,3 @@ async function loadEvaluation() {
 }
 
 loadStatus();
-loadExamples();
